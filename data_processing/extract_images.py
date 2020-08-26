@@ -24,7 +24,9 @@ if __name__ == '__main__':
                 rel_input_dir = dir_name[idx:]
                 if rel_input_dir.startswith('/') or rel_input_dir.startswith('\\'):
                     rel_input_dir = rel_input_dir[1:]
+                target_dir = os.path.join(output_dir, rel_input_dir)    
                 target = os.path.join(output_dir, rel_input_dir, file_name)
                 if not os.path.isfile(target):
+                    os.makedirs(target_dir, exist_ok=True)
                     shutil.copyfile(source, target)
 
