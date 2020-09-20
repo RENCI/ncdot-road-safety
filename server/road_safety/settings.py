@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("SECRET_KEY", '0ngrzna^#=ubx4c-fijxx7762b1!*%8*vu4wyw7qb!ho%0+26p')
+SECRET_KEY = os.environ.get("SECRET_KEY", 'test_secret_key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", True)
@@ -78,9 +78,9 @@ WSGI_APPLICATION = 'road_safety.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': "django.contrib.gis.db.backends.postgis",
-        'NAME': os.environ.get('SQL_DATABASE'),
-        'USER': os.environ.get('SQL_USER'),
-        'PASSWORD': os.environ.get('SQL_PASSWORD'),
+        'NAME': os.environ.get('SQL_DATABASE', 'postgres'),
+        'USER': os.environ.get('SQL_USER', 'postgres'),
+        'PASSWORD': os.environ.get('SQL_PASSWORD', 'postgres'),
         'HOST': 'db',
         'PORT': '5432',
     }
