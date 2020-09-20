@@ -50,6 +50,10 @@ RUN wget -qO - https://packages.irods.org/irods-signing-key.asc | apt-key add - 
 RUN echo "deb http://ftp.us.debian.org/debian buster main" > /etc/apt/sources.list
 RUN apt-get update && apt-get install -y python-gdal
 RUN export PYTHONPATH="${PYTHONPATH}:/usr/share/"
+
+# Install nc
+RUN apt-get update && apt-get install -y netcat
+
 # Cleanup
 RUN apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /requirements.txt

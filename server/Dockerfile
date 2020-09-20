@@ -1,6 +1,5 @@
 FROM ncdot_docker_base:1.0
 
-RUN apt-get update && apt-get install -y netcat
 RUN mkdir -p /usr/src/app
 # set work directory
 WORKDIR /usr/src/app
