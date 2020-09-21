@@ -1,11 +1,27 @@
 FROM ncdot_docker_base:1.0
 
-RUN mkdir -p /usr/src/app
-# set work directory
-WORKDIR /usr/src/app
-
+ARG UID
+ARG GID
 # set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 ENV PYTHONPATH="${PYTHONPATH}:/usr/share/"
 
+# create directory for the app user and the server directory
+RUN mkdir -p /home/app/server
+
+# create the app user
+RUN groupadd --system app && useradd --system -g app --shell /bin/bash --home /home/app app
+
+# set work directory
+ENV HOME=/home/app
+ENV APP_HOME=/home/app/server
+
+# chown all the files to the app user
+RUN chown -R app:app $HOME
+RUN usermod -u $UID app
+RUN groupmod -g $GID app
+
+# change to the app user
+USER app
+WORKDIR $APP_HOME
