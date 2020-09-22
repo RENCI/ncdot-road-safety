@@ -1,2 +1,3 @@
 server/.env.prod
+server/static
 __pycache__/

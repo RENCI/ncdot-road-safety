@@ -33,6 +33,7 @@ services:
 
   nginx:
     build: ./nginx
+    container_name: dot-nginx
     volumes:
       - .:/home/app/server
       - static_volume:/home/app/server/static  
