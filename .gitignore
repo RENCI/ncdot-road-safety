@@ -1,3 +1,4 @@
 server/.env.prod
 server/static
+.idea
 __pycache__/
