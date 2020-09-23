@@ -1,0 +1,43 @@
+.home-page-block {
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
+.home-page-block-title {
+    color: #4BB5C1;
+}
+
+.hid-element {
+    display:none;
+}
+
+.ui-autocomplete {
+    max-height: 100px;
+    overflow-y: auto;
+    /* prevent horizontal scrollbar */
+    overflow-x: hidden;
+}
+
+.warning-msg {
+    color: red;
+}
+
+.info-msg {
+    color: green;
+}
+
+.bold_text {
+    font-weight: bold;
+}
+
+.style-select select {
+    padding: 0;
+}
+
+.style-select select option {
+    padding: 4px 10px 4px 10px;
+}
+
+.vertical-spacing {
+    margin-bottom: 10px;
+}

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}Sign Up{% endblock %}
+
+{% block content %}
+  <div class="container">
+    <div class="row">
+        <div class="col-sm-12">
+            {% if user.is_anonymous %}
+                <h2 class="page-title">Sign Up</h2>
+                <div class="col-sm-6">
+                    <!-- signup -->
+                    {% include "registration/signup_form.html" %}
+                    <!-- signup -->
+                </div>
+            {% else %}
+                <p>You're already logged in. If you'd like to create a new account, you'll need to log out first.</p>
+            {% endif %}
+        </div>
+    </div>
+  </div>
+{% endblock %}

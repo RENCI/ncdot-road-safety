@@ -25,6 +25,9 @@ SECRET_KEY = os.environ.get("SECRET_KEY", 'test_secret_key')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", True)
 
+# Whether a user's session cookie expires when the Web browser is closed.
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SITE_ID = 1
 # 'DJANGO_ALLOWED_HOSTS' should be a single string of hosts with a space between each.
 # For example: 'DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]'
 ALLOWED_HOSTS = "localhost 127.0.0.1 [::1]".split(" ")
@@ -37,9 +40,15 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
+    'django.contrib.redirects',
     'django.contrib.sessions',
+    'django.contrib.sites',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.gis',
+    'django.contrib.postgres',
+    'crispy_forms',
+    'widget_tweaks',
     'django_irods',
     'rs_core',
 ]
@@ -74,6 +83,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'road_safety.wsgi.application'
 
+ACCOUNTS_APPROVAL_REQUIRED = True
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 

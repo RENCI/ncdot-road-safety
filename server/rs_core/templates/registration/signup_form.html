@@ -1,0 +1,34 @@
+{% load static %}
+
+<form method="post">
+    {% csrf_token %}
+    <div class="warning-msg">
+        {{ form.non_field_errors }}
+        {{ error_message }}
+    </div>
+    <div class="row form-group half">
+      {% include "includes/form_field.html" with field=form.first_name inline_label=True %}
+      {% include "includes/form_field.html" with field=form.last_name inline_label=True %}
+    </div>
+    <div class="form-group">
+      {% include "includes/form_field.html" with field=form.username inline_label=True %}
+    </div>
+    <div class="form-group">
+      {% include "includes/form_field.html" with field=form.email inline_label=True %}
+    </div>
+    <div class="form-group">
+      {% include "includes/form_field.html" with field=form.organization inline_label=True %}
+    </div>
+    <div class="form-group">
+      {% include "includes/form_field.html" with field=form.yrs_of_serv inline_label=True %}
+    </div>
+    <div class="form-group">
+        {% include "includes/form_field.html" with field=form.password1 inline_label=True %}
+    </div>
+    <div class="sform-group">
+        {% include "includes/form_field.html" with field=form.password2 inline_label=True %}
+    </div>
+    <div id="missing-data-div"></div>
+    <input class="btn btn-primary" type="submit" id="signup" value="Sign up">
+    <a href="/" class="btn btn-default" type=button">Go back to home page</a>
+</form>

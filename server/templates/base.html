@@ -1,10 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+{% load static %}
 <head>
   <meta charset="utf-8">
-  <title>{% block title %}NCDOT Roadway Safety{% endblock %}</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Annotation Tool</title>
+  <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" type="text/css" href="{% static "rs_core/css/rs_core.css" %}"/>
+  {% block extra_css %}{% endblock %}
+  <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"></script>
+  {% block extra_js %}{% endblock %}
+{% block extra_head %}{% endblock %}
 </head>
 <body>
+  <div class="container-fluid">
+    <div class="row border bg-light mb-3 py-3">
+      <div class="col-sm-3 text-center">
+        <div class="vertical-spacing">
+          <a href="https://www.ncdot.gov/Pages/default.aspx">
+            <img src="/static/rs_core/images/ncdot.png" style="height: 50px;" />
+          </a>
+        </div>
+        <div>
+          <a href="https://www.volpe.dot.gov/">
+            <img src="/static/rs_core/images/volpe.png" style="width: 180px;" />
+          </a>
+        </div>
+      </div>
+      <div class="col-sm-6 text-center">
+        <h2>
+          <strong>NC DOT Annotation Tool</strong>
+        </h2>
+        <p>Accelerating rural road safety using AI to unlock predictive insights from videolog data</p>
+        {% if user.is_authenticated and initial_login %}
+          <div class="card p-3">
+            <h5>Signed in as {{ user.username }} ({{ user.email }}}).</h5>
+            <div><a href="{% url 'logout' %}">logout</a></div>
+          </div>
+        {% endif %}
+      </div>
+      <div class="col-sm-3 text-center">
+        <div class="vertical-spacing">
+          <a href="https://www.hsrc.unc.edu/">
+            <img src="/static/rs_core/images/hsrc.jpg" style="height: 50px;" />
+          </a>
+        </div>
+        <div>
+          <a href="http://renci.org/">
+            <img src="/static/rs_core/images/renci.png" style="width: 60px;" />
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
   <main>
     {% block content %}
     {% endblock %}
