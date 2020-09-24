@@ -37,8 +37,6 @@ CRISPY_TEMPLATE_PACK="bootstrap4"
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.redirects',
     'django.contrib.sessions',
@@ -51,6 +49,8 @@ INSTALLED_APPS = [
     'widget_tweaks',
     'django_irods',
     'rs_core',
+    'django.contrib.admin',
+    'django.contrib.auth',
 ]
 
 MIDDLEWARE = [

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block content %}
+<div class="col s12 m8 offset-m2">
+    <h2 class="flow-text">Look or update your profile information</h2>
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-success alert-dismissible" role="alert">
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <strong>{{ message }}</strong>
+        </div>
+      {% endfor %}
+    {% endif %}
+    <div class="card">
+        <div class="card-body">
+        <form action="." method="POST" class="padding">
+            {% csrf_token %}
+            <div class="form-group">
+            {{ profile_form.as_table }}
+            </div>
+            <div class="form-group">
+                {{ formset.management_form }}
+                {{ formset.as_table }}
+            </div>
+            <button type="submit" class="btn btn-primary btn-save-profile">Save changes</button>
+            <a href="/" class="btn btn-default" type=button">Go back to home page</a>
+        </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

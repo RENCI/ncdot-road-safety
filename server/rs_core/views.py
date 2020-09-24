@@ -1,20 +1,15 @@
 from django.contrib.auth.views import PasswordResetView, LogoutView
 from django.contrib.auth import login, authenticate
-from django.template import loader
+from django.forms.models import inlineformset_factory
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.db import IntegrityError
-from django.http import HttpResponse
+from django.contrib import messages
+from django.http import HttpResponseForbidden, HttpResponseRedirect
 
-from rs_core.forms import SignupForm, UserPasswordResetForm
+from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
 from rs_core.models import UserProfile
-
-
-def index(request):
-    template = loader.get_template('home.html')
-    context = {}
-    return HttpResponse(template.render(context, request))
 
 
 class RequestPasswordResetView(PasswordResetView):
@@ -38,7 +33,7 @@ def signup(request):
             firstname = form.cleaned_data.get('first_name')
             lastname = form.cleaned_data.get('last_name')
             org = form.cleaned_data.get('organization')
-            yrs_of_serv = form.cleaned_data.get('yrs_of_serv')
+            years_of_service = form.cleaned_data.get('years_of_service')
             email = form.cleaned_data.get('email')
             username = form.cleaned_data.get('username')
             raw_pwd = form.cleaned_data.get('password1')
@@ -50,7 +45,7 @@ def signup(request):
             )
 
             user = authenticate(username=username, password=raw_pwd)
-            up = UserProfile(user=user, organization=org, yrs_of_service=yrs_of_serv, email=email)
+            up = UserProfile(user=user, organization=org, years_of_service=years_of_service, email=email)
             try:
                 up.save()
             except IntegrityError as ex:
@@ -60,7 +55,38 @@ def signup(request):
                                                                     'error_message': ex.message})
             login(request, user)
             request.session['just_signed_up'] = 'true'
-            return redirect('index')
+            return redirect('home')
     else:
         form = SignupForm()
     return render(request, 'registration/signup.html', {'form': form})
+
+
+@login_required
+def edit_user(request, pk):
+    user = User.objects.get(pk=pk)
+    user_form = UserProfileForm(instance=user)
+
+    if not user.is_authenticated or request.user.id != user.id:
+        return HttpResponseForbidden('You are not authenticated to edit user profile')
+
+    ProfileInlineFormset = inlineformset_factory(User, UserProfile,
+                                                 fields=('organization', 'years_of_service', 'email'),
+                                                 can_delete=False)
+    formset = ProfileInlineFormset(instance=user)
+
+    if request.method == "POST":
+        user_form = UserProfileForm(request.POST, instance=user)
+        formset = ProfileInlineFormset(request.POST, instance=user)
+        if user_form.is_valid():
+            created_user = user_form.save(commit=False)
+            formset = ProfileInlineFormset(request.POST, instance=created_user)
+            if formset.is_valid():
+                created_user.email = formset.cleaned_data[0]['email']
+                created_user.save()
+                formset.save()
+                messages.info(request, "Your profile is updated successfully")
+                return HttpResponseRedirect(request.META['HTTP_REFERER'])
+
+    return render(request, 'accounts/account_update.html', {"profile_form": user_form,
+                                                            "formset": formset
+                                                            })

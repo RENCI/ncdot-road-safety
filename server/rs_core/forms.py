@@ -29,12 +29,12 @@ class SignupForm(forms.ModelForm):
     last_name = forms.CharField(max_length=150, required=True)
     username = forms.CharField(max_length=150, required=True)
     organization = forms.CharField(max_length=150, required=True)
-    yrs_of_serv = forms.IntegerField(required=True, help_text='Years of experience in roadway safety')
+    years_of_service = forms.IntegerField(required=True, help_text='Years of experience in roadway safety')
     email = forms.EmailField(required=True, help_text='Input your email for password reset and notifications')
 
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', "username", "email", "organization", "yrs_of_serv",
+        fields = ['first_name', 'last_name', "username", "email", "organization", "years_of_service",
                   "password1", "password2"]
 
     def __init__(self, *args, **kwargs):

@@ -8,7 +8,7 @@ class UserProfile(models.Model):
     # cannot use email field in User model in order to guarantee uniqueness of emails at DB level
     email = models.EmailField(unique=True)
     organization = models.CharField(max_length=100)
-    yrs_of_service = models.PositiveIntegerField()
+    years_of_service = models.PositiveIntegerField()
 
     def __str__(self):
         return self.user.username

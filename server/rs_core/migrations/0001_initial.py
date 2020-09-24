@@ -20,7 +20,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('email', models.EmailField(max_length=254, unique=True)),
                 ('organization', models.CharField(max_length=100)),
-                ('yrs_of_service', models.PositiveIntegerField()),
+                ('years_of_service', models.PositiveIntegerField()),
                 ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='user_profile', to=settings.AUTH_USER_MODEL)),
             ],
         ),
