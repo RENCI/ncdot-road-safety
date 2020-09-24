@@ -54,7 +54,6 @@ def signup(request):
                 return render(request, 'registration/signup.html', {'form': form,
                                                                     'error_message': ex.message})
             login(request, user)
-            request.session['just_signed_up'] = 'true'
             return redirect('home')
     else:
         form = SignupForm()
