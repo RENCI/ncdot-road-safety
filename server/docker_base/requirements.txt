@@ -4,3 +4,4 @@ gunicorn==20.0.4
 numpy==1.19.2
 django-crispy-forms==1.9.2
 django-widget-tweaks==1.4.8
+djangorestframework==3.11.1
