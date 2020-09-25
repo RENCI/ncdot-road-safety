@@ -193,12 +193,20 @@ float the buttons inside it. This prevents collapsing. */
     color: #4BB5C1;
 }
 
-.warning-msg {
+.warning {
     color: red;
 }
 
-.info-msg {
+.error {
+    color: red;
+}
+
+.success {
     color: green;
+}
+
+.info {
+    color: #4BB5C1;
 }
 
 .bold_text {

@@ -4,6 +4,16 @@
 
 {% block content %}
 <div class="container-fluid">
+    {% if messages %}
+    <ul>
+        {% for message in messages %}
+        <li {% if message.tags %} class="{{ message.tags }}"{% endif %}>
+            {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
+            {{ message }}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
     {% if user.is_authenticated %}
     <div>
       Hello {{ user.first_name }}! Look or update your profile <a href="{% url 'account_update' user.id %}">here</a>

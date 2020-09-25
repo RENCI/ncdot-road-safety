@@ -6,6 +6,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.db import IntegrityError
 from django.contrib import messages
+from django.conf import settings
+from django.contrib.messages import info
+from django.utils.translation import ugettext_lazy as _
+from django.core.mail import send_mail
 from django.http import HttpResponseForbidden, HttpResponseRedirect
 
 from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
@@ -38,23 +42,46 @@ def signup(request):
             username = form.cleaned_data.get('username')
             raw_pwd = form.cleaned_data.get('password1')
 
-            User.objects.create_user(
-                username, first_name=firstname,
-                last_name=lastname,
-                password=raw_pwd,
+            new_user = User.objects.create_user(username, first_name=firstname,
+                                                last_name=lastname,
+                                                password=raw_pwd,
+                                                is_active=False if settings.ACCOUNTS_APPROVAL_REQUIRED else True
             )
-
-            user = authenticate(username=username, password=raw_pwd)
-            up = UserProfile(user=user, organization=org, years_of_service=years_of_service, email=email)
+            up = UserProfile(user=new_user, organization=org, years_of_service=years_of_service, email=email)
             try:
                 up.save()
             except IntegrityError as ex:
                 # violate email uniqueness, raise error and roll back
-                user.delete()
+                new_user.delete()
                 return render(request, 'registration/signup.html', {'form': form,
                                                                     'error_message': ex.message})
-            login(request, user)
-            return redirect('home')
+            if new_user.is_active:
+                user = authenticate(username=username, password=raw_pwd)
+                info(request, _("Successfully signed up"))
+                login(request, user)
+                return redirect('home')
+            else:
+                # email admin that a new user has signed up and need approval
+                email_recip_str = settings.EMAIL_ADMIN_LIST
+                email_recip_list = email_recip_str.split('---')
+                message = """Dear administrator,
+                <p>NCDOT Annotation Tool received a sign up request from {first_name} {last_name} (username: {username},
+                 email: {email}). Please go to <a href="{url}">{url}</a> to look at the user profile detail and approve
+                 the user as appropriate. The user will not be able to login until being approved. 
+                <p>Thank you</p>
+                """.format(first_name=new_user.first_name, last_name=new_user.last_name, username=new_user.username,
+                           email=new_user.user_profile.email, scheme=request.scheme, host=request.get_host,
+                           url=request.build_absolute_uri('/admin/')
+                           )
+                send_mail(subject="Need approval of a user signed up for DOT annotation tool",
+                          message=message,
+                          html_message=message,
+                          from_email= settings.DEFAULT_FROM_EMAIL,
+                          recipient_list=email_recip_list,
+                          fail_silently=True)
+                info(request, _("Thanks for signing up! You'll receive an email when your account is approved and "
+                                "activated."))
+                return redirect('home')
     else:
         form = SignupForm()
     return render(request, 'registration/signup.html', {'form': form})

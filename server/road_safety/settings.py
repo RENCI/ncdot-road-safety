@@ -24,6 +24,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY", 'test_secret_key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", True)
+if DEBUG == "False":
+    DEBUG = False
 
 # Whether a user's session cookie expires when the Web browser is closed.
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
@@ -83,7 +85,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'road_safety.wsgi.application'
 
-ACCOUNTS_APPROVAL_REQUIRED = True
+ACCOUNTS_APPROVAL_REQUIRED = os.environ.get("ACCOUNTS_APPROVAL_REQUIRED", False)
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 
@@ -146,9 +148,10 @@ if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
-    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PWD")
-    EMAIL_HOST = os.environ.get("EMAIL_HOST")
-    EMAIL_PORT = os.environ.get("EMAIL_PORT")
+    EMAIL_HOST_USER = str(os.environ.get("EMAIL_HOST_USER"))
+    EMAIL_HOST_PASSWORD = str(os.environ.get("EMAIL_HOST_PWD"))
+    EMAIL_HOST = str(os.environ.get("EMAIL_HOST"))
+    EMAIL_PORT = str(os.environ.get("EMAIL_PORT"))
     EMAIL_USE_TLS = True
-    DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
+    EMAIL_ADMIN_LIST = str(os.environ.get("EMAIL_ADMIN_LIST"))
+    DEFAULT_FROM_EMAIL = str(os.environ.get("DEFAULT_FROM_EMAIL"))
