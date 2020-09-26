@@ -1,3 +1,4 @@
+import os
 from django.contrib.auth.views import PasswordResetView, LogoutView
 from django.contrib.auth import login, authenticate
 from django.forms.models import inlineformset_factory
@@ -10,7 +11,10 @@ from django.conf import settings
 from django.contrib.messages import info
 from django.utils.translation import ugettext_lazy as _
 from django.core.mail import send_mail
-from django.http import HttpResponseForbidden, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseForbidden, HttpResponseRedirect, HttpResponseServerError
+
+from django_irods.storage import IrodsStorage
+from django_irods.icommands import SessionException
 
 from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
 from rs_core.models import UserProfile
@@ -22,9 +26,7 @@ class RequestPasswordResetView(PasswordResetView):
 
 @login_required
 def logout(request):
-    return LogoutView.as_view(
-        next_page='/'
-    )(request)
+    return LogoutView.as_view(next_page='/')(request)
 
 
 def signup(request):
@@ -116,3 +118,20 @@ def edit_user(request, pk):
     return render(request, 'accounts/account_update.html', {"profile_form": user_form,
                                                             "formset": formset
                                                             })
+
+
+@login_required
+def get_image_by_name(request, name):
+    istorage = IrodsStorage()
+    image_path = os.path.join(settings.IRODS_ROOT, 'images')
+    if not os.path.exists(image_path):
+        os.makedirs(image_path)
+    ifile = os.path.join(image_path, name)
+    if not os.path.isfile(ifile):
+        try:
+            dest_path = istorage.get_one_image_frame(name, image_path)
+            ifile = os.path.join(dest_path, name)
+        except SessionException as ex:
+            return HttpResponseServerError(ex.stderr)
+
+    return HttpResponse(open(ifile, 'rb'), content_type='image/jpg')

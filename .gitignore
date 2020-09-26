@@ -1,4 +1,6 @@
 server/.env.prod
+server/.env.prod.mailgun
 server/static
+server/road_safety/local_settings.py
 .idea
 __pycache__/

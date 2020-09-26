@@ -32,7 +32,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SITE_ID = 1
 # 'DJANGO_ALLOWED_HOSTS' should be a single string of hosts with a space between each.
 # For example: 'DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]'
-ALLOWED_HOSTS = "localhost 127.0.0.1 [::1]".split(" ")
+ALLOWED_HOSTS = "*"
 
 CRISPY_TEMPLATE_PACK="bootstrap4"
 
@@ -119,6 +119,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+local_settings_module = 'road_safety.local_settings'
+local_settings = __import__(local_settings_module, globals(), locals(), ['*'])
+for k in dir(local_settings):
+    locals()[k] = getattr(local_settings, k)
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.1/topics/i18n/
@@ -155,3 +159,6 @@ else:
     EMAIL_USE_TLS = True
     EMAIL_ADMIN_LIST = str(os.environ.get("EMAIL_ADMIN_LIST"))
     DEFAULT_FROM_EMAIL = str(os.environ.get("DEFAULT_FROM_EMAIL"))
+
+# inform django that a reverse proxy sever (nginx) is handling ssl/https for it
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
