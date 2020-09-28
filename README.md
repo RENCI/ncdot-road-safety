@@ -12,7 +12,7 @@ This section is aimed for developers interested in working on the code. It provi
 
 ### Steps to run the annotation tool web server in your local development environment
 - Clone source code from this repo.
-- Get ```local_settings.py``` that contains iRODS access credentials from txscience project directory. This local_settings.py holds sensitive information, so should not be exposed to the outside world.
+- Get ```local_settings.py``` that contains iRODS access credentials from txscience project directory and copy it to ```server/road_safety``` directory. This local_settings.py holds sensitive information, so should not be exposed to the outside world.
 - Change ```UID``` (default is ```1000```) and ```GID``` (default is ```1000```) in ```server/docker-compose.yml``` as needed to correspond to the uid and gid of the user on the host who is running docker containers for the tool. The default values should cover most if not all cases in a local development environment.
 - From the ```server``` directory of the source tree, run ```./up.sh``` to build all containers.
 - At this point you should be able to open up your browser to get to the tool home page: http://localhost:8000, or http://192.168.56.101:8000/ from the host if host-only adaptor is set up in VirtualBox for the Linux VM running on a windows box.
