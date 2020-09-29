@@ -62,7 +62,7 @@
   </main>
 </body>
 {% block react_js %}
-    {% if user.is_authenticated and initial_login %}
+    {% if user.is_authenticated %}
         <script type="text/javascript" src="/static/rs_core/js/index_bundle.js"></script>
     {% endif %}
 {% endblock %}
