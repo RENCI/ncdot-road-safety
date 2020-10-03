@@ -5,3 +5,5 @@ server/road_safety/local_settings.py
 server/rs_core/static/rs_core/js/index*
 .idea
 __pycache__/
+data_processing/metadata/
+server/metadata

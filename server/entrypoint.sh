@@ -8,11 +8,11 @@ done
 
 echo "PostgreSQL started"
 
-#export DJANGO_SUPERUSER_PASSWORD="fill_in_password"
+export DJANGO_SUPERUSER_PASSWORD="admin123"
 python manage.py collectstatic --no-input --clear
 #python manage.py makemigrations rs_core --noinput
 python manage.py migrate sites --noinput
 python manage.py migrate --no-input
-#python manage.py createsuperuser --username admin --email admin@example.com --no-input
+python manage.py createsuperuser --username admin --email admin@example.com --no-input
 
 exec "$@"
