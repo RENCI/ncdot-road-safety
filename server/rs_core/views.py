@@ -17,6 +17,7 @@ from django.http import HttpResponse, HttpResponseForbidden, HttpResponseRedirec
 from django_irods.storage import IrodsStorage
 from django_irods.icommands import SessionException
 from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.geos import Point
 from rest_framework import status
 
 from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
@@ -146,8 +147,10 @@ def get_image_names_by_loc(request, long, lat, direction, count):
     if dir == 'front':
         code = 1
     elif dir == 'left':
-        code = 5
+        code = 2
     elif dir == 'right':
+        code = 5
+    elif dir == 'rear':
         code = 6
     else:
         return JsonResponse({'error': 'direction parameter must be front, left, or right'},
@@ -156,10 +159,10 @@ def get_image_names_by_loc(request, long, lat, direction, count):
     if count <= 0:
         return JsonResponse({'error': 'count parameter must be greater than 0'},
                             status=status.HTTP_400_BAD_REQUEST)
-    in_loc = Point(long, lat, srid=4326)
+    in_loc = Point(float(long), float(lat), srid=4326)
     queryset = RouteImage.objects.annotate(
-        distance=Distance('location', user_location)).order_by('distance')[0:count]
+        distance=Distance('location', in_loc)).order_by('distance')[0:count]
     image_list = []
     for q in queryset:
         image_list.append('{}{}{}.jpg'.format(q.set, q.image_base_name, code))
-    return JsonResponse(image_list, status=status.HTTP_200_OK)
+    return JsonResponse({'image_file_names': image_list}, status=status.HTTP_200_OK)

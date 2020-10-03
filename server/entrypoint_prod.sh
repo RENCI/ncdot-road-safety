@@ -12,13 +12,9 @@ for pc in $(seq 3 -1 1); do
     sleep 1
 done
 
-export PGPASSWORD="postgres"
-psql -U postgres -h db -f pg.develop.sql --quiet
-#export DJANGO_SUPERUSER_PASSWORD="fill_in_password"
+psql -h db -f pg.production.sql --quiet
 python manage.py collectstatic --no-input --clear
-#python manage.py makemigrations rs_core --noinput
 python manage.py migrate sites --noinput
 python manage.py migrate --no-input
-#python manage.py createsuperuser --username admin --email admin@example.com --no-input
 
 exec "$@"
