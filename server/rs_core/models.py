@@ -21,7 +21,7 @@ class RouteImage(models.Model):
     # representing minute (00 to 59), next 2 digit representing second (00 to 59), and the
     # last 2 digit representing frame number (max of 29)
     # The file name can be created using set number and image_base_name as <set><image_base_name><1,2,5>.jpg
-    image_base_name = models.CharField(max_length=8)
+    image_base_name = models.CharField(max_length=15)
     location = models.PointField()
 
     def __str__(self):

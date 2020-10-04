@@ -145,13 +145,13 @@ def get_image_by_name(request, name):
 def get_image_names_by_loc(request, long, lat, direction, count):
     dir = direction.lower()
     if dir == 'front':
-        code = 1
+        code = '1'
     elif dir == 'left':
-        code = 2
+        code = '2'
     elif dir == 'right':
-        code = 5
+        code = '5'
     elif dir == 'rear':
-        code = 6
+        code = '6'
     else:
         return JsonResponse({'error': 'direction parameter must be front, left, or right'},
                             status=status.HTTP_400_BAD_REQUEST)
@@ -164,5 +164,5 @@ def get_image_names_by_loc(request, long, lat, direction, count):
         distance=Distance('location', in_loc)).order_by('distance')[0:count]
     image_list = []
     for q in queryset:
-        image_list.append('{}{}{}.jpg'.format(q.set, q.image_base_name, code))
+        image_list.append('{}{}.jpg'.format(q.image_base_name, code))
     return JsonResponse({'image_file_names': image_list}, status=status.HTTP_200_OK)

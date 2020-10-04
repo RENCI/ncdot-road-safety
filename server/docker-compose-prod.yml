@@ -29,7 +29,7 @@ services:
     environment:
       - POSTGRES_USER=$PGUSER
       - POSTGRES_PASSWORD=$PGPASSWORD
-      - POSTGRES_DB=$SQL_DATABASE    
+      - POSTGRES_DB=$PGDATABASE    
 
   nginx:
     build: ./nginx

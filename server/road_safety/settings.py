@@ -92,7 +92,7 @@ ACCOUNTS_APPROVAL_REQUIRED = os.environ.get("ACCOUNTS_APPROVAL_REQUIRED", False)
 DATABASES = {
     'default': {
         'ENGINE': "django.contrib.gis.db.backends.postgis",
-        'NAME': os.environ.get('SQL_DATABASE', 'postgres'),
+        'NAME': os.environ.get('PGDATABASE', 'postgres'),
         'USER': os.environ.get('PGUSER', 'postgres'),
         'PASSWORD': os.environ.get('PGPASSWORD', 'postgres'),
         'HOST': 'db',
