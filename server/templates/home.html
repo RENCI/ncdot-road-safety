@@ -14,15 +14,7 @@
         {% endfor %}
     </ul>
     {% endif %}
-    {% if user.is_authenticated %}
-    <div>
-      Hello {{ user.first_name }}! Look or update your profile <a href="{% url 'account_update' user.id %}">here</a>
-      <span style="float: right"><a href="{% url 'logout' %}">Log Out</a></span>
-    </div>
-    <div>
-    <a href="{% url 'get_image_by_name' '318004029191.jpg' %}">Look at a sample image</a>
-    </div>
-    {% else %}
+    {% if not user.is_authenticated %}
     <div>
       <a href="{% url 'signup' %}" style="margin-right: 5px">Sign up</a> or <a href="{% url 'login' %}" style="margin-left: 5px">Log In</a>
     </div>
