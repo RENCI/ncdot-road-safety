@@ -166,3 +166,9 @@ def get_image_names_by_loc(request, long, lat, direction, count):
     for q in queryset:
         image_list.append('{}{}.jpg'.format(q.image_base_name, code))
     return JsonResponse({'image_file_names': image_list}, status=status.HTTP_200_OK)
+
+
+@login_required
+def get_all_routes(request):
+    route_list = list(RouteImage.objects.values_list("route_id", flat=True).distinct())
+    return JsonResponse({'route_ids': route_list}, status=status.HTTP_200_OK)
