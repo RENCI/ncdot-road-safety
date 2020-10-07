@@ -12,8 +12,9 @@ urlpatterns = [
     path('reset/done/', auth_views.PasswordResetCompleteView.as_view(), name='password_reset_complete'),
     path('signup/', views.signup, name='signup'),
     path('accounts/update/<pk>/', views.edit_user, name='account_update'),
-    path('get_image_by_name/<name>', views.get_image_by_name, name='get_image_by_name'),
-    path('get_image_names_by_loc/<long>/<lat>/<direction>/<count>', views.get_image_names_by_loc,
+    path('get_image_by_name/<name>/', views.get_image_by_name, name='get_image_by_name'),
+    path('get_image_names_by_loc/<long>/<lat>/<direction>/<count>/', views.get_image_names_by_loc,
          name='get_image_names_by_loc'),
     path('get_all_routes/', views.get_all_routes, name='get_all_routes'),
+    path('get_route_info/<route_id>/', views.get_route_info, name='get_route_info'),
 ]

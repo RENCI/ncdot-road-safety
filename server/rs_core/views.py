@@ -172,3 +172,9 @@ def get_image_names_by_loc(request, long, lat, direction, count):
 def get_all_routes(request):
     route_list = list(RouteImage.objects.values_list("route_id", flat=True).distinct())
     return JsonResponse({'route_ids': route_list}, status=status.HTTP_200_OK)
+
+
+@login_required
+def get_route_info(request, route_id):
+    route_images = list(RouteImage.objects.filter(route_id=route_id).values_list("image_base_name", flat=True))
+    return JsonResponse({'route_image_base_names': route_images}, status=status.HTTP_200_OK)
