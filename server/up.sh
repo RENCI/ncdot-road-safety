@@ -1,2 +1,2 @@
 #!/bin/bash
-docker-compose up --build -d -V 
+PGPASSWORD=postgres docker-compose up --build -d -V 
