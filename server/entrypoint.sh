@@ -23,4 +23,4 @@ if [ -v PGPASSWORD ]; then
   #python manage.py createsuperuser --username admin --email admin@example.com --no-input
 fi
 
-python manage.py runserver 0.0.0.0:8000
+exec "$@"
