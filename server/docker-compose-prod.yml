@@ -37,8 +37,10 @@ services:
     volumes:
       - .:/home/app/server
       - static_volume:/home/app/server/static  
+      - $SSL_CERT_DIR:/a  
     ports:
-      - 1337:80
+      - 443:443      
+      - 80:80
     depends_on:
       - server
 

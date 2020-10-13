@@ -1,6 +1,8 @@
 server/.env.prod
 server/.env.prod.mailgun
 server/static
+server/nginx/nginx.conf.local
+server/pg.production.sql
 server/road_safety/local_settings.py
 server/rs_core/static/rs_core/js/index*
 .idea
