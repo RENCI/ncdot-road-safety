@@ -5,4 +5,4 @@ set -o allexport
 source .env.prod
 set +o allexport
 
-docker-compose -f docker-compose-prod.yml up -d --build -V
+INITBUILD=TRUE docker-compose -f docker-compose-prod.yml up -d --build -V
