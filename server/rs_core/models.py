@@ -26,3 +26,28 @@ class RouteImage(models.Model):
 
     def __str__(self):
         return "{}{}".format(self.set, self.image_base_name)
+
+
+class AnnotationSet(models.Model):
+    TYPE_CHOICES = (
+        ('pt', 'Point'),
+        ('cont', 'Continuous')
+    )
+    name = models.CharField(max_length=100, primary_key=True)
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='pt')
+
+
+class ImageAnnotation(models.Model):
+    ACTION_CHOICES = (
+        ('', 'None'),
+        ('incorrect', 'Prediction confirmed incorrect'),
+        ('new', 'New annotation added'),
+    )
+    image_base_name = models.CharField(max_length=20)
+    annotation_name = models.CharField(max_length=100)
+    pred_centainty_score = models.FloatField(default=-1)
+    pred_timestamp = models.DateTimeField(blank=True, null=True)
+    annotator = models.OneToOneField(User, on_delete=models.CASCADE, blank=True, null=True)
+    annotator_action = models.CharField(max_length=50, choices=ACTION_CHOICES, blank=True, null=True)
+    annotator_timestamp = models.DateTimeField(blank=True, null=True)
+    comment = models.CharField(max_length=1000)
