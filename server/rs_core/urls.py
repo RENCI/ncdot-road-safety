@@ -13,11 +13,17 @@ urlpatterns = [
     path('signup/', views.signup, name='signup'),
     path('accounts/update/<pk>/', views.edit_user, name='account_update'),
     path('get_image_by_name/<name>/', views.get_image_by_name, name='get_image_by_name'),
-    path('get_image_names_by_loc/<long>/<lat>/<direction>/<count>/', views.get_image_names_by_loc,
+    path('get_image_names_by_loc/<long>/<lat>/<count>/', views.get_image_names_by_loc,
          name='get_image_names_by_loc'),
+    path('get_image_metadata/<image_name>/', views.get_image_metadata, name='get_image_metadata'),
+    path('get_image_base_names_by_annot/<annot_name>/', views.get_image_base_names_by_annot,
+         name='get_image_base_names_by_annot'),
+    path('get_next_images_for_annot/<annot_name>/<count>/', views.get_next_images_for_annot,
+         name='get_next_images_for_annot'),
     path('get_all_routes/', views.get_all_routes, name='get_all_routes'),
     path('get_route_info/<route_id>/', views.get_route_info, name='get_route_info'),
     path('get_annotation_set/', views.get_annotation_set, name='get_annotation_set'),
     path('save_annotations/', views.save_annotations, name='save_annotations'),
     path('get_image_annotations/<image_base_name>/', views.get_image_annotations, name='get_image_annotations'),
+
 ]

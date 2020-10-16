@@ -29,13 +29,13 @@ function save_annotation_ajax() {
     });
     var annot_list = [
         {
-            "image_base_name": 'image1',
+            "image_base_name": '10000175011',
             "annotation_name": "guardrail",
             "is_present": 'true',
             "comment": 'this is a test'
         },
         {
-            "image_base_name": 'image2',
+            "image_base_name": '10000175307',
             "annotation_name": "guardrail",
             "is_present": 'false',
             "comment": 'this is a test'

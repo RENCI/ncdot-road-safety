@@ -1,5 +1,6 @@
 import os
 import json
+import random
 from datetime import timezone, datetime
 
 from django.db import transaction
@@ -146,19 +147,7 @@ def get_image_by_name(request, name):
 
 
 @login_required
-def get_image_names_by_loc(request, long, lat, direction, count):
-    dir = direction.lower()
-    if dir == 'front':
-        code = '1'
-    elif dir == 'left':
-        code = '2'
-    elif dir == 'right':
-        code = '5'
-    elif dir == 'rear':
-        code = '6'
-    else:
-        return JsonResponse({'error': 'direction parameter must be front, left, or right'},
-                            status=status.HTTP_400_BAD_REQUEST)
+def get_image_names_by_loc(request, long, lat, count):
     count = int(count)
     if count <= 0:
         return JsonResponse({'error': 'count parameter must be greater than 0'},
@@ -168,8 +157,79 @@ def get_image_names_by_loc(request, long, lat, direction, count):
         distance=Distance('location', in_loc)).order_by('distance')[0:count]
     image_list = []
     for q in queryset:
-        image_list.append('{}{}.jpg'.format(q.image_base_name, code))
-    return JsonResponse({'image_file_names': image_list}, status=status.HTTP_200_OK)
+        image_list.append(q.image_base_name)
+    return JsonResponse({'image_base_names': list(queryset.values_list('image_base_name', flat=True))},
+                        status=status.HTTP_200_OK)
+
+
+@login_required
+def get_image_metadata(request, image_name):
+    ret_metadata = {}
+    obj = RouteImage.objects.filter(image_base_name=image_name).first()
+    if not obj:
+        return JsonResponse({'error': 'the requested image does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+
+    ret_metadata['metadata'] = {
+        'image_base_name': image_name,
+        'route_id': obj.route_id,
+        'lat': obj.location.y,
+        'long': obj.location.x
+    }
+
+    return JsonResponse(ret_metadata, status=status.HTTP_200_OK)
+
+
+@login_required
+def get_image_base_names_by_annot(request, annot_name):
+    if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
+        return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
+    if not ImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists():
+        return JsonResponse({'image_base_names': []}, status=status.HTTP_200_OK)
+
+    route_id = request.GET.get('route_id', None)
+    if not route_id:
+        images = list(ImageAnnotation.objects.filter(
+            annotation__name__iexact=annot_name).values_list("image__image_base_name", flat=True).distinct())
+    else:
+        images = list(ImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
+                                                     image__route_id=route_id).values_list("image__image_base_name",
+                                                                                           flat=True).distinct())
+    return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
+
+
+@login_required
+def get_next_images_for_annot(request, annot_name, count):
+    # return requested <count> number of images sorted by needs for human annotation
+    # To do: add logic to return images mosted needed for annotation based on AI prediction score and human annotations
+    if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
+        return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
+
+    route_id = request.GET.get('route_id', None)
+    count = int(count)
+
+    if not ImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists():
+        # to be removed after having AI-created annotation data in ImageAnnotation table. This is created for
+        # covenience of client development before AI is set up on the server side
+        if not route_id:
+            images = random.sample(list(RouteImage.objects.filter(set='100').values_list("image_base_name", flat=True)),
+                                   count)
+        else:
+            images = random.sample(list(RouteImage.objects.filter(route_id=route_id).values_list("image_base_name",
+                                                                                                 flat=True)), count)
+
+        return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
+
+    if not route_id:
+        images = list(ImageAnnotation.objects.filter(
+            annotation__name__iexact=annot_name).values_list("image__image_base_name", flat=True).distinct())
+    else:
+        images = list(ImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
+                                                     image__route_id=route_id).values_list("image__image_base_name",
+                                                                                           flat=True).distinct())
+    if count < len(images):
+        images = images[:count]
+    return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
+
 
 
 @login_required
@@ -193,9 +253,9 @@ def get_annotation_set(request):
 @login_required
 def get_image_annotations(request, image_base_name):
     ret_annots = {'annotations': []}
-    for annot in ImageAnnotation.objects.filter(image_base_name=image_base_name):
+    for annot in ImageAnnotation.objects.filter(image__image_base_name=image_base_name):
         annot_dict = {
-            'annotation_name': annot.annotation_name
+            'annotation_name': annot.annotation.name
         }
         if annot.pred_centainty_score > 0:
             annot_dict['AI_prediction'] = {
@@ -239,13 +299,14 @@ def save_annotations(request):
         # if this annotator has already annotated this image, update the annotation rather than creating a new one
         try:
             with transaction.atomic():
-                obj, created = ImageAnnotation.objects.update_or_create(image_base_name=img_base_name,
-                                                                        annotation_name=annot_name.lower(),
-                                                                        annotator__username=username,
-                                                                        defaults={'annotator': request.user,
-                                                                                  'feature_present': is_present,
-                                                                                  'annotator_timestamp': current_time,
-                                                                                  'comment': annot_comment})
+                obj, created = ImageAnnotation.objects.update_or_create(image=RouteImage.objects.get(
+                    image_base_name=img_base_name),
+                    annotation=AnnotationSet.objects.get(name__iexact=annot_name),
+                    annotator=User.objects.get(username=username),
+                defaults={'annotator': request.user,
+                          'feature_present': is_present,
+                          'annotator_timestamp': current_time,
+                          'comment': annot_comment})
         except Exception as ex:
             return JsonResponse({'error': ex.message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     return JsonResponse(status=status.HTTP_200_OK)

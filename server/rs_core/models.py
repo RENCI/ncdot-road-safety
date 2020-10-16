@@ -21,7 +21,7 @@ class RouteImage(models.Model):
     # representing minute (00 to 59), next 2 digit representing second (00 to 59), and the
     # last 2 digit representing frame number (max of 29)
     # The file name can be created using set number and image_base_name as <set><image_base_name><1,2,5>.jpg
-    image_base_name = models.CharField(max_length=15)
+    image_base_name = models.CharField(max_length=15, primary_key=True)
     location = models.PointField()
 
     def __str__(self):
@@ -38,8 +38,8 @@ class AnnotationSet(models.Model):
 
 
 class ImageAnnotation(models.Model):
-    image_base_name = models.CharField(max_length=20, db_index=True)
-    annotation_name = models.CharField(max_length=100)
+    image = models.ForeignKey(RouteImage, on_delete=models.CASCADE)
+    annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
     pred_centainty_score = models.FloatField(default=-1)
     pred_timestamp = models.DateTimeField(blank=True, null=True)
     annotator = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
@@ -48,4 +48,4 @@ class ImageAnnotation(models.Model):
     comment = models.CharField(max_length=1000, blank=True, null=True)
 
     class Meta:
-        unique_together = ('image_base_name', 'annotation_name', 'annotator')
+        unique_together = ('image', 'annotation', 'annotator')
