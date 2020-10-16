@@ -17,4 +17,7 @@ urlpatterns = [
          name='get_image_names_by_loc'),
     path('get_all_routes/', views.get_all_routes, name='get_all_routes'),
     path('get_route_info/<route_id>/', views.get_route_info, name='get_route_info'),
+    path('get_annotation_set/', views.get_annotation_set, name='get_annotation_set'),
+    path('save_annotations/', views.save_annotations, name='save_annotations'),
+    path('get_image_annotations/<image_base_name>/', views.get_image_annotations, name='get_image_annotations'),
 ]

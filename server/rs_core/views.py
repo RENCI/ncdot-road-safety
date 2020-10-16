@@ -1,4 +1,8 @@
 import os
+import json
+from datetime import timezone, datetime
+
+from django.db import transaction
 from django.contrib.auth.views import PasswordResetView, LogoutView
 from django.contrib.auth import login, authenticate
 from django.forms.models import inlineformset_factory
@@ -21,7 +25,7 @@ from django.contrib.gis.geos import Point
 from rest_framework import status
 
 from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
-from rs_core.models import UserProfile, RouteImage
+from rs_core.models import UserProfile, RouteImage, AnnotationSet, ImageAnnotation
 
 
 class RequestPasswordResetView(PasswordResetView):
@@ -178,3 +182,64 @@ def get_all_routes(request):
 def get_route_info(request, route_id):
     route_images = list(RouteImage.objects.filter(route_id=route_id).values_list("image_base_name", flat=True))
     return JsonResponse({'route_image_base_names': route_images}, status=status.HTTP_200_OK)
+
+
+@login_required
+def get_annotation_set(request):
+    annotation_list = list(AnnotationSet.objects.all().values_list("name", flat=True))
+    return JsonResponse({'annotation_names': annotation_list}, status=status.HTTP_200_OK)
+
+
+@login_required
+def get_image_annotations(request, image_base_name):
+    ret_annots = {'annotations': []}
+    for annot in ImageAnnotation.objects.filter(image_base_name=img_base_name):
+        annot_dict = {
+            'annotation_name': annot.annotation_name,
+            'certainty_score': annot.pred_centainty_score
+        }
+        if annot.annotator:
+            annot_dict['annotator'] = {
+                'name': annot.annotator.username,
+                'action': annot.annotator_action
+            }
+            if annot.comment:
+                annot_dict['annotator']['comment'] = annot.comment
+        ret_annots['annotations'].append(annot_dict)
+    return JsonResponse(ret_annots, status=status.HTTP_200_OK)
+
+
+@login_required
+def save_annotations(request):
+    username = request.user.username
+    annotations = request.POST.get('annotations', [])
+    if not annotations:
+        return JsonResponse({'error': "annotations list in the request post is empty"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+    annot_list = json.loads(annotations)
+
+    for annot in annot_list:
+        img_base_name = annot.get('image_base_name', '')
+        annot_name = annot.get('annotation_name', '')
+        annot_present = annot.get('is_present', '')
+        annot_comment = annot.get('comment', '')
+        if not img_base_name or not annot_name or not annot_present:
+            return JsonResponse({'error': 'bad request'}, status=status.HTTP_400_BAD_REQUEST)
+        if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
+            return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
+        is_present = True if annot_present.lower() == 'true' else False
+        current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        # if this annotator has already annotated this image, update the annotation rather than creating a new one
+        try:
+            with transaction.atomic():
+                obj, created = ImageAnnotation.objects.update_or_create(image_base_name=img_base_name,
+                                                                        annotation_name=annot_name.lower(),
+                                                                        annotator__username=username,
+                                                                        defaults={'annotator': request.user,
+                                                                                  'feature_present': is_present,
+                                                                                  'annotator_timestamp': current_time,
+                                                                                  'comment': annot_comment})
+        except Exception as ex:
+            return JsonResponse({'error': ex.message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return JsonResponse(status=status.HTTP_200_OK)

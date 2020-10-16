@@ -38,16 +38,14 @@ class AnnotationSet(models.Model):
 
 
 class ImageAnnotation(models.Model):
-    ACTION_CHOICES = (
-        ('', 'None'),
-        ('incorrect', 'Prediction confirmed incorrect'),
-        ('new', 'New annotation added'),
-    )
-    image_base_name = models.CharField(max_length=20)
+    image_base_name = models.CharField(max_length=20, db_index=True)
     annotation_name = models.CharField(max_length=100)
     pred_centainty_score = models.FloatField(default=-1)
     pred_timestamp = models.DateTimeField(blank=True, null=True)
-    annotator = models.OneToOneField(User, on_delete=models.CASCADE, blank=True, null=True)
-    annotator_action = models.CharField(max_length=50, choices=ACTION_CHOICES, blank=True, null=True)
+    annotator = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
+    feature_present = models.BooleanField(blank=True, null=True)
     annotator_timestamp = models.DateTimeField(blank=True, null=True)
-    comment = models.CharField(max_length=1000)
+    comment = models.CharField(max_length=1000, blank=True, null=True)
+
+    class Meta:
+        unique_together = ('image_base_name', 'annotation_name', 'annotator')
