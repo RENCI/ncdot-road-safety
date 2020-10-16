@@ -195,13 +195,19 @@ def get_image_annotations(request, image_base_name):
     ret_annots = {'annotations': []}
     for annot in ImageAnnotation.objects.filter(image_base_name=image_base_name):
         annot_dict = {
-            'annotation_name': annot.annotation_name,
-            'certainty_score': annot.pred_centainty_score
+            'annotation_name': annot.annotation_name
         }
+        if annot.pred_centainty_score > 0:
+            annot_dict['AI_prediction'] = {
+                'certainty_score': annot.pred_centainty_score,
+                'timestamp': annot.pred_timestamp
+            }
+
         if annot.annotator:
             annot_dict['annotator'] = {
                 'name': annot.annotator.username,
-                'action': annot.annotator_action
+                'feature_present': annot.feature_present,
+                'timestamp': annot.annotator_timestamp
             }
             if annot.comment:
                 annot_dict['annotator']['comment'] = annot.comment
