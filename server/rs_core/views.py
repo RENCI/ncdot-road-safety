@@ -193,7 +193,7 @@ def get_annotation_set(request):
 @login_required
 def get_image_annotations(request, image_base_name):
     ret_annots = {'annotations': []}
-    for annot in ImageAnnotation.objects.filter(image_base_name=img_base_name):
+    for annot in ImageAnnotation.objects.filter(image_base_name=image_base_name):
         annot_dict = {
             'annotation_name': annot.annotation_name,
             'certainty_score': annot.pred_centainty_score
