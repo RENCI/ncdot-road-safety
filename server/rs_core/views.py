@@ -163,14 +163,14 @@ def get_image_names_by_loc(request, long, lat, count):
 
 
 @login_required
-def get_image_metadata(request, image_name):
+def get_image_metadata(request, image_base_name):
     ret_metadata = {}
-    obj = RouteImage.objects.filter(image_base_name=image_name).first()
+    obj = RouteImage.objects.filter(image_base_name=image_base_name).first()
     if not obj:
         return JsonResponse({'error': 'the requested image does not exist'}, status=status.HTTP_400_BAD_REQUEST)
 
     ret_metadata['metadata'] = {
-        'image_base_name': image_name,
+        'image_base_name': image_base_name,
         'route_id': obj.route_id,
         'lat': obj.location.y,
         'long': obj.location.x
