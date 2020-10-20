@@ -276,14 +276,13 @@ def get_image_annotations(request, image_base_name):
 @login_required
 def save_annotations(request):
     username = request.user.username
-    annotations = request.POST.get('annotations', [])
-    if not annotations:
-        return JsonResponse({'error': "annotations list in the request post is empty"},
+    json_data = json.loads(request.body)
+    annotations = json_data.get('annotations')
+    if annotations is None:
+        return JsonResponse({'error': 'no annotations list in the request post'},
                             status=status.HTTP_400_BAD_REQUEST)
 
-    annot_list = json.loads(annotations)
-
-    for annot in annot_list:
+    for annot in annotations:
         img_base_name = annot.get('image_base_name', '')
         annot_name = annot.get('annotation_name', '')
         annot_present = annot.get('is_present', '')
@@ -292,17 +291,16 @@ def save_annotations(request):
             return JsonResponse({'error': 'bad request'}, status=status.HTTP_400_BAD_REQUEST)
         if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
             return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
-        is_present = True if annot_present.lower() == 'true' else False
 
         try:
             with transaction.atomic():
                 obj = UserImageAnnotation(image=RouteImage.objects.get(image_base_name=img_base_name),
                                           annotation=AnnotationSet.objects.get(name__iexact=annot_name),
                                           user=User.objects.get(username=username),
-                                          presence=is_present,
+                                          presence=annot_present,
                                           comment=annot_comment)
                 obj.save()
         except Exception as ex:
             return JsonResponse({'error': str(ex)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    return JsonResponse(status=status.HTTP_200_OK)
+    return JsonResponse({'message': 'annotations saved successfully'}, status=status.HTTP_200_OK)
