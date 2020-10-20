@@ -17,9 +17,11 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 ALTER TABLE ONLY public.rs_core_userprofile DROP CONSTRAINT rs_core_userprofile_user_id_8af177c7_fk_auth_user_id;
-ALTER TABLE ONLY public.rs_core_imageannotation DROP CONSTRAINT rs_core_imageannotation_annotator_id_4c8fd127_fk_auth_user_id;
-ALTER TABLE ONLY public.rs_core_imageannotation DROP CONSTRAINT rs_core_imageannotat_image_id_4e785aed_fk_rs_core_r;
-ALTER TABLE ONLY public.rs_core_imageannotation DROP CONSTRAINT rs_core_imageannotat_annotation_id_18ad791c_fk_rs_core_a;
+ALTER TABLE ONLY public.rs_core_userimageannotation DROP CONSTRAINT rs_core_userimageannotation_user_id_b4b6ae62_fk_auth_user_id;
+ALTER TABLE ONLY public.rs_core_userimageannotation DROP CONSTRAINT rs_core_userimageann_image_id_5dd6b7a5_fk_rs_core_r;
+ALTER TABLE ONLY public.rs_core_userimageannotation DROP CONSTRAINT rs_core_userimageann_annotation_id_1a04caa8_fk_rs_core_a;
+ALTER TABLE ONLY public.rs_core_aiimageannotation DROP CONSTRAINT rs_core_aiimageannot_image_id_efbb458d_fk_rs_core_r;
+ALTER TABLE ONLY public.rs_core_aiimageannotation DROP CONSTRAINT rs_core_aiimageannot_annotation_id_5dd15dc7_fk_rs_core_a;
 ALTER TABLE ONLY public.django_redirect DROP CONSTRAINT django_redirect_site_id_c3e37341_fk_django_site_id;
 ALTER TABLE ONLY public.django_admin_log DROP CONSTRAINT django_admin_log_user_id_c564eba6_fk_auth_user_id;
 ALTER TABLE ONLY public.django_admin_log DROP CONSTRAINT django_admin_log_content_type_id_c4bce8eb_fk_django_co;
@@ -31,14 +33,21 @@ ALTER TABLE ONLY public.auth_permission DROP CONSTRAINT auth_permission_content_
 ALTER TABLE ONLY public.auth_group_permissions DROP CONSTRAINT auth_group_permissions_group_id_b120cbf9_fk_auth_group_id;
 ALTER TABLE ONLY public.auth_group_permissions DROP CONSTRAINT auth_group_permissio_permission_id_84c5c92e_fk_auth_perm;
 DROP INDEX public.rs_core_userprofile_email_aba8c941_like;
+DROP INDEX public.rs_core_userimageannotation_user_id_b4b6ae62;
+DROP INDEX public.rs_core_userimageannotation_image_id_5dd6b7a5_like;
+DROP INDEX public.rs_core_userimageannotation_image_id_5dd6b7a5;
+DROP INDEX public.rs_core_userimageannotation_annotation_id_1a04caa8_like;
+DROP INDEX public.rs_core_userimageannotation_annotation_id_1a04caa8;
+DROP INDEX public.rs_core_use_image_i_b448f4_idx;
 DROP INDEX public.rs_core_routeimage_location_id;
 DROP INDEX public.rs_core_routeimage_image_base_name_a7b8781b_like;
-DROP INDEX public.rs_core_imageannotation_image_id_4e785aed_like;
-DROP INDEX public.rs_core_imageannotation_image_id_4e785aed;
-DROP INDEX public.rs_core_imageannotation_annotator_id_4c8fd127;
-DROP INDEX public.rs_core_imageannotation_annotation_id_18ad791c_like;
-DROP INDEX public.rs_core_imageannotation_annotation_id_18ad791c;
+DROP INDEX public.rs_core_rou_image_b_eff58f_idx;
 DROP INDEX public.rs_core_annotationset_name_281c6acf_like;
+DROP INDEX public.rs_core_aiimageannotation_image_id_efbb458d_like;
+DROP INDEX public.rs_core_aiimageannotation_image_id_efbb458d;
+DROP INDEX public.rs_core_aiimageannotation_annotation_id_5dd15dc7_like;
+DROP INDEX public.rs_core_aiimageannotation_annotation_id_5dd15dc7;
+DROP INDEX public.rs_core_aii_image_i_d04ca4_idx;
 DROP INDEX public.django_site_domain_a2e37b91_like;
 DROP INDEX public.django_session_session_key_c0390e0f_like;
 DROP INDEX public.django_session_expire_date_a5c62663;
@@ -59,10 +68,10 @@ DROP INDEX public.auth_group_name_a6ea08ec_like;
 ALTER TABLE ONLY public.rs_core_userprofile DROP CONSTRAINT rs_core_userprofile_user_id_key;
 ALTER TABLE ONLY public.rs_core_userprofile DROP CONSTRAINT rs_core_userprofile_pkey;
 ALTER TABLE ONLY public.rs_core_userprofile DROP CONSTRAINT rs_core_userprofile_email_key;
+ALTER TABLE ONLY public.rs_core_userimageannotation DROP CONSTRAINT rs_core_userimageannotation_pkey;
 ALTER TABLE ONLY public.rs_core_routeimage DROP CONSTRAINT rs_core_routeimage_pkey;
-ALTER TABLE ONLY public.rs_core_imageannotation DROP CONSTRAINT rs_core_imageannotation_pkey;
-ALTER TABLE ONLY public.rs_core_imageannotation DROP CONSTRAINT rs_core_imageannotation_image_id_annotation_id_a_3cb3f65c_uniq;
 ALTER TABLE ONLY public.rs_core_annotationset DROP CONSTRAINT rs_core_annotationset_pkey;
+ALTER TABLE ONLY public.rs_core_aiimageannotation DROP CONSTRAINT rs_core_aiimageannotation_pkey;
 ALTER TABLE ONLY public.django_site DROP CONSTRAINT django_site_pkey;
 ALTER TABLE ONLY public.django_site DROP CONSTRAINT django_site_domain_a2e37b91_uniq;
 ALTER TABLE ONLY public.django_session DROP CONSTRAINT django_session_pkey;
@@ -85,7 +94,8 @@ ALTER TABLE ONLY public.auth_group_permissions DROP CONSTRAINT auth_group_permis
 ALTER TABLE ONLY public.auth_group_permissions DROP CONSTRAINT auth_group_permissions_group_id_permission_id_0cd325b0_uniq;
 ALTER TABLE ONLY public.auth_group DROP CONSTRAINT auth_group_name_key;
 ALTER TABLE public.rs_core_userprofile ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE public.rs_core_imageannotation ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE public.rs_core_userimageannotation ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE public.rs_core_aiimageannotation ALTER COLUMN id DROP DEFAULT;
 ALTER TABLE public.django_site ALTER COLUMN id DROP DEFAULT;
 ALTER TABLE public.django_redirect ALTER COLUMN id DROP DEFAULT;
 ALTER TABLE public.django_migrations ALTER COLUMN id DROP DEFAULT;
@@ -99,10 +109,12 @@ ALTER TABLE public.auth_group_permissions ALTER COLUMN id DROP DEFAULT;
 ALTER TABLE public.auth_group ALTER COLUMN id DROP DEFAULT;
 DROP SEQUENCE public.rs_core_userprofile_id_seq;
 DROP TABLE public.rs_core_userprofile;
+DROP SEQUENCE public.rs_core_userimageannotation_id_seq;
+DROP TABLE public.rs_core_userimageannotation;
 DROP TABLE public.rs_core_routeimage;
-DROP SEQUENCE public.rs_core_imageannotation_id_seq;
-DROP TABLE public.rs_core_imageannotation;
 DROP TABLE public.rs_core_annotationset;
+DROP SEQUENCE public.rs_core_aiimageannotation_id_seq;
+DROP TABLE public.rs_core_aiimageannotation;
 DROP SEQUENCE public.django_site_id_seq;
 DROP TABLE public.django_site;
 DROP TABLE public.django_session;
@@ -642,6 +654,44 @@ ALTER SEQUENCE public.django_site_id_seq OWNED BY public.django_site.id;
 
 
 --
+-- Name: rs_core_aiimageannotation; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.rs_core_aiimageannotation (
+    id integer NOT NULL,
+    presence boolean NOT NULL,
+    certainty double precision NOT NULL,
+    "timestamp" timestamp with time zone NOT NULL,
+    annotation_id character varying(100) NOT NULL,
+    image_id character varying(15) NOT NULL
+);
+
+
+ALTER TABLE public.rs_core_aiimageannotation OWNER TO postgres;
+
+--
+-- Name: rs_core_aiimageannotation_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.rs_core_aiimageannotation_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.rs_core_aiimageannotation_id_seq OWNER TO postgres;
+
+--
+-- Name: rs_core_aiimageannotation_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.rs_core_aiimageannotation_id_seq OWNED BY public.rs_core_aiimageannotation.id;
+
+
+--
 -- Name: rs_core_annotationset; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -652,47 +702,6 @@ CREATE TABLE public.rs_core_annotationset (
 
 
 ALTER TABLE public.rs_core_annotationset OWNER TO postgres;
-
---
--- Name: rs_core_imageannotation; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.rs_core_imageannotation (
-    id integer NOT NULL,
-    pred_centainty_score double precision NOT NULL,
-    pred_timestamp timestamp with time zone,
-    feature_present boolean,
-    annotator_timestamp timestamp with time zone,
-    comment character varying(1000),
-    annotation_id character varying(100) NOT NULL,
-    annotator_id integer,
-    image_id character varying(15) NOT NULL
-);
-
-
-ALTER TABLE public.rs_core_imageannotation OWNER TO postgres;
-
---
--- Name: rs_core_imageannotation_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.rs_core_imageannotation_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.rs_core_imageannotation_id_seq OWNER TO postgres;
-
---
--- Name: rs_core_imageannotation_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.rs_core_imageannotation_id_seq OWNED BY public.rs_core_imageannotation.id;
-
 
 --
 -- Name: rs_core_routeimage; Type: TABLE; Schema: public; Owner: postgres
@@ -707,6 +716,45 @@ CREATE TABLE public.rs_core_routeimage (
 
 
 ALTER TABLE public.rs_core_routeimage OWNER TO postgres;
+
+--
+-- Name: rs_core_userimageannotation; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.rs_core_userimageannotation (
+    id integer NOT NULL,
+    presence boolean NOT NULL,
+    "timestamp" timestamp with time zone NOT NULL,
+    comment character varying(1000),
+    annotation_id character varying(100) NOT NULL,
+    image_id character varying(15) NOT NULL,
+    user_id integer NOT NULL
+);
+
+
+ALTER TABLE public.rs_core_userimageannotation OWNER TO postgres;
+
+--
+-- Name: rs_core_userimageannotation_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.rs_core_userimageannotation_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.rs_core_userimageannotation_id_seq OWNER TO postgres;
+
+--
+-- Name: rs_core_userimageannotation_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.rs_core_userimageannotation_id_seq OWNED BY public.rs_core_userimageannotation.id;
+
 
 --
 -- Name: rs_core_userprofile; Type: TABLE; Schema: public; Owner: postgres
@@ -824,10 +872,17 @@ ALTER TABLE ONLY public.django_site ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
--- Name: rs_core_imageannotation id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: rs_core_aiimageannotation id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.rs_core_imageannotation ALTER COLUMN id SET DEFAULT nextval('public.rs_core_imageannotation_id_seq'::regclass);
+ALTER TABLE ONLY public.rs_core_aiimageannotation ALTER COLUMN id SET DEFAULT nextval('public.rs_core_aiimageannotation_id_seq'::regclass);
+
+
+--
+-- Name: rs_core_userimageannotation id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rs_core_userimageannotation ALTER COLUMN id SET DEFAULT nextval('public.rs_core_userimageannotation_id_seq'::regclass);
 
 
 --
@@ -906,6 +961,14 @@ COPY public.auth_permission (id, name, content_type_id, codename) FROM stdin;
 46	Can change user	12	change_user
 47	Can delete user	12	delete_user
 48	Can view user	12	view_user
+49	Can add ai image annotation	13	add_aiimageannotation
+50	Can change ai image annotation	13	change_aiimageannotation
+51	Can delete ai image annotation	13	delete_aiimageannotation
+52	Can view ai image annotation	13	view_aiimageannotation
+53	Can add user image annotation	14	add_userimageannotation
+54	Can change user image annotation	14	change_userimageannotation
+55	Can delete user image annotation	14	delete_userimageannotation
+56	Can view user image annotation	14	view_userimageannotation
 \.
 
 
@@ -914,7 +977,7 @@ COPY public.auth_permission (id, name, content_type_id, codename) FROM stdin;
 --
 
 COPY public.auth_user (id, password, last_login, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined) FROM stdin;
-1	pbkdf2_sha256$216000$qaPpXKPECSbN$uMiuNoNFuIor8aaFZRR3LzECQkRukPmmmYUQicSBvSI=	2020-10-16 19:29:38.442269+00	t	admin			admin@example.com	t	t	2020-10-16 18:58:02.362519+00
+3	pbkdf2_sha256$216000$weS4pstVv95n$Td3r0d2lzKAA8eKPmKEtZeTECAqDRp9U2A3tEHFa7uY=	2020-10-20 02:44:29.774677+00	t	admin			admin@example.com	t	t	2020-10-20 02:44:18.967108+00
 \.
 
 
@@ -939,7 +1002,7 @@ COPY public.auth_user_user_permissions (id, user_id, permission_id) FROM stdin;
 --
 
 COPY public.django_admin_log (id, action_time, object_id, object_repr, action_flag, change_message, content_type_id, user_id) FROM stdin;
-1	2020-10-16 19:29:49.602828+00	guardrail	AnnotationSet object (guardrail)	1	[{"added": {}}]	6	1
+2	2020-10-20 02:45:34.324811+00	guardrail	AnnotationSet object (guardrail)	2	[{"changed": {"fields": ["Type"]}}]	6	3
 \.
 
 
@@ -960,6 +1023,8 @@ COPY public.django_content_type (id, app_label, model) FROM stdin;
 10	auth	permission
 11	auth	group
 12	auth	user
+13	rs_core	aiimageannotation
+14	rs_core	userimageannotation
 \.
 
 
@@ -991,6 +1056,7 @@ COPY public.django_migrations (id, app, name, applied) FROM stdin;
 21	rs_core	0001_initial	2020-10-16 18:57:59.913265+00
 22	rs_core	0002_annotationset_imageannotation_routeimage	2020-10-16 18:58:00.357121+00
 23	sessions	0001_initial	2020-10-16 18:58:00.858564+00
+24	rs_core	0003_auto_20201020_0217	2020-10-20 02:18:16.290499+00
 \.
 
 
@@ -1007,6 +1073,9 @@ COPY public.django_redirect (id, site_id, old_path, new_path) FROM stdin;
 --
 
 COPY public.django_session (session_key, session_data, expire_date) FROM stdin;
+roq3kjzuuj94d082k0i90npg98qrg8i3	.eJxVjDEOwyAQBP9CHSEDh4GU6f0G6-CO2EkEkrGrKH-PLblIim12ZvctRtzWadwaL-NM4iq0uPx2EdOTywHogeVeZaplXeYoD0WetMmhEr9up_t3MGGb9jWESM5rgD3oNLOHnG3wRABZcTLW9hR6471xytsuAyiMXej6pA0Si88XyQM3LQ:1kTVV7:RizOl41-asNlpaAQo9JDiphnCS8TTpwy5HxErxfrNU4	2020-10-30 19:34:53.26732+00
+m1pjt7g5snduz82o8qjba2hkf8hncdhc	.eJxVjDEOwyAQBP9CHSEDh4GU6f0G6-CO2EkEkrGrKH-PLblIim12ZvctRtzWadwaL-NM4iq0uPx2EdOTywHogeVeZaplXeYoD0WetMmhEr9up_t3MGGb9jWESM5rgD3oNLOHnG3wRABZcTLW9hR6471xytsuAyiMXej6pA0Si88XyQM3LQ:1kUZGE:iVl4zQoDB0D9JbRfSichdB5qt1ddlW3RPqTKufi6SFI	2020-11-02 17:47:54.566735+00
+6fi9ognpoxt6whoojtfsk08k87ylmwim	.eJxVjDEOwyAQBP9CHSEDh4GU6f0G6-CO2EkEkrGrKH-PLblIim12ZvctRtzWadwaL-NM4iq0uPx2EdOTywHogeVeZaplXeYoD0WetMmhEr9up_t3MGGb9jWESM5rgD3oNLOHnG3wRABZcTLW9hR6471xytsuAyiMXej6pA0Si88XyQM3LQ:1kUhIK:AEjvCuVFMhbnLk5Q8ZEDJb79Xgn4iLbZW_T2u_dFz4I	2020-11-03 02:22:36.651549+00
 \.
 
 
@@ -1020,19 +1089,19 @@ COPY public.django_site (id, domain, name) FROM stdin;
 
 
 --
--- Data for Name: rs_core_annotationset; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: rs_core_aiimageannotation; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.rs_core_annotationset (name, type) FROM stdin;
-guardrail	pt
+COPY public.rs_core_aiimageannotation (id, presence, certainty, "timestamp", annotation_id, image_id) FROM stdin;
 \.
 
 
 --
--- Data for Name: rs_core_imageannotation; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: rs_core_annotationset; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.rs_core_imageannotation (id, pred_centainty_score, pred_timestamp, feature_present, annotator_timestamp, comment, annotation_id, annotator_id, image_id) FROM stdin;
+COPY public.rs_core_annotationset (name, type) FROM stdin;
+guardrail	cont
 \.
 
 
@@ -17350,6 +17419,14 @@ COPY public.rs_core_routeimage (route_id, set, image_base_name, location) FROM s
 
 
 --
+-- Data for Name: rs_core_userimageannotation; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.rs_core_userimageannotation (id, presence, "timestamp", comment, annotation_id, image_id, user_id) FROM stdin;
+\.
+
+
+--
 -- Data for Name: rs_core_userprofile; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -17431,7 +17508,7 @@ SELECT pg_catalog.setval('public.auth_group_permissions_id_seq', 1, false);
 -- Name: auth_permission_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.auth_permission_id_seq', 48, true);
+SELECT pg_catalog.setval('public.auth_permission_id_seq', 56, true);
 
 
 --
@@ -17445,7 +17522,7 @@ SELECT pg_catalog.setval('public.auth_user_groups_id_seq', 1, false);
 -- Name: auth_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.auth_user_id_seq', 1, true);
+SELECT pg_catalog.setval('public.auth_user_id_seq', 3, true);
 
 
 --
@@ -17459,21 +17536,21 @@ SELECT pg_catalog.setval('public.auth_user_user_permissions_id_seq', 1, false);
 -- Name: django_admin_log_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.django_admin_log_id_seq', 1, true);
+SELECT pg_catalog.setval('public.django_admin_log_id_seq', 2, true);
 
 
 --
 -- Name: django_content_type_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.django_content_type_id_seq', 12, true);
+SELECT pg_catalog.setval('public.django_content_type_id_seq', 14, true);
 
 
 --
 -- Name: django_migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.django_migrations_id_seq', 23, true);
+SELECT pg_catalog.setval('public.django_migrations_id_seq', 24, true);
 
 
 --
@@ -17491,17 +17568,24 @@ SELECT pg_catalog.setval('public.django_site_id_seq', 1, true);
 
 
 --
--- Name: rs_core_imageannotation_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: rs_core_aiimageannotation_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_imageannotation_id_seq', 1, false);
+SELECT pg_catalog.setval('public.rs_core_aiimageannotation_id_seq', 1, false);
+
+
+--
+-- Name: rs_core_userimageannotation_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.rs_core_userimageannotation_id_seq', 2, true);
 
 
 --
 -- Name: rs_core_userprofile_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_userprofile_id_seq', 1, false);
+SELECT pg_catalog.setval('public.rs_core_userprofile_id_seq', 1, true);
 
 
 --
@@ -17673,6 +17757,14 @@ ALTER TABLE ONLY public.django_site
 
 
 --
+-- Name: rs_core_aiimageannotation rs_core_aiimageannotation_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rs_core_aiimageannotation
+    ADD CONSTRAINT rs_core_aiimageannotation_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: rs_core_annotationset rs_core_annotationset_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -17681,27 +17773,19 @@ ALTER TABLE ONLY public.rs_core_annotationset
 
 
 --
--- Name: rs_core_imageannotation rs_core_imageannotation_image_id_annotation_id_a_3cb3f65c_uniq; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.rs_core_imageannotation
-    ADD CONSTRAINT rs_core_imageannotation_image_id_annotation_id_a_3cb3f65c_uniq UNIQUE (image_id, annotation_id, annotator_id);
-
-
---
--- Name: rs_core_imageannotation rs_core_imageannotation_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.rs_core_imageannotation
-    ADD CONSTRAINT rs_core_imageannotation_pkey PRIMARY KEY (id);
-
-
---
 -- Name: rs_core_routeimage rs_core_routeimage_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.rs_core_routeimage
     ADD CONSTRAINT rs_core_routeimage_pkey PRIMARY KEY (image_base_name);
+
+
+--
+-- Name: rs_core_userimageannotation rs_core_userimageannotation_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rs_core_userimageannotation
+    ADD CONSTRAINT rs_core_userimageannotation_pkey PRIMARY KEY (id);
 
 
 --
@@ -17848,6 +17932,41 @@ CREATE INDEX django_site_domain_a2e37b91_like ON public.django_site USING btree 
 
 
 --
+-- Name: rs_core_aii_image_i_d04ca4_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_aii_image_i_d04ca4_idx ON public.rs_core_aiimageannotation USING btree (image_id, annotation_id);
+
+
+--
+-- Name: rs_core_aiimageannotation_annotation_id_5dd15dc7; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_aiimageannotation_annotation_id_5dd15dc7 ON public.rs_core_aiimageannotation USING btree (annotation_id);
+
+
+--
+-- Name: rs_core_aiimageannotation_annotation_id_5dd15dc7_like; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_aiimageannotation_annotation_id_5dd15dc7_like ON public.rs_core_aiimageannotation USING btree (annotation_id varchar_pattern_ops);
+
+
+--
+-- Name: rs_core_aiimageannotation_image_id_efbb458d; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_aiimageannotation_image_id_efbb458d ON public.rs_core_aiimageannotation USING btree (image_id);
+
+
+--
+-- Name: rs_core_aiimageannotation_image_id_efbb458d_like; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_aiimageannotation_image_id_efbb458d_like ON public.rs_core_aiimageannotation USING btree (image_id varchar_pattern_ops);
+
+
+--
 -- Name: rs_core_annotationset_name_281c6acf_like; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -17855,38 +17974,10 @@ CREATE INDEX rs_core_annotationset_name_281c6acf_like ON public.rs_core_annotati
 
 
 --
--- Name: rs_core_imageannotation_annotation_id_18ad791c; Type: INDEX; Schema: public; Owner: postgres
+-- Name: rs_core_rou_image_b_eff58f_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX rs_core_imageannotation_annotation_id_18ad791c ON public.rs_core_imageannotation USING btree (annotation_id);
-
-
---
--- Name: rs_core_imageannotation_annotation_id_18ad791c_like; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX rs_core_imageannotation_annotation_id_18ad791c_like ON public.rs_core_imageannotation USING btree (annotation_id varchar_pattern_ops);
-
-
---
--- Name: rs_core_imageannotation_annotator_id_4c8fd127; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX rs_core_imageannotation_annotator_id_4c8fd127 ON public.rs_core_imageannotation USING btree (annotator_id);
-
-
---
--- Name: rs_core_imageannotation_image_id_4e785aed; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX rs_core_imageannotation_image_id_4e785aed ON public.rs_core_imageannotation USING btree (image_id);
-
-
---
--- Name: rs_core_imageannotation_image_id_4e785aed_like; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX rs_core_imageannotation_image_id_4e785aed_like ON public.rs_core_imageannotation USING btree (image_id varchar_pattern_ops);
+CREATE INDEX rs_core_rou_image_b_eff58f_idx ON public.rs_core_routeimage USING btree (image_base_name);
 
 
 --
@@ -17901,6 +17992,48 @@ CREATE INDEX rs_core_routeimage_image_base_name_a7b8781b_like ON public.rs_core_
 --
 
 CREATE INDEX rs_core_routeimage_location_id ON public.rs_core_routeimage USING gist (location);
+
+
+--
+-- Name: rs_core_use_image_i_b448f4_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_use_image_i_b448f4_idx ON public.rs_core_userimageannotation USING btree (image_id, annotation_id);
+
+
+--
+-- Name: rs_core_userimageannotation_annotation_id_1a04caa8; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_userimageannotation_annotation_id_1a04caa8 ON public.rs_core_userimageannotation USING btree (annotation_id);
+
+
+--
+-- Name: rs_core_userimageannotation_annotation_id_1a04caa8_like; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_userimageannotation_annotation_id_1a04caa8_like ON public.rs_core_userimageannotation USING btree (annotation_id varchar_pattern_ops);
+
+
+--
+-- Name: rs_core_userimageannotation_image_id_5dd6b7a5; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_userimageannotation_image_id_5dd6b7a5 ON public.rs_core_userimageannotation USING btree (image_id);
+
+
+--
+-- Name: rs_core_userimageannotation_image_id_5dd6b7a5_like; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_userimageannotation_image_id_5dd6b7a5_like ON public.rs_core_userimageannotation USING btree (image_id varchar_pattern_ops);
+
+
+--
+-- Name: rs_core_userimageannotation_user_id_b4b6ae62; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_userimageannotation_user_id_b4b6ae62 ON public.rs_core_userimageannotation USING btree (user_id);
 
 
 --
@@ -17991,27 +18124,43 @@ ALTER TABLE ONLY public.django_redirect
 
 
 --
--- Name: rs_core_imageannotation rs_core_imageannotat_annotation_id_18ad791c_fk_rs_core_a; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: rs_core_aiimageannotation rs_core_aiimageannot_annotation_id_5dd15dc7_fk_rs_core_a; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.rs_core_imageannotation
-    ADD CONSTRAINT rs_core_imageannotat_annotation_id_18ad791c_fk_rs_core_a FOREIGN KEY (annotation_id) REFERENCES public.rs_core_annotationset(name) DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: rs_core_imageannotation rs_core_imageannotat_image_id_4e785aed_fk_rs_core_r; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.rs_core_imageannotation
-    ADD CONSTRAINT rs_core_imageannotat_image_id_4e785aed_fk_rs_core_r FOREIGN KEY (image_id) REFERENCES public.rs_core_routeimage(image_base_name) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE ONLY public.rs_core_aiimageannotation
+    ADD CONSTRAINT rs_core_aiimageannot_annotation_id_5dd15dc7_fk_rs_core_a FOREIGN KEY (annotation_id) REFERENCES public.rs_core_annotationset(name) DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: rs_core_imageannotation rs_core_imageannotation_annotator_id_4c8fd127_fk_auth_user_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: rs_core_aiimageannotation rs_core_aiimageannot_image_id_efbb458d_fk_rs_core_r; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.rs_core_imageannotation
-    ADD CONSTRAINT rs_core_imageannotation_annotator_id_4c8fd127_fk_auth_user_id FOREIGN KEY (annotator_id) REFERENCES public.auth_user(id) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE ONLY public.rs_core_aiimageannotation
+    ADD CONSTRAINT rs_core_aiimageannot_image_id_efbb458d_fk_rs_core_r FOREIGN KEY (image_id) REFERENCES public.rs_core_routeimage(image_base_name) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: rs_core_userimageannotation rs_core_userimageann_annotation_id_1a04caa8_fk_rs_core_a; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rs_core_userimageannotation
+    ADD CONSTRAINT rs_core_userimageann_annotation_id_1a04caa8_fk_rs_core_a FOREIGN KEY (annotation_id) REFERENCES public.rs_core_annotationset(name) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: rs_core_userimageannotation rs_core_userimageann_image_id_5dd6b7a5_fk_rs_core_r; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rs_core_userimageannotation
+    ADD CONSTRAINT rs_core_userimageann_image_id_5dd6b7a5_fk_rs_core_r FOREIGN KEY (image_id) REFERENCES public.rs_core_routeimage(image_base_name) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: rs_core_userimageannotation rs_core_userimageannotation_user_id_b4b6ae62_fk_auth_user_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rs_core_userimageannotation
+    ADD CONSTRAINT rs_core_userimageannotation_user_id_b4b6ae62_fk_auth_user_id FOREIGN KEY (user_id) REFERENCES public.auth_user(id) DEFERRABLE INITIALLY DEFERRED;
 
 
 --

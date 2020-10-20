@@ -27,6 +27,11 @@ class RouteImage(models.Model):
     def __str__(self):
         return "{}{}".format(self.set, self.image_base_name)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['image_base_name']),
+        ]
+
 
 class AnnotationSet(models.Model):
     TYPE_CHOICES = (
@@ -37,15 +42,28 @@ class AnnotationSet(models.Model):
     type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='pt')
 
 
-class ImageAnnotation(models.Model):
+class AIImageAnnotation(models.Model):
     image = models.ForeignKey(RouteImage, on_delete=models.CASCADE)
     annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
-    pred_centainty_score = models.FloatField(default=-1)
-    pred_timestamp = models.DateTimeField(blank=True, null=True)
-    annotator = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
-    feature_present = models.BooleanField(blank=True, null=True)
-    annotator_timestamp = models.DateTimeField(blank=True, null=True)
+    presence = models.BooleanField()
+    certainty = models.FloatField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['image', 'annotation']),
+        ]
+
+
+class UserImageAnnotation(models.Model):
+    image = models.ForeignKey(RouteImage, on_delete=models.CASCADE)
+    annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    presence = models.BooleanField()
+    timestamp = models.DateTimeField(auto_now_add=True)
     comment = models.CharField(max_length=1000, blank=True, null=True)
 
     class Meta:
-        unique_together = ('image', 'annotation', 'annotator')
+        indexes = [
+            models.Index(fields=['image', 'annotation']),
+        ]
