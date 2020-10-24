@@ -17,21 +17,18 @@ def save_metadata_to_db(route_id, set, image, lat, long):
     return
 
 
-def get_image_base_names_by_annotation(annot_name, route_id=None):
+def get_image_base_names_by_annotation(annot_name, count, route_id=None):
     if route_id:
-        images1 = AIImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
-                                                   image__route_id=route_id).values_list("image__image_base_name",
-                                                                                         flat=True).distinct()
-        images2 = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
-                                                     image__route_id=route_id).values_list("image__image_base_name",
-                                                                                           flat=True).distinct()
+        images = AIImageAnnotation.objects.filter(
+            annotation__name__iexact=annot_name,
+            image__route_id=route_id).order_by('certainty').values_list("image__image_base_name",
+                                                                        flat=True).distinct()[:count]
     else:
-        images1 = AIImageAnnotation.objects.filter(
-            annotation__name__iexact=annot_name).values_list("image__image_base_name", flat=True).distinct()
-        images2 = UserImageAnnotation.objects.filter(
-            annotation__name__iexact=annot_name).values_list("image__image_base_name", flat=True).distinct()
+        images = AIImageAnnotation.objects.filter(
+            annotation__name__iexact=annot_name).order_by('certainty').values_list("image__image_base_name",
+                                                                                   flat=True).distinct()[:count]
 
-    return list(images1.union(images2))
+    return list(images)
 
 
 def get_image_annotations_queryset(image_base_name):

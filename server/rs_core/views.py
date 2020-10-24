@@ -196,7 +196,6 @@ def get_image_base_names_by_annot(request, annot_name):
 @login_required
 def get_next_images_for_annot(request, annot_name, count):
     # return requested <count> number of images sorted by needs for human annotation
-    # To do: add logic to return images mosted needed for annotation based on AI prediction score and human annotations
     if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
         return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -205,8 +204,8 @@ def get_next_images_for_annot(request, annot_name, count):
 
     if not AIImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists() and \
             not UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists():
-        # to be removed after having AI-created annotation data in ImageAnnotation table. This is created for
-        # covenience of client development before AI is set up on the server side
+        # this should not happen since some AI annotations should present, but keep the code here to return some
+        # random images for annotation for potential development scenarios where annotation data is not available
         if not route_id:
             images = random.sample(list(RouteImage.objects.filter(set='100').values_list("image_base_name", flat=True)),
                                    count)
@@ -216,9 +215,7 @@ def get_next_images_for_annot(request, annot_name, count):
 
         return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
 
-    images = get_image_base_names_by_annotation(annot_name, route_id)
-    if count < len(images):
-        images = images[:count]
+    images = get_image_base_names_by_annotation(annot_name, count, route_id)
     return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
 
 
