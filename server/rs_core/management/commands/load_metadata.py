@@ -12,15 +12,12 @@ class Command(BaseCommand):
     For example:
     docker exec -ti dot-server python manage.py load_metadata metadata/sensor_data_mapped.csv
     """
-    help = "Process input the metadata export file in csv format to process and load metadata into database"
+    help = "Process the metadata export input file in csv format to load metadata into database"
 
     def add_arguments(self, parser):
         # csv filename with full path to load metadata from
         parser.add_argument('input_file', help='input csv file name with full path to be '
                                                'processed and load metadata from')
-
-    def save_to_db(self):
-        return
 
     def handle(self, *args, **options):
         input_file = options['input_file']
