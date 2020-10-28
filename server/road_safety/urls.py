@@ -22,6 +22,7 @@ urlpatterns = [
     path('', include('rs_core.urls')),
     path('', TemplateView.as_view(template_name='home.html'), name='home'),
     path('about', TemplateView.as_view(template_name='home.html'), name='home'),
-    path('browse', TemplateView.as_view(template_name='home.html'), name='home')
+    path('browse/annotation', TemplateView.as_view(template_name='home.html'), name='home'),
+    path('browse/route', TemplateView.as_view(template_name='home.html'), name='home')
     #re_path(r'^(?:.*)/?$', TemplateView.as_view(template_name='home.html'), name='home'),
 ]
