@@ -284,7 +284,7 @@ def save_annotations(request):
         annot_name = annot.get('annotation_name', '')
         annot_present = annot.get('is_present', '')
         annot_comment = annot.get('comment', '')
-        if not img_base_name or not annot_name or not annot_present:
+        if img_base_name is None or annot_name is None or annot_present is None:
             return JsonResponse({'error': 'bad request'}, status=status.HTTP_400_BAD_REQUEST)
         if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
             return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
