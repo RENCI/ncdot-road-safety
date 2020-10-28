@@ -50,6 +50,9 @@ def save_guardrail_data_to_db(begin_long, begin_lat, end_long, end_lat, route_id
     end_loc = Point(float(end_long), float(end_lat), srid=4326)
     start_image_filter = RouteImage.objects.filter(route_id=route_id).annotate(
         distance=Distance('location', start_loc)).order_by('distance')
+    if not start_image_filter:
+        print('route', route_id, 'does not exist')
+        return
     if start_image_filter[0].distance.m > 10:
         print('distance ', start_image_filter[0].distance, ' is too big, not counting as guardrail')
         start_image = None
@@ -74,6 +77,7 @@ def save_guardrail_data_to_db(begin_long, begin_lat, end_long, end_lat, route_id
         return
 
     annot_obj = AnnotationSet.objects.get(name__iexact='guardrail')
+
 
     # get all images between start_image and end_image
     qs = RouteImage.objects.filter(image_base_name__gte=start_image, image_base_name__lte=end_image)
