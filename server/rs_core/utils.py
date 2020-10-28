@@ -48,16 +48,38 @@ def _create_ai_image_annotation(image, annotation, presence, certainty):
 def save_guardrail_data_to_db(begin_long, begin_lat, end_long, end_lat, route_id):
     start_loc = Point(float(begin_long), float(begin_lat), srid=4326)
     end_loc = Point(float(end_long), float(end_lat), srid=4326)
-    start_image = RouteImage.objects.filter(route_id=route_id).annotate(
-        distance=Distance('location', start_loc)).order_by('distance')[0].image_base_name
-    end_image = RouteImage.objects.filter(route_id=route_id).annotate(
-        distance=Distance('location', end_loc)).order_by('distance')[0].image_base_name
+    start_image_filter = RouteImage.objects.filter(route_id=route_id).annotate(
+        distance=Distance('location', start_loc)).order_by('distance')
+    if start_image_filter[0].distance.m > 10:
+        print('distance ', start_image_filter[0].distance, ' is too big, not counting as guardrail')
+        start_image = None
+    else:
+        start_image = start_image_filter[0].image_base_name
+    end_image_filter = RouteImage.objects.filter(route_id=route_id).annotate(
+        distance=Distance('location', end_loc)).order_by('distance')
+    if end_image_filter[0].distance.m > 10:
+        print('distance ', end_image_filter[0].distance, ' is too big, not counting as guardrail')
+        end_image = None
+    else:
+        end_image = end_image_filter[0].image_base_name
+
+    if not start_image and not end_image:
+        print('both start and end images are None: ', begin_long, begin_lat, end_long, end_lat, route_id)
+        return
+    elif not start_image:
+        print('start image is None: ', begin_long, begin_lat, end_long, end_lat, route_id)
+        return
+    elif not end_image:
+        print('end image is None: ', begin_long, begin_lat, end_long, end_lat, route_id)
+        return
+
     annot_obj = AnnotationSet.objects.get(name__iexact='guardrail')
 
     # get all images between start_image and end_image
     qs = RouteImage.objects.filter(image_base_name__gte=start_image, image_base_name__lte=end_image)
     # get total number of images being marked as guardrail
     count = qs.count()
+    print(begin_long, begin_lat, end_long, end_lat, route_id, start_image, end_image, count)
     # partition images into 5 quantiles
     interval = count/5.0
     intervals = []
