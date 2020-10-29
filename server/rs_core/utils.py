@@ -19,13 +19,18 @@ def save_metadata_to_db(route_id, set, image, lat, long):
 
 def get_image_base_names_by_annotation(annot_name, count, route_id=None):
     if route_id:
+        user_images = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
+                                                         image__route_id=route_id).values_list("image__image_base_name")
         images = AIImageAnnotation.objects.filter(
-            annotation__name__iexact=annot_name,
-            image__route_id=route_id).order_by('certainty').values_list("image__image_base_name",
-                                                                        flat=True).distinct()[:count]
+            annotation__name__iexact=annot_name, image__route_id=route_id).exclude(
+            image__image_base_name__in=user_images).order_by('certainty').values_list(
+            "image__image_base_name", flat=True).distinct()[:count]
     else:
+        user_images = UserImageAnnotation.objects.filter(
+            annotation__name__iexact=annot_name).values_list("image__image_base_name")
         images = AIImageAnnotation.objects.filter(
-            annotation__name__iexact=annot_name).order_by('certainty').values_list("image__image_base_name",
+            annotation__name__iexact=annot_name).exclude(
+            image__image_base_name__in=user_images).order_by('certainty').values_list("image__image_base_name",
                                                                                    flat=True).distinct()[:count]
 
     return list(images)
