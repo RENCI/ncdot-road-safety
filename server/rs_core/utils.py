@@ -44,13 +44,17 @@ def get_image_annotations_queryset(image_base_name):
     return ai_annot.union(u_annot)
 
 
-def _create_ai_image_annotation(image, annotation, presence, certainty):
+def create_ai_image_annotation(image_base_name, annotation, presence, certainty):
+    try:
+        image = RouteImage.objects.get(image_base_name=image_base_name)
+    except RouteImage.DoesNotExist:
+        return
     AIImageAnnotation.objects.get_or_create(image=image,
                                             annotation=annotation,
                                             defaults={'presence': presence, 'certainty': certainty})
 
 
-def save_guardrail_data_to_db(begin_long, begin_lat, end_long, end_lat, route_id):
+def save_guardrail_data_to_db_old(begin_long, begin_lat, end_long, end_lat, route_id):
     start_loc = Point(float(begin_long), float(begin_lat), srid=4326)
     end_loc = Point(float(end_long), float(end_lat), srid=4326)
     start_image_filter = RouteImage.objects.filter(route_id=route_id).annotate(
@@ -106,7 +110,7 @@ def save_guardrail_data_to_db(begin_long, begin_lat, end_long, end_lat, route_id
                 # Make last image has the same certanty score at the first image to cover boundary conditions
                 index = intervals[4]
         interval_idx = bisect.bisect_left(intervals, index)
-        _create_ai_image_annotation(RouteImage.objects.get(image_base_name=q.image_base_name),
+        create_ai_image_annotation(q.image_base_name,
                                     annot_obj, True, certainty_score_list[interval_idx])
         index += 1
     return
