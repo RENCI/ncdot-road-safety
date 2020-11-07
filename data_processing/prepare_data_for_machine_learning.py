@@ -49,8 +49,8 @@ def get_image_names_with_path(mapped_image):
     set_str = mapped_image[:3]
     hour = mapped_image[3:5]
     minute = mapped_image[5:7]
-    if hour not in ['00', '01']:
-        print("hour in the mapped image must be 00 or 01")
+    if hour not in ['00', '01', '02']:
+        print("hour in the mapped image must be 00 or 01 or 02", mapped_image)
         return '', '', '', ''
     if int(minute) > 59:
         print("minute in the mapped image must be less than 60")
@@ -59,7 +59,7 @@ def get_image_names_with_path(mapped_image):
         # strip prefix 0 from minute if any
         minute_str = str(int(minute))
     else:  # hour == '01'
-        minute_str = str(int(minute) + 60)
+        minute_str = str(int(minute) + int(hour)*60)
     path = os.path.join(input_data_path, set_str, minute_str)
     left_image_name = '{}5.jpg'.format(mapped_image)
     front_image_name = '{}1.jpg'.format(mapped_image)
@@ -89,8 +89,10 @@ def prepare_image(mapped_image, label, data_type_subdir):
     dst.paste(imgs[2], (imgs[0].width+imgs[1].width, 0))
 
     feature_dir = '{}_{}'.format(feature_name, 'yes' if label == 'Y' else 'no')
-    dst_path = os.path.join(output_path, data_type_subdir, feature_dir, '{}.jpg'.format(mapped_image))
-    dst.save(dst_path)
+    dst_path = os.path.join(output_path, data_type_subdir, feature_dir, mapped_image[:3])
+    os.makedirs(dst_path, exist_ok=True)
+    dst_path_image = os.path.join(dst_path, '{}.jpg'.format(mapped_image))
+    dst.save(dst_path_image)
 
 
 df = pd.read_csv(input_metadata_path, header=0, index_col=False, usecols=['MAPPED_IMAGE', 'GUARDRAIL_YN'], dtype=str)
