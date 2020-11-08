@@ -77,9 +77,9 @@ def prepare_image(mapped_image, label, data_type_subdir):
     left_image = os.path.join(path, left)
     front_image = os.path.join(path, front)
     right_image = os.path.join(path, right)
-    if not os.path.exists(left_image) or not os.path.exists(front_image) or not os.path.exists(right_image):
-        print("at least one of the images", left_image, front_image, right_image, "do not exist")
-        return
+    #if not os.path.exists(left_image) or not os.path.exists(front_image) or not os.path.exists(right_image):
+    #    print("at least one of the images", left_image, front_image, right_image, "do not exist")
+    #    return
     img_names = [left_image, front_image, right_image]
     imgs = []
     for idx in range(3):
