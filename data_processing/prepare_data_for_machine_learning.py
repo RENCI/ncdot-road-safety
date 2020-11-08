@@ -5,7 +5,7 @@ from PIL import Image
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
-parser.add_argument('--input_metadata_path', type=str, default='../server/metadata/training_Image_guardrail_yn.csv',
+parser.add_argument('--input_metadata_path', type=str, default='../server/metadata/training_image_set_1370774.csv',
                     help='input metadata file with path for preparing training data')
 parser.add_argument('--input_data_path', type=str, default='/projects/ncdot/2018/NC_2018_Images',
                     help='input image data path for preparing training data')
