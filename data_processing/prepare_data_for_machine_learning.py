@@ -13,6 +13,8 @@ parser.add_argument('--feature_name', type=str, default='guardrail',
                     help='the name of the feature for the classifier, e.g., guardrail')
 parser.add_argument('--output_path', type=str, default='/projects/ncdot/2018/machine_learning/data',
                     help='Output path for storing training, test, and validation data for machine learning')
+parser.add_argument('--train_frac', type=float, default='0.98',
+                    help='fraction of training data over all data')
 
 args = parser.parse_args()
 
@@ -20,10 +22,10 @@ input_metadata_path = args.input_metadata_path
 input_data_path = args.input_data_path
 output_path = args.output_path
 feature_name = args.feature_name
+train_frac = args.train_frac
 
 
 def split_to_train_valid_test(data_df, label_column):
-    train_frac = 0.98
     labels = data_df[label_column].unique()
     split_train_df, split_valid_df, split_test_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     for lbl in labels:
