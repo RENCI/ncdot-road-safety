@@ -77,19 +77,23 @@ def prepare_image(mapped_image, label, data_type_subdir):
     left_image = os.path.join(path, left)
     front_image = os.path.join(path, front)
     right_image = os.path.join(path, right)
-    #if not os.path.exists(left_image) or not os.path.exists(front_image) or not os.path.exists(right_image):
-    #    print("at least one of the images", left_image, front_image, right_image, "do not exist")
-    #    return
+    if not os.path.exists(left_image) or not os.path.exists(front_image) or not os.path.exists(right_image):
+        print("at least one of the images", left_image, front_image, right_image, "do not exist")
+        return
     img_names = [left_image, front_image, right_image]
     imgs = []
-    for idx in range(3):
-        imgs.append(Image.open(img_names[idx]))
+    try:
+        for idx in range(3):
+            imgs.append(Image.open(img_names[idx]))
 
-    dst = Image.new('RGB', (imgs[0].width+imgs[1].width+imgs[2].width, imgs[0].height))
-    dst.paste(imgs[0], (0, 0))
-    dst.paste(imgs[1], (imgs[0].width, 0))
-    dst.paste(imgs[2], (imgs[0].width+imgs[1].width, 0))
+        dst = Image.new('RGB', (imgs[0].width+imgs[1].width+imgs[2].width, imgs[0].height))
 
+        dst.paste(imgs[0], (0, 0))
+        dst.paste(imgs[1], (imgs[0].width, 0))
+        dst.paste(imgs[2], (imgs[0].width+imgs[1].width, 0))
+    except OSError as ex:
+        print(str(ex))
+        return
     feature_dir = '{}_{}'.format(feature_name, 'yes' if label == 'Y' else 'no')
     dst_path = os.path.join(output_path, data_type_subdir, feature_dir, mapped_image[:3])
     os.makedirs(dst_path, exist_ok=True)
