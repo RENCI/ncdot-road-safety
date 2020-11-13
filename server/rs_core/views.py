@@ -283,18 +283,23 @@ def save_annotations(request):
         img_base_name = annot.get('image_base_name', '')
         annot_name = annot.get('annotation_name', '')
         annot_present = annot.get('is_present', None)
+        annot_present_views = annot.get('is_present_views', [])
         annot_comment = annot.get('comment', '')
         if not img_base_name or not annot_name or annot_present is None:
             return JsonResponse({'error': 'bad request'}, status=status.HTTP_400_BAD_REQUEST)
         if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
             return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
-
+        if annot_present_views:
+            annot_present_view_str = ','.join([str(x) for x in annot_present_views])
+        else:
+            annot_present_view_str = ''
         try:
             with transaction.atomic():
                 obj = UserImageAnnotation(image=RouteImage.objects.get(image_base_name=img_base_name),
                                           annotation=AnnotationSet.objects.get(name__iexact=annot_name),
                                           user=User.objects.get(username=username),
                                           presence=annot_present,
+                                          presence_views=annot_present_views,
                                           comment=annot_comment)
                 obj.save()
         except Exception as ex:

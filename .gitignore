@@ -11,3 +11,4 @@ data_processing/metadata/
 data_processing/images/
 server/metadata
 machine-learning/venv
+machine-learning/images
