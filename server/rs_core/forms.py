@@ -98,7 +98,7 @@ class UserPasswordResetForm(PasswordResetForm):
         :return:
         """
         try:
-            u = UserProfile.objects.get(email=email)
+            u = UserProfile.objects.get(email=email, user__is_active=True)
         except ObjectDoesNotExist:
             return []
 
@@ -107,10 +107,10 @@ class UserPasswordResetForm(PasswordResetForm):
     def clean_email(self):
         try:
             email = self.cleaned_data.get("email")
-            UserProfile.objects.get(email=email)
+            UserProfile.objects.get(email=email, user__is_active=True)
         except ObjectDoesNotExist:
             raise forms.ValidationError(
-                'No user account is associated with the input email',
+                'No active user account is associated with the input email',
                 code='invalid',
             )
         return email
