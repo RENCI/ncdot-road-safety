@@ -54,9 +54,12 @@ def signup(request):
             username = form.cleaned_data.get('username')
             raw_pwd = form.cleaned_data.get('password1')
 
+            # it is important to set email field on User object even though email field is already set on user profile
+            # otherwise, password reset will not work
             new_user = User.objects.create_user(username, first_name=firstname,
                                                 last_name=lastname,
                                                 password=raw_pwd,
+                                                email=email,
                                                 is_active=False if settings.ACCOUNTS_APPROVAL_REQUIRED else True
             )
             up = UserProfile(user=new_user, organization=org, years_of_service=years_of_service, email=email)
