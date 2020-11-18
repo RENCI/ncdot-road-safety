@@ -5,6 +5,7 @@ from PIL import Image
 import pandas as pd
 import numpy as np
 import tensorflow as tf
+from utils import setup_gpu_memory
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -32,6 +33,8 @@ output_file = args.output_file
 image_base_names_file = args.image_base_names_file
 image_base_name_length = args.image_base_name_length
 is_subset = args.is_subset
+
+setup_gpu_memory()
 
 # load the model
 model = tf.keras.models.load_model(model_file)
@@ -94,24 +97,6 @@ def predict(image_base_name):
         print(image_base_name, str(ex))
         return np.nan
 
-
-# there are 2 GPUs with 32GB mem each on groucho. Need to set memory limit to 30G for each to avoid
-# running exceptions
-tf.config.experimental.set_memory_growth = True
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if len(gpus) == 2:
-  try:
-    tf.config.experimental.set_virtual_device_configuration(
-        gpus[0],
-        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024*30)])
-    tf.config.experimental.set_virtual_device_configuration(
-        gpus[1],
-        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024*30)])
-    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-    print(len(gpus), "Physical GPU,", len(logical_gpus), "Logical GPUs")
-  except RuntimeError as e:
-    # Virtual devices must be set before GPUs have been initialized
-    print(e)
 
 # read all image base names
 if is_subset:

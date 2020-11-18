@@ -6,6 +6,7 @@ from tensorflow.keras.callbacks import TensorBoard
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from sklearn.metrics import classification_report, confusion_matrix
+from utils import setup_gpu_memory
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -22,23 +23,7 @@ val_dir = args.val_dir
 test_dir = args.test_dir
 feature_name = args.feature_name
 
-# there are 2 GPUs with 32GB mem each on groucho. Need to set memory limit to 30G for each to avoid
-# running exceptions
-tf.config.experimental.set_memory_growth = True
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if len(gpus) == 2:
-  try:
-    tf.config.experimental.set_virtual_device_configuration(
-        gpus[0],
-        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024*30)])
-    tf.config.experimental.set_virtual_device_configuration(
-        gpus[1],
-        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024*30)])
-    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-    print(len(gpus), "Physical GPU,", len(logical_gpus), "Logical GPUs")
-  except RuntimeError as e:
-    # Virtual devices must be set before GPUs have been initialized
-    print(e)
+setup_gpu_memory()
 
 tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
 
