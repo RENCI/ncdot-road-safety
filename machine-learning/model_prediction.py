@@ -117,10 +117,10 @@ if len(gpus) == 2:
 
 # read all image base names
 if is_subset:
-    df = pd.read_csv(image_base_names_file, header=0, index_col=False, nrows=18240,
+    df = pd.read_csv(image_base_names_file, dtype=str, header=0, index_col=False, nrows=18240,
                      usecols=["MAPPED_IMAGE"])
 else:
-    df = pd.read_csv(image_base_names_file, header=0, index_col=False, usecols=["MAPPED_IMAGE"])
+    df = pd.read_csv(image_base_names_file, dtype=str, header=0, index_col=False, usecols=["MAPPED_IMAGE"])
 
 ts = time.time()
 strategy = tf.distribute.MirroredStrategy()
