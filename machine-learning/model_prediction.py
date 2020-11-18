@@ -37,8 +37,6 @@ is_subset = args.is_subset
 model = tf.keras.models.load_model(model_file)
 print(model.summary())
 
-output_df = pd.DataFrame(columns=['Image', 'Probability'])
-
 
 def get_image_names_with_path(mapped_image):
     if len(mapped_image) != 11:
@@ -75,7 +73,7 @@ def predict(image_base_name):
     right_image = os.path.join(path, right)
     if not os.path.exists(left_image) or not os.path.exists(front_image) or not os.path.exists(right_image):
         print("at least one of the images", left_image, front_image, right_image, "do not exist")
-        return
+        return np.nan
     img_names = [left_image, front_image, right_image]
     imgs = []
     try:
@@ -91,10 +89,10 @@ def predict(image_base_name):
         img = tf.keras.preprocessing.image.img_to_array(img)
         img = tf.keras.applications.xception.preprocess_input(img)
         predictions = model.predict(np.array([img]))
-        output_df.append({'Image': image_base_name, 'Probability': predictions[0][0]}, ignore_index=True)
+        return predictions[0][0]
     except OSError as ex:
         print(image_base_name, str(ex))
-        return
+        return np.nan
 
 
 # there are 2 GPUs with 32GB mem each on groucho. Need to set memory limit to 30G for each to avoid
@@ -125,8 +123,9 @@ else:
 ts = time.time()
 strategy = tf.distribute.MirroredStrategy()
 with strategy.scope():
-    df.apply(lambda row: predict(row['MAPPED_IMAGE']), axis=1)
-output_df.to_csv(output_file, index=False)
+    df['Probability'] = df.apply(lambda row: predict(row['MAPPED_IMAGE']), axis=1)
+
+df.to_csv(output_file, index=False)
 
 te = time.time()
 print('time taken for model prediction:', te-ts)
