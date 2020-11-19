@@ -3,6 +3,8 @@ import bisect
 from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, AnnotationSet
 from django.contrib.gis.geos import fromstr
 from django.contrib.gis.geos import Point
+from django.db.models import F
+from django.db.models.functions import Abs
 from django.contrib.gis.db.models.functions import Distance
 
 
@@ -23,15 +25,17 @@ def get_image_base_names_by_annotation(annot_name, count, route_id=None):
                                                          image__route_id=route_id).values_list("image__image_base_name")
         images = AIImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name, image__route_id=route_id).exclude(
-            image__image_base_name__in=user_images).order_by('certainty').values_list(
+            image__image_base_name__in=user_images).annotate(
+            uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty').values_list(
             "image__image_base_name", flat=True).distinct()[:count]
     else:
         user_images = UserImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).values_list("image__image_base_name")
         images = AIImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).exclude(
-            image__image_base_name__in=user_images).order_by('certainty').values_list("image__image_base_name",
-                                                                                   flat=True).distinct()[:count]
+            image__image_base_name__in=user_images).annotate(
+            uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty').values_list("image__image_base_name",
+                                                                                     flat=True).distinct()[:count]
 
     return list(images)
 
@@ -52,6 +56,15 @@ def create_ai_image_annotation(image_base_name, annotation, presence, certainty)
     AIImageAnnotation.objects.get_or_create(image=image,
                                             annotation=annotation,
                                             defaults={'presence': presence, 'certainty': certainty})
+
+
+def update_or_create_ai_image_annotation(image_base_name, annotation, presence, certainty):
+    try:
+        image = RouteImage.objects.get(image_base_name=image_base_name)
+    except RouteImage.DoesNotExist:
+        return
+    AIImageAnnotation.objects.update_or_create(image=image, annotation=annotation,
+                                               defaults={'presence': presence, 'certainty': certainty})
 
 
 def save_guardrail_data_to_db_old(begin_long, begin_lat, end_long, end_lat, route_id):
