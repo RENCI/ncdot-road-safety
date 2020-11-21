@@ -14,6 +14,14 @@ parser.add_argument('--train_dir', type=str, required=True, help='input dir of t
 parser.add_argument('--val_dir', type=str, required=True, help='input dir of the validation data')
 parser.add_argument('--test_dir', type=str, required=True, help='input dir of the test data')
 parser.add_argument('--feature_name', type=str, default='guardrail', help='feature name such as guardrail')
+parser.add_argument('--use_own_base_model', action='store_true', default=True,
+                    help='use own base model for further training rather than Xception base model')
+parser.add_argument('--model_file', type=str,
+                    default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_subset.h5',
+                    help='model file with path to be loaded as the base model for further training')
+parser.add_argument('--output_model_file', type=str,
+                    default='/projects/ncdot/2018/machine_learning/model/guardrail_xception.h5',
+                    help='model file with path output by training')
 args = parser.parse_args()
 # e.g., '/projects/ncdot/2018/machine_learning/data/train'
 train_dir = args.train_dir
@@ -22,7 +30,9 @@ val_dir = args.val_dir
 # e.g., '/projects/ncdot/2018/machine_learning/data/test'
 test_dir = args.test_dir
 feature_name = args.feature_name
-
+use_own_base_model = args.use_own_base_model
+model_file = args.model_file
+output_model_file = args.output_model_file
 setup_gpu_memory()
 
 tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
@@ -66,48 +76,63 @@ test_generator = datagen.flow_from_directory(test_dir,
 
 strategy = tf.distribute.MirroredStrategy()
 with strategy.scope():
-    base_model=keras.applications.Xception(weights='imagenet',include_top=False)
-    base_model.trainable = False
-    inputs = keras.Input(shape=(299, 299, 3))
-    # make sure that the base_model is running in inference mode by passing `training=False`.
-    # This is important for fine-tuning
-    x = base_model(inputs, training=False)
-    # add a mini network on top of the base model
-    # Convert features of shape `base_model.output_shape[1:]` to vectors
-    x = keras.layers.GlobalAveragePooling2D()(x)
-    # add a dropout layer for regularization to avoid overfitting
-    x = keras.layers.Dropout(0.25)(x)
-    # A Dense classifier with a single unit (binary classification)
-    outputs = keras.layers.Dense(1, activation='sigmoid')(x)
-    model = keras.Model(inputs, outputs)
-    print(model.summary())
-    model.compile(optimizer=keras.optimizers.Adam(),
-                  loss=keras.losses.BinaryCrossentropy(from_logits=True),
-                  metrics=[keras.metrics.BinaryAccuracy()])
-    ts = time.time()
-    history = model.fit(train_generator, epochs=10, callbacks = callbacks_list,
-                        steps_per_epoch=int(train_generator.samples/batch_size),
-                        validation_data = validation_generator,
-                        validation_steps=int(validation_generator.samples/batch_size))
-    te = time.time()
-    print('time taken for model fit:', te-ts)
-    print(history.history)
+    if use_own_base_model:
+        model = tf.keras.models.load_model(model_file)
+    else:
+        base_model=keras.applications.Xception(weights='imagenet',include_top=False)
+        base_model.trainable = False
 
-    # fine tuning the model
-    with strategy.scope():
-        # Unfreeze the base model
-        base_model.trainable = True
-        model.compile(optimizer=keras.optimizers.Adam(1e-5),  # Very low learning rate
+        for layer in base_model.layers:
+            layer.trainable = False
+    
+        inputs = keras.Input(shape=(299, 299, 3))
+        # make sure that the base_model is running in inference mode by passing `training=False`.
+        # This is important for fine-tuning
+        x = base_model(inputs, training=False)
+        # add a mini network on top of the base model
+        # Convert features of shape `base_model.output_shape[1:]` to vectors
+        x = keras.layers.GlobalAveragePooling2D()(x)
+        # add a dropout layer for regularization to avoid overfitting
+        x = keras.layers.Dropout(0.25)(x)
+        # A Dense classifier with a single unit (binary classification)
+        outputs = keras.layers.Dense(1, activation='sigmoid')(x)
+        model = keras.Model(inputs, outputs)
+        print(model.summary())
+
+        model.compile(optimizer=keras.optimizers.Adam(),
                       loss=keras.losses.BinaryCrossentropy(from_logits=True),
                       metrics=[keras.metrics.BinaryAccuracy()])
-        history = model.fit(train_generator, epochs=10, callbacks=callbacks_list,
+        ts = time.time()
+        history = model.fit(train_generator, epochs=10, callbacks = callbacks_list,
                             steps_per_epoch=int(train_generator.samples/batch_size),
-                            validation_data=validation_generator,
+                            validation_data = validation_generator,
                             validation_steps=int(validation_generator.samples/batch_size))
+        te = time.time()
+        print('time taken for model fit:', te-ts)
+        print(history.history)
+
+    # fine tuning the model with small learning rate
+    # Unfreeze the base model
+    base_model.trainable = True
+    # xCeption has 14 block layers, freeze block1 and block2 layers and open up higher layers for training
+    for layer in base_model.layers:
+        if layer.name.startswith('block1_') or layer.name.startswith('block2_'):
+            layer.trainable = False
+        else:
+            layer.trainable = True
+    layers = [(layer, layer.name, layer.trainable) for layer in base_model.layers]
+    print(layers)
+    model.compile(optimizer=keras.optimizers.Adam(1e-5),  # Very low learning rate
+                  loss=keras.losses.BinaryCrossentropy(from_logits=True),
+                  metrics=[keras.metrics.BinaryAccuracy()])
+    history = model.fit(train_generator, epochs=100, callbacks=callbacks_list,
+                        steps_per_epoch=int(train_generator.samples/batch_size),
+                        validation_data=validation_generator,
+                        validation_steps=int(validation_generator.samples/batch_size))
 
     print(history.history)
     model.save(f'{feature_name}_model.h5')
-
+    model.save(output_model_file)
     predictions = model.predict(test_generator, steps=int(test_generator.samples/batch_size + 1),
                                 verbose=1)
     y_pred = [1 if y[0] >= 0.5 else 0 for y in predictions]
