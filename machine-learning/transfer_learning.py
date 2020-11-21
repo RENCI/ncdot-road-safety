@@ -122,6 +122,7 @@ with strategy.scope():
             layer.trainable = True
     layers = [(layer, layer.name, layer.trainable) for layer in base_model.layers]
     print(layers)
+    ts = time.time()
     model.compile(optimizer=keras.optimizers.Adam(1e-5),  # Very low learning rate
                   loss=keras.losses.BinaryCrossentropy(from_logits=True),
                   metrics=[keras.metrics.BinaryAccuracy()])
@@ -129,7 +130,8 @@ with strategy.scope():
                         steps_per_epoch=int(train_generator.samples/batch_size),
                         validation_data=validation_generator,
                         validation_steps=int(validation_generator.samples/batch_size))
-
+    te = time.time()
+    print('time taken for model fine tuning:', te - ts)
     print(history.history)
     model.save(f'{feature_name}_model.h5')
     model.save(output_model_file)
