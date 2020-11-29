@@ -1,7 +1,7 @@
 import argparse
 import os
 import pandas as pd
-from PIL import Image
+from utils import get_image_names_with_path, join_images
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -44,61 +44,21 @@ def split_to_train_valid_test(data_df, label_column):
     return split_train_df, split_valid_df, split_test_df
 
 
-def get_image_names_with_path(mapped_image):
-    if len(mapped_image) != 11:
-        print("mapped image in metadata must have a length of 11")
-        return '', '', '', ''
-    set_str = mapped_image[:3]
-    hour = mapped_image[3:5]
-    minute = mapped_image[5:7]
-    if hour not in ['00', '01', '02']:
-        print("hour in the mapped image must be 00 or 01 or 02", mapped_image)
-        return '', '', '', ''
-    if int(minute) > 59:
-        print("minute in the mapped image must be less than 60")
-        return '', '', '', ''
-    if hour == '00':
-        # strip prefix 0 from minute if any
-        minute_str = str(int(minute))
-    else:  # hour == '01'
-        minute_str = str(int(minute) + int(hour)*60)
-    path = os.path.join(input_data_path, set_str, minute_str)
-    left_image_name = '{}5.jpg'.format(mapped_image)
-    front_image_name = '{}1.jpg'.format(mapped_image)
-    right_image_name = '{}2.jpg'.format(mapped_image)
-    return path, left_image_name, front_image_name, right_image_name
-
-
 def prepare_image(mapped_image, label, data_type_subdir):
-    path, left, front, right = get_image_names_with_path(mapped_image)
+    path, left, front, right = get_image_names_with_path(input_data_path, mapped_image)
     if not path or not left or not front or not right:
         return
 
     left_image = os.path.join(path, left)
     front_image = os.path.join(path, front)
     right_image = os.path.join(path, right)
-    if not os.path.exists(left_image) or not os.path.exists(front_image) or not os.path.exists(right_image):
-        print("at least one of the images", left_image, front_image, right_image, "do not exist")
-        return
-    img_names = [left_image, front_image, right_image]
-    imgs = []
-    try:
-        for idx in range(3):
-            imgs.append(Image.open(img_names[idx]))
-
-        dst = Image.new('RGB', (imgs[0].width+imgs[1].width+imgs[2].width, imgs[0].height))
-
-        dst.paste(imgs[0], (0, 0))
-        dst.paste(imgs[1], (imgs[0].width, 0))
-        dst.paste(imgs[2], (imgs[0].width+imgs[1].width, 0))
-    except OSError as ex:
-        print(str(ex))
-        return
-    feature_dir = '{}_{}'.format(feature_name, 'yes' if label == 'Y' else 'no')
-    dst_path = os.path.join(output_path, data_type_subdir, feature_dir, mapped_image[:3])
-    os.makedirs(dst_path, exist_ok=True)
-    dst_path_image = os.path.join(dst_path, '{}.jpg'.format(mapped_image))
-    dst.save(dst_path_image)
+    dst_img = join_images(left_image, front_image, right_image)
+    if dst_img:
+        feature_dir = '{}_{}'.format(feature_name, 'yes' if label == 'Y' else 'no')
+        dst_path = os.path.join(output_path, data_type_subdir, feature_dir, mapped_image[:3])
+        os.makedirs(dst_path, exist_ok=True)
+        dst_path_image = os.path.join(dst_path, '{}.jpg'.format(mapped_image))
+        dst_img.save(dst_path_image)
 
 
 df = pd.read_csv(input_metadata_path, header=0, index_col=False, usecols=['MAPPED_IMAGE', 'GUARDRAIL_YN'], dtype=str)
