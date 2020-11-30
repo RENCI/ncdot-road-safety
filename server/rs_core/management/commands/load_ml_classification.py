@@ -12,7 +12,7 @@ class Command(BaseCommand):
     To run this command, do:
     docker exec -ti dot-server python manage.py load_ml_classification <input_file_with_path>
     or
-    docker exec -ti dot-server python manage.py load_ml_classification <input_file_with_path> -- feature_name guardrail
+    docker exec -ti dot-server python manage.py load_ml_classification <input_file_with_path> --feature_name guardrail
     For example:
     docker exec -ti dot-server python manage.py load_ml_classification metadata/guardrail_classification_dev.csv
     """
