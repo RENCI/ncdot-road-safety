@@ -22,6 +22,7 @@ class RouteImage(models.Model):
     # last 2 digit representing frame number (max of 29)
     # The file name can be created using set number and image_base_name as <set><image_base_name><1,2,5>.jpg
     image_base_name = models.CharField(max_length=15, primary_key=True)
+    mile_post = models.FloatField(blank=True, null=True)
     location = models.PointField()
 
     def __str__(self):
