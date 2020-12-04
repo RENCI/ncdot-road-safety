@@ -48,5 +48,4 @@ class Command(BaseCommand):
         for obj in RouteImage.objects.all():
             if not image_covered(route_df.loc[obj.route_id], obj.mile_post):
                 obj.delete()
-            break
         print('Done - remaining images:', RouteImage.objects.count())
