@@ -14,7 +14,7 @@ class Command(BaseCommand):
     To run this command, do:
     docker exec -ti dot-server python manage.py remove_four_lane_images <input_file_with_path>
     For example:
-    docker exec -ti dot-server python manage.py remove_four_lane_images metadata/route_ids_with_2_lanes.csv
+    docker exec -ti dot-server python manage.py remove_four_lane_images_by_loc metadata/route_ids_with_2_lanes.csv
     """
     help = "Remove 4 lane images from database by only keeping routes loaded from the input file"
 
