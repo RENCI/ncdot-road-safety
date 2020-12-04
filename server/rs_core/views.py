@@ -138,7 +138,12 @@ def get_image_by_name(request, name):
     istorage = IrodsStorage()
     image_path = os.path.join(settings.IRODS_ROOT, 'images')
     if not os.path.exists(image_path):
-        os.makedirs(image_path)
+        # os.path.exists() occasionally returns False even when the directory exists,
+        # so need to catch the exception to double make sure
+        try:
+            os.makedirs(image_path)
+        except FileExistsError:
+            pass
     ifile = os.path.join(image_path, name)
     if not os.path.isfile(ifile):
         try:

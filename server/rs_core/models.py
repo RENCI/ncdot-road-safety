@@ -15,8 +15,6 @@ class UserProfile(models.Model):
 
 class RouteImage(models.Model):
     route_id = models.CharField(max_length=20)
-    # 1 set contains around 100 miles or roughly 2 hours of collected data
-    set = models.CharField(max_length=5)
     # 8 digit number string with first 2 digit representing hour (00 or 01), next 2 digit
     # representing minute (00 to 59), next 2 digit representing second (00 to 59), and the
     # last 2 digit representing frame number (max of 29)
@@ -25,12 +23,9 @@ class RouteImage(models.Model):
     mile_post = models.FloatField(blank=True, null=True)
     location = models.PointField()
 
-    def __str__(self):
-        return "{}{}".format(self.set, self.image_base_name)
-
     class Meta:
         indexes = [
-            models.Index(fields=['image_base_name']),
+            models.Index(fields=['route_id', 'image_base_name']),
         ]
 
 
