@@ -2,8 +2,8 @@ import pandas as pd
 
 from django.core.management.base import BaseCommand
 
-from rs_core.models import AnnotationSet
-from rs_core.utils import update_or_create_ai_image_annotation
+from rs_core.models import AnnotationSet, RouteImage
+from rs_core.utils import create_ai_image_annotation
 
 
 class Command(BaseCommand):
@@ -14,7 +14,7 @@ class Command(BaseCommand):
     or
     docker exec -ti dot-server python manage.py load_ml_classification <input_file_with_path> --feature_name guardrail
     For example:
-    docker exec -ti dot-server python manage.py load_ml_classification metadata/guardrail_classification_dev.csv
+    docker exec -ti dot-server python manage.py load_ml_classification metadata/guardrail_classification.csv
     """
     help = "Load the ML-predicted classification data in csv format into database"
 
@@ -30,14 +30,17 @@ class Command(BaseCommand):
         feature_name = options['feature_name']
         if not feature_name:
             feature_name = 'guardrail'
-        df = pd.read_csv(input_file, header=0, index_col='MAPPED_IMAGE', dtype={'MAPPED_IMAGE': 'str',
-                                                                                'Probability': 'float'})
+        df = pd.read_csv(input_file, header=0, dtype={'MAPPED_IMAGE': 'str', 'Probability': 'float'})
         print(df.shape)
-        annot_obj = AnnotationSet.objects.get(name__iexact='guardrail')
+        image_list = list(RouteImage.objects.values_list("image_base_name", flat=True))
+        df = df[df.MAPPED_IMAGE.isin(image_list)]
+        print(df.shape)
+        df.set_index("MAPPED_IMAGE", inplace=True)
+        annot_obj = AnnotationSet.objects.get(name__iexact=feature_name)
         for image_name in df.index:
             certainty = df.loc[image_name].at['Probability']
             if pd.isna(certainty):
                 certainty = -1
             presence = True if certainty >= 0.5 else False
-            update_or_create_ai_image_annotation(image_name, annot_obj, presence, certainty)
+            create_ai_image_annotation(image_name, annot_obj, presence, certainty)
         print('Done')
