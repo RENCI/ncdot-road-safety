@@ -33,7 +33,7 @@ def get_image_base_names_by_annotation(annot_name, count, route_id=None):
             annotation__name__iexact=annot_name).values_list("image__image_base_name")
         images = AIImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).exclude(
-            image__image_base_name__in=user_images).exclude(certainty__lt=0.1).exclude(certainty__gt=0.9).annotate(
+            image__image_base_name__in=user_images).exclude(certainty__lt=0.2).exclude(certainty__gt=0.8).annotate(
             uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty').values_list("image__image_base_name",
                                                                                      flat=True).distinct()[:count]
 
