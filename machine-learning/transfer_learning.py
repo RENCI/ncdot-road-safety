@@ -10,7 +10,7 @@ from utils import setup_gpu_memory
 
 
 def get_call_backs_list(feat_name):
-    tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
+    tensorboard = TensorBoard(log_dir="logs/{}".format(time.time()))
     filepath = f'{feat_name}_model_checkpoint.h5'
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, save_weights_only=False,
                                  mode='auto', save_freq=1)
