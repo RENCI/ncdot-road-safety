@@ -160,6 +160,6 @@ if __name__ == '__main__':
         model.save(f'{feature_name}_model.h5')
         model.save(output_model_file)
         ts = time.time()
-        make_inference(model, train_generator, batch_size, feature_name)
+        make_inference(model, train_generator, batch_size*2, feature_name)
         te = time.time()
         print('time taken for model inference on test set:', te - ts)
