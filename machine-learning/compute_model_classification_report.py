@@ -8,6 +8,21 @@ from sklearn.metrics import roc_curve
 import matplotlib.pyplot as plt
 
 
+def draw_plots(y_true, y_predict):
+    precision, recall, threshold = precision_recall_curve(y_true, y_predict)
+    plt.plot(threshold, precision[:-1], "b--", label='Precision')
+    plt.plot(threshold, recall[:-1], "g--", label='Recall')
+    plt.grid(True)
+    plt.show()
+
+    fpr, tpr, threshold = roc_curve(y_true, y_predict)
+    plt.plot(fpr, tpr, linewidth=2)
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.grid(True)
+    plt.show()
+    return
+
+
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--label_file', type=str,
                     default='../server/metadata/training_Image_guardrail_yn.csv',
@@ -33,14 +48,4 @@ print(confusion_matrix(df_result['GUARDRAIL_YN'], df_result['PREDICTION_YN']))
 print('Classification Report')
 print(classification_report(df_result['GUARDRAIL_YN'], df_result['PREDICTION_YN']))
 print('average precision score', average_precision_score(df_result['GUARDRAIL_YN'], df_result['PREDICTION_YN']))
-precision, recall, threshold = precision_recall_curve(df_result['GUARDRAIL_YN'], df_result['PREDICTION_YN'])
-plt.plot(threshold, precision[:-1], "b--", label='Precision')
-plt.plot(threshold, recall[:-1], "g--", label='Recall')
-plt.grid(True)
-plt.show()
-
-fpr, tpr, threshold = roc_curve(df_result['GUARDRAIL_YN'], df_result['PREDICTION_YN'])
-plt.plot(fpr, tpr, linewidth=2)
-plt.plot([0, 1], [0, 1], 'k--')
-plt.grid(True)
-plt.show()
+#draw_plots(df_result['GUARDRAIL_YN'], df_result['PREDICTION_YN'])
