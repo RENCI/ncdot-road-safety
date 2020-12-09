@@ -7,14 +7,11 @@ parser.add_argument('--model_predict_file', type=str, default='../server/metadat
                     help='input model prediction file with path')
 parser.add_argument('--labeled_file', type=str, default='../server/metadata/training_Image_guardrail_yn.csv',
                     help='input labelled file with path to compare prediction with')
-parser.add_argument('--server_url', type=str, default='http://localhost',
-                    help='the server url to create html file for')
 parser.add_argument('--output_html_file', type=str, default='../server/templates/show_misclassified_images.html',
                     help='the server url to create html file for')
 args = parser.parse_args()
 input_pred_file = args.model_predict_file
 labeled_file = args.labeled_file
-server_url = args.server_url
 output_html_file = args.output_html_file
 
 html_str_head = """
