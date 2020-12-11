@@ -4,7 +4,6 @@
 # Command run example: python extract_image_names.py /projects/ncdot/2018/NC_2018_Images /projects/ncdot/2018/imageNames.txt 
 import os
 import sys
-import shutil
 
 
 if __name__ == '__main__':

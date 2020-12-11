@@ -50,7 +50,8 @@ def get_train_val_test_generator(bat_size, feat_name):
     return train_gen, val_gen, test_gen
 
 
-def initial_train(initial_base_model, train_gen, callback_list, bat_size, val_gen):
+def initial_train(train_gen, callback_list, bat_size, val_gen):
+    initial_base_model = keras.applications.Xception(weights='imagenet', include_top=False)
     initial_base_model.trainable = False
 
     for layer in initial_base_model.layers:
@@ -81,6 +82,15 @@ def initial_train(initial_base_model, train_gen, callback_list, bat_size, val_ge
     te = time.time()
     print('time taken for model fit:', te - ts)
     print(hist.history)
+    # fine tuning the model with small learning rate
+    # Unfreeze the base model
+    feature_model.trainable = True
+    # xCeption has 14 block layers, freeze block1 and block2 layers and open up higher layers for training
+    for layer in feature_model.layers:
+        if layer.name.startswith('block1_') or layer.name.startswith('block2_'):
+            layer.trainable = False
+        else:
+            layer.trainable = True
     return feature_model
 
 
@@ -129,22 +139,13 @@ if __name__ == '__main__':
 
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
-        base_model = keras.applications.Xception(weights='imagenet', include_top=False)
         if use_own_base_model:
             model = tf.keras.models.load_model(model_file)
+            model.trainable = True
         else:
-            model = initial_train(base_model, train_generator, callbacks_list, batch_size, validation_generator)
+            model = initial_train(train_generator, callbacks_list, batch_size, validation_generator)
 
-        # fine tuning the model with small learning rate
-        # Unfreeze the base model
-        base_model.trainable = True
-        # xCeption has 14 block layers, freeze block1 and block2 layers and open up higher layers for training
-        for layer in base_model.layers:
-            if layer.name.startswith('block1_') or layer.name.startswith('block2_'):
-                layer.trainable = False
-            else:
-                layer.trainable = True
-        layers = [(layer, layer.name, layer.trainable) for layer in base_model.layers]
+        layers = [(layer, layer.name, layer.trainable) for layer in model.layers]
         print(layers)
         ts = time.time()
         model.compile(optimizer=keras.optimizers.Adam(1e-5),  # Very low learning rate

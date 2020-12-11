@@ -49,10 +49,6 @@ def get_image_names_with_path(data_dir, mapped_image):
 
 
 def join_images(left_image_path, front_image_path, right_image_path):
-    if not os.path.exists(left_image_path) or not os.path.exists(front_image_path) or \
-            not os.path.exists(right_image_path):
-        print("at least one of the images", left_image_path, front_image_path, right_image_path, "do not exist")
-        return None
     img_names = [left_image_path, front_image_path, right_image_path]
     imgs = []
     try:
