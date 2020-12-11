@@ -8,6 +8,8 @@ parser.add_argument('--input_metadata_path', type=str, default='../server/metada
                     help='input metadata file with path for preparing training data')
 parser.add_argument('--input_data_path', type=str, default='/projects/ncdot/2018/machine_learning/data',
                     help='input training image data path for preparing 2-lanes only training data')
+parser.add_argument('--input_path_file', type=str, default='/projects/ncdot/2018/NC_2018_Images/metadata/guardrail_image_path.txt',
+                    help='input training image data path file for getting source guardrail training data path')
 parser.add_argument('--feature_name', type=str, default='guardrail',
                     help='the name of the feature for the classifier, e.g., guardrail')
 parser.add_argument('--output_path', type=str, default='/projects/ncdot/2018/machine_learning/data_2lanes',
@@ -22,6 +24,7 @@ input_data_path = args.input_data_path
 output_path = args.output_path
 feature_name = args.feature_name
 train_frac = args.train_frac
+input_path_file = args.input_path_file
 
 
 def split_to_train_valid_test(data_df, label_column):
@@ -44,7 +47,6 @@ def split_to_train_valid_test(data_df, label_column):
 
 
 def prepare_image(mapped_image, label, data_type_subdir):
-    input_path_file = os.path.join(input_metadata_path, 'guardrail_image_path.txt')
     df = pd.read_csv(input_path_file, header=None)
     df = df[df[0].str.endswith(f'{mapped_image}.jpg')]
     if df.shape != (1, 1):
