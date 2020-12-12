@@ -12,9 +12,10 @@ from utils import setup_gpu_memory
 def get_call_backs_list(feat_name):
     tensorboard = TensorBoard(log_dir="logs/{}".format(time.time()))
     filepath = f'{feat_name}_model_checkpoint.h5'
-    checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, save_weights_only=False,
-                                 mode='auto', save_freq=1)
-    earlystop = EarlyStopping(monitor='binary_accuracy', patience=1)
+    checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=False, save_weights_only=False,
+                                 mode='auto', save_freq='epoch')
+    #earlystop = EarlyStopping(monitor='binary_accuracy', patience=1)
+    earlystop = EarlyStopping(monitor='val_loss', patience=1)
     reduce = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=8)
     return [earlystop, reduce, checkpoint, tensorboard]
 
