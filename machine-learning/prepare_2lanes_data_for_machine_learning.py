@@ -27,32 +27,11 @@ train_frac = args.train_frac
 input_path_file = args.input_path_file
 
 
-def split_to_train_valid_test(data_df, label_column):
-    labels = data_df[label_column].unique()
-    split_train_df, split_valid_df, split_test_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    for lbl in labels:
-        lbl_df = data_df[data_df[label_column] == lbl]
-        lbl_train_df = lbl_df.sample(frac=train_frac, random_state=1)
-        lbl_valid_test_df = lbl_df.drop(lbl_train_df.index)
-        # further split remaining data into two equal sets for validation and test
-        lbl_valid_df = lbl_valid_test_df.sample(frac=0.5, random_state=1)
-        lbl_test_df = lbl_valid_test_df.drop(lbl_valid_df.index)
-        print(lbl, "total:", len(lbl_df), "train_df:", len(lbl_train_df), "valid_df", len(lbl_valid_df),
-              "test_df:", len(lbl_test_df))
-        split_train_df = split_train_df.append(lbl_train_df)
-        split_valid_df = split_valid_df.append(lbl_valid_df)
-        split_test_df = split_test_df.append(lbl_test_df)
-
-    return split_train_df, split_valid_df, split_test_df
-
-
-def prepare_image(mapped_image, label, data_type_subdir):
-    df = pd.read_csv(input_path_file, header=None)
-    df = df[df[0].str.endswith(f'{mapped_image}.jpg')]
-    if df.shape != (1, 1):
+def prepare_image(image_path_df, mapped_image, label, data_type_subdir):
+    if image_path_df.shape != (1, 1):
         print(mapped_image, "cannot be found in the guardrail_image_path.txt", label, data_type_subdir)
         return
-    image_path_list = list(df[0])
+    image_path_list = list(image_path_df[0])
     image_path_src = image_path_list[0]
     feature_dir = '{}_{}'.format(feature_name, 'yes' if label == 'Y' else 'no')
     dst_path = os.path.join(output_path, data_type_subdir, feature_dir, mapped_image[:3])
@@ -62,9 +41,30 @@ def prepare_image(mapped_image, label, data_type_subdir):
 
 
 df = pd.read_csv(input_metadata_path, header=0, index_col=False, usecols=['MAPPED_IMAGE', 'GUARDRAIL_YN'], dtype=str)
-train_df, valid_df, test_df = split_to_train_valid_test(df, 'GUARDRAIL_YN')
+labels = df['GUARDRAIL_YN'].unique()
+train_df, valid_df, test_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+for lbl in labels:
+    lbl_df = df[df['GUARDRAIL_YN'] == lbl]
+    lbl_train_df = lbl_df.sample(frac=train_frac, random_state=1)
+    lbl_valid_test_df = lbl_df.drop(lbl_train_df.index)
+    # further split remaining data into two equal sets for validation and test
+    lbl_valid_df = lbl_valid_test_df.sample(frac=0.5, random_state=1)
+    lbl_test_df = lbl_valid_test_df.drop(lbl_valid_df.index)
+    train_df = train_df.append(lbl_train_df)
+    valid_df = valid_df.append(lbl_valid_df)
+    test_df = test_df.append(lbl_test_df)
+
 print('training data:', len(train_df), 'validation data:', len(valid_df), 'test data:', len(test_df))
-train_df.apply(lambda row: prepare_image(row['MAPPED_IMAGE'], row['GUARDRAIL_YN'], 'train'), axis=1)
-valid_df.apply(lambda row: prepare_image(row['MAPPED_IMAGE'], row['GUARDRAIL_YN'], 'validation'), axis=1)
-test_df.apply(lambda row: prepare_image(row['MAPPED_IMAGE'], row['GUARDRAIL_YN'], 'test'), axis=1)
-print('Done')
+
+path_df = pd.read_csv(input_path_file, header=None)
+
+train_df.apply(lambda row: prepare_image(path_df[path_df[0].str.endswith('{}.jpg'.format(row['MAPPED_IMAGE']))],
+                                         row['MAPPED_IMAGE'], row['GUARDRAIL_YN'], 'train'), axis=1)
+print('Training data preparation is done')
+valid_df.apply(lambda row: prepare_image(path_df[path_df[0].str.endswith('{}.jpg'.format(row['MAPPED_IMAGE']))],
+                                         row['MAPPED_IMAGE'], row['GUARDRAIL_YN'], 'validation'), axis=1)
+print('Validation data preparation is done')
+test_df.apply(lambda row: prepare_image(path_df[path_df[0].str.endswith('{}.jpg'.format(row['MAPPED_IMAGE']))],
+                                        row['MAPPED_IMAGE'], row['GUARDRAIL_YN'], 'test'), axis=1)
+print('Test data preparation is done')
+
