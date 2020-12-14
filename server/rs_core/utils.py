@@ -19,7 +19,7 @@ def save_metadata_to_db(route_id, set, image, lat, long):
     return
 
 
-def get_image_base_names_by_annotation(annot_name, count, route_id=None):
+def get_image_base_names_by_annotation(annot_name, count=None, route_id=None, offset=None):
     if route_id:
         user_images = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
                                                          image__route_id=route_id).values_list("image__image_base_name")
@@ -27,7 +27,11 @@ def get_image_base_names_by_annotation(annot_name, count, route_id=None):
             annotation__name__iexact=annot_name, image__route_id=route_id).exclude(
             image__image_base_name__in=user_images).exclude(certainty__lt=0.1).exclude(certainty__gt=0.9).annotate(
             uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty').values_list(
-            "image__image_base_name", flat=True).distinct()[:count]
+            "image__image_base_name", flat=True).distinct()
+        if count and offset and offset < count:
+            images = images[offset:count]
+        elif count:
+            images = images[:count]
     else:
         user_images = UserImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).values_list("image__image_base_name")
@@ -35,8 +39,11 @@ def get_image_base_names_by_annotation(annot_name, count, route_id=None):
             annotation__name__iexact=annot_name).exclude(
             image__image_base_name__in=user_images).exclude(certainty__lt=0.2).exclude(certainty__gt=0.8).annotate(
             uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty').values_list("image__image_base_name",
-                                                                                     flat=True).distinct()[:count]
-
+                                                                                     flat=True).distinct()
+        if count and offset and offset < count:
+            images = images[offset:count]
+        elif count:
+            images = images[:count]
     return list(images)
 
 

@@ -197,7 +197,7 @@ def get_image_base_names_by_annot(request, annot_name):
         return JsonResponse({'image_base_names': []}, status=status.HTTP_200_OK)
 
     route_id = request.GET.get('route_id', None)
-    images = get_image_base_names_by_annotation(annot_name, route_id)
+    images = get_image_base_names_by_annotation(annot_name, route_id=route_id)
     return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
 
 
@@ -208,6 +208,7 @@ def get_next_images_for_annot(request, annot_name, count):
         return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
 
     route_id = request.GET.get('route_id', None)
+    offset = request.GET.get('offset', None)
     count = int(count)
 
     if not AIImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists() and \
@@ -223,7 +224,7 @@ def get_next_images_for_annot(request, annot_name, count):
 
         return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
 
-    images = get_image_base_names_by_annotation(annot_name, count, route_id)
+    images = get_image_base_names_by_annotation(annot_name, count=count, route_id=route_id, offset=offset)
     return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
 
 
