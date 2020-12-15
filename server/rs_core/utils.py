@@ -40,8 +40,8 @@ def get_image_base_names_by_annotation(annot_name, count=None, route_id=None, of
             image__image_base_name__in=user_images).exclude(certainty__lt=0.2).exclude(certainty__gt=0.8).annotate(
             uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty').values_list("image__image_base_name",
                                                                                      flat=True).distinct()
-        if count and offset and offset < count:
-            images = images[offset:count]
+        if count and offset:
+            images = images[offset:offset + count]
         elif count:
             images = images[:count]
     return list(images)
