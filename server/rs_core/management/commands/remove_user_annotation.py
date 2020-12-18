@@ -13,7 +13,6 @@ class Command(BaseCommand):
     help = "Remove user annotation from a user specified by input parameter <username>"
 
     def add_arguments(self, parser):
-        # csv filename with full path to load metadata from
         parser.add_argument('user_name', help='user name to remove user annotation for')
 
     def handle(self, *args, **options):
