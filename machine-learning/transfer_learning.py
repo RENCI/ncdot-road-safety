@@ -76,9 +76,9 @@ def initial_train(train_gen, callback_list, bat_size, val_gen):
                           metrics=[keras.metrics.BinaryAccuracy()])
     ts = time.time()
     hist = feature_model.fit(train_gen, epochs=10, callbacks=callback_list,
-                             steps_per_epoch=int(train_gen.samples / bat_size),
+                             steps_per_epoch=int(train_gen.samples / bat_size + 1),
                              validation_data=val_gen,
-                             validation_steps=int(val_gen.samples / bat_size))
+                             validation_steps=int(val_gen.samples / bat_size + 1))
     te = time.time()
     print('time taken for model fit:', te - ts)
     print(hist.history)
@@ -152,9 +152,9 @@ if __name__ == '__main__':
                       loss=keras.losses.BinaryCrossentropy(from_logits=True),
                       metrics=[keras.metrics.BinaryAccuracy()])
         history = model.fit(train_generator, epochs=100, callbacks=callbacks_list,
-                            steps_per_epoch=int(train_generator.samples/batch_size),
+                            steps_per_epoch=int(train_generator.samples/batch_size + 1),
                             validation_data=validation_generator,
-                            validation_steps=int(validation_generator.samples/batch_size))
+                            validation_steps=int(validation_generator.samples/batch_size + 1))
         te = time.time()
         print('time taken for model fine tuning:', te - ts)
         print(history.history)
