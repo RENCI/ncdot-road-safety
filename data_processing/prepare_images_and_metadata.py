@@ -98,19 +98,14 @@ sensor_df = sensor_df[sensor_df["RouteID"].isin(route_list)]
 print("sensor data after filtering route ids", sensor_df.shape)
 sensor_df['Start-Image'] = sensor_df['Set'] + sensor_df['Start-Image']
 sensor_df.drop_duplicates(subset=['RouteID', 'Start-Image'], inplace=True)
-print("sensor data after dropping duplicates on index rows", sensor_df.shape)
-sensor_df = sensor_df.set_index(['RouteID', 'Start-Image']).sort_index()
-print("sensor data after setting index: ", sensor_df.shape)
-sensor_df.drop_duplicates(ignore_index=False)
-print("sensor data after removing duplicates on index: ", sensor_df.shape)
+print("sensor data after dropping duplicates on RouteID and Start-Image", sensor_df.shape)
 
 shape_df.set_index('RouteID', inplace=True)
 shape_df.sort_index()
 print("Shape df size after setting and sorting index:", shape_df.shape)
 
 sensor_df["Keep"] = sensor_df.apply(lambda row: image_covered(
-    shape_df.loc[row['RouteID']],
-    sensor_df.loc[row['RouteID'], row['Start-Image']].at['Start-MP']), axis=1)
+    shape_df.loc[row['RouteID']], row['Start-MP']), axis=1)
 
 sensor_df = sensor_df[sensor_df['Keep'] == True]
 sensor_df.drop(columns=['Keep'])
