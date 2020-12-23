@@ -69,7 +69,7 @@ division = args.division
 root_dir = args.root_dir
 output_dir = args.output_dir
 
-sensor_df = pd.read_csv(input_sensor_file, header=0, dtype=str, usecols=["RouteID", "SET", "Start-MP",
+sensor_df = pd.read_csv(input_sensor_file, header=0, dtype=str, usecols=["RouteID", "Set", "Start-MP",
                                                                          "Start-Image", "StaLatitude",
                                                                          "StaLongitude"])
 sensor_df.columns = sensor_df.columns.str.strip()
@@ -78,7 +78,7 @@ sensor_df['RouteID'] = sensor_df['RouteID'].str.strip()
 sensor_df['Start-Image'] = sensor_df['Start-Image'].str.strip().replace(':', '')
 sensor_df['StaLatitude'] = sensor_df['StaLatitude'].str.strip()
 sensor_df['StaLongitude'] = sensor_df['StaLongitude'].str.strip()
-sensor_df['SET'] = sensor_df['SET'].str.strip()
+sensor_df['Set'] = sensor_df['Set'].str.strip()
 sensor_df['Start-MP'].astype(float)
 print("Before removing duplicate", sensor_df.shape)
 sensor_df.drop_duplicates(inplace=True)
@@ -96,7 +96,7 @@ print("After filtering by division: ", shape_df.shape)
 route_list = list(shape_df['RouteID'].unique())
 sensor_df = sensor_df[sensor_df["RouteID"].isin(route_list)]
 print("sensor data after filtering route ids", sensor_df.shape)
-sensor_df['Start-Image'] = sensor_df['SET'] + sensor_df['Start-Image']
+sensor_df['Start-Image'] = sensor_df['Set'] + sensor_df['Start-Image']
 sensor_df.drop_duplicates(subset=['RouteID', 'Start-Image'], inplace=True)
 print("sensor data after dropping duplicates on index rows", sensor_df.shape)
 sensor_df = sensor_df.set_index(['RouteID', 'Start-Image']).sort_index()
@@ -109,8 +109,8 @@ shape_df.sort_index()
 print("Shape df size after setting and sorting index:", shape_df.shape)
 
 sensor_df["Keep"] = sensor_df.apply(lambda row: image_covered(
-    shape_df.loc[row['ROUTEID']],
-    sensor_df.loc[row['ROUTEID'], row['Start-Image']].at['Start-MP']), axis=1)
+    shape_df.loc[row['RouteID']],
+    sensor_df.loc[row['RouteID'], row['Start-Image']].at['Start-MP']), axis=1)
 
 sensor_df = sensor_df[sensor_df['Keep'] == True]
 sensor_df.drop(columns=['Keep'])
