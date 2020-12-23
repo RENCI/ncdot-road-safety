@@ -112,6 +112,10 @@ if __name__ == '__main__':
     parser.add_argument('--feature_name', type=str, default='guardrail', help='feature name such as guardrail')
     parser.add_argument('--use_own_base_model', action='store_true', default=True,
                         help='use own base model for further training rather than Xception base model')
+    parser.add_argument('--num_of_epoch', type=int, default=30,
+                        help='the number of total epoch to train the model')
+    parser.add_argument('--batch_size', type=int, default=128,
+                        help='batch size for training the model')
     parser.add_argument('--model_file', type=str,
                         default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_subset.h5',
                         help='model file with path to be loaded as the base model for further training')
@@ -129,7 +133,8 @@ if __name__ == '__main__':
     use_own_base_model = args.use_own_base_model
     model_file = args.model_file
     output_model_file = args.output_model_file
-    batch_size = 128
+    num_of_epoch = args.num_of_epoch
+    batch_size = args.batch_size
 
     setup_gpu_memory()
 
@@ -151,7 +156,7 @@ if __name__ == '__main__':
         model.compile(optimizer=keras.optimizers.Adam(1e-5),  # Very low learning rate
                       loss=keras.losses.BinaryCrossentropy(from_logits=True),
                       metrics=[keras.metrics.BinaryAccuracy()])
-        history = model.fit(train_generator, epochs=100, callbacks=callbacks_list,
+        history = model.fit(train_generator, epochs=num_of_epoch, callbacks=callbacks_list,
                             steps_per_epoch=int(train_generator.samples/batch_size + 1),
                             validation_data=validation_generator,
                             validation_steps=int(validation_generator.samples/batch_size + 1))
