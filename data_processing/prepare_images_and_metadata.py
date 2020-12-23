@@ -69,9 +69,13 @@ division = args.division
 root_dir = args.root_dir
 output_dir = args.output_dir
 
-sensor_df = pd.read_csv(input_sensor_file, header=0, dtype=str, usecols=["RouteID", "Set", "Start-MP",
-                                                                         "Start-Image", "StaLatitude",
-                                                                         "StaLongitude"])
+sensor_df = pd.read_csv(input_sensor_file, header=0, dtype={'RouteID': str,
+                                                            'Set': str,
+                                                            'Start-MP': float,
+                                                            'Start-Image': str,
+                                                            'StaLatitude': str,
+                                                            'StaLongitude': str},
+                        usecols=["RouteID", "Set", "Start-MP","Start-Image", "StaLatitude","StaLongitude"])
 sensor_df.columns = sensor_df.columns.str.strip()
 sensor_df['Start-MP'] = sensor_df['Start-MP'].str.strip()
 sensor_df['RouteID'] = sensor_df['RouteID'].str.strip()
