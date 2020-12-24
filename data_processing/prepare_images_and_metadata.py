@@ -161,8 +161,6 @@ for dir_name, subdir_list, file_list in os.walk(root_dir):
                                  'LONGITUDE': base_df['StaLongitude'].values[0],
                                  'MILE_POST': base_df['Start-MP'].values[0],
                                  'PATH': target_dir})
-                if len(row_list < 5):
-                    print(row_list)
 output_df = pd.DataFrame(row_list)
 output_df.to_csv(output_file, index=False)
 print('DONE')
