@@ -58,6 +58,9 @@ parser.add_argument('--root_dir', type=str,
                     help='root directory to look for images to process')
 parser.add_argument('--output_file', type=str, default='../server/metadata/mapped_2lane_sr_images.csv',
                     help='output file for mapped secondary road images')
+parser.add_argument('--sensor_output_file_2lane', type=str,
+                    default='/projects/ncdot/secondary_road/d4_sensor_output_2lane.csv',
+                    help='output file for mapped secondary road images')
 parser.add_argument('--output_dir', type=str, default='/projects/ncdot/NC_2018_Secondary/images/d4',
                     help='output directory for copying joined 2 lane images')
 
@@ -68,6 +71,7 @@ output_file = args.output_file
 division = args.division
 root_dir = args.root_dir
 output_dir = args.output_dir
+sensor_output_file_2lane = args.sensor_output_file_2lane
 
 sensor_df = pd.read_csv(input_sensor_file, header=0, dtype=str,
                         usecols=["RouteID", "Set", "Start-MP","Start-Image", "StaLatitude","StaLongitude"])
@@ -75,11 +79,12 @@ sensor_df.columns = sensor_df.columns.str.strip()
 sensor_df['Start-MP'] = sensor_df['Start-MP'].str.strip()
 sensor_df['Start-MP'] = pd.to_numeric(sensor_df['Start-MP'], downcast="float")
 sensor_df['RouteID'] = sensor_df['RouteID'].str.strip()
-sensor_df['Start-Image'] = sensor_df['Start-Image'].str.strip().replace(':', '')
+sensor_df['Start-Image'] = sensor_df['Start-Image'].str.strip()
+sensor_df['Start-Image'] = sensor_df['Start-Image'].str.replace(':', '')
 sensor_df['StaLatitude'] = sensor_df['StaLatitude'].str.strip()
 sensor_df['StaLongitude'] = sensor_df['StaLongitude'].str.strip()
 sensor_df['Set'] = sensor_df['Set'].str.strip()
-sensor_df['Start-MP'].astype(float)
+
 print("Before removing duplicate", sensor_df.shape)
 sensor_df.drop_duplicates(inplace=True)
 print("After removing duplicate", sensor_df.shape)
@@ -108,8 +113,10 @@ sensor_df["Keep"] = sensor_df.apply(lambda row: image_covered(
     shape_df.loc[row['RouteID']], row['Start-MP']), axis=1)
 
 sensor_df = sensor_df[sensor_df['Keep'] == True]
-sensor_df.drop(columns=['Keep'])
+sensor_df.drop(columns=['Set', 'Keep'], inplace=True)
 print("Sensor df size after filtering out non-2 lane images", sensor_df.shape)
+
+sensor_df.to_csv(sensor_output_file_2lane, index=False)
 
 row_list = []
 # walk the root directory tree and select images to process and map
@@ -120,6 +127,7 @@ for dir_name, subdir_list, file_list in os.walk(root_dir):
             file_name2 = f'{base_name}2.jpg'
             file_name5 = f'{base_name}5.jpg'
             if file_name2 not in file_list or file_name5 not in file_list:
+                print(base_name, 'cannot be mapped', flush=True)
                 continue
             base_df = sensor_df[sensor_df['Start-Image'] == base_name]
             if base_df.empty:
@@ -131,6 +139,7 @@ for dir_name, subdir_list, file_list in os.walk(root_dir):
                 base_df = sensor_df[sensor_df['Start-Image'] == base_name_next]
                 if base_df.empty:
                     # cannot be mapped
+                    print(base_name, 'cannot be mapped', flush=True)
                     continue
 
             front = os.path.join(dir_name, file_name)
@@ -152,6 +161,8 @@ for dir_name, subdir_list, file_list in os.walk(root_dir):
                                  'LONGITUDE': base_df['StaLongitude'].values[0],
                                  'MILE_POST': base_df['Start-MP'].values[0],
                                  'PATH': target_dir})
+                if len(row_list < 5):
+                    print(row_list)
 output_df = pd.DataFrame(row_list)
 output_df.to_csv(output_file, index=False)
 print('DONE')
