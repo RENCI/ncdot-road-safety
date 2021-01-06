@@ -1,0 +1,15 @@
+#!/bin/bash
+
+REGISTER_LIST=images_to_be_registered.csv
+PREFIX_STR="projects/ncdot/NC_2018_Secondary/images"
+
+while IFS= read -r line
+do
+  irods_data_obj="${line#/projects/ncdot/NC_2018_Secondary/images/}"
+  irods_data_obj_with_full_path="/ncdotZone/home/dotProxyUser/sr_images/$irods_data_obj"
+  irods_data_obj_path="${irods_data_obj_with_full_path%/*}/"
+  imkdir -p $irods_data_obj_path
+  echo "ireg -R dotDataResc $line $irods_data_obj_with_full_path" 
+  ireg -R dotDataResc $line /ncdotZone/home/dotProxyUser/sr_images/$irods_data_obj
+done < "$REGISTER_LIST"
+

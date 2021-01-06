@@ -1,0 +1,10 @@
+#!/bin/bash
+
+DELETE_LIST=to_be_deleted.txt
+
+while IFS= read -r line
+do
+  echo "$line"
+  iunreg $line
+done < "$DELETE_LIST"
+
