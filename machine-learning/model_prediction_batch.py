@@ -16,7 +16,7 @@ parser.add_argument('--model_file', type=str,
 parser.add_argument('--output_file', type=str,
                     default='/projects/ncdot/secondary_road/model_2lane_predict_d4.csv',
                     help='prediction output csv file')
-parser.add_argument('--batch_size', type=int, default=2000, help='prediction batch size')
+parser.add_argument('--batch_size', type=int, default=1024, help='prediction batch size')
 
 args = parser.parse_args()
 data_dir = args.data_dir
