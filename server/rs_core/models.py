@@ -22,6 +22,7 @@ class RouteImage(models.Model):
     image_base_name = models.CharField(max_length=15, primary_key=True)
     mile_post = models.FloatField(blank=True, null=True)
     location = models.PointField()
+    image_path = models.CharField(max_length=100, default='')
 
     class Meta:
         indexes = [

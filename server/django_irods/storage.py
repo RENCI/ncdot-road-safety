@@ -15,6 +15,19 @@ class IrodsStorage(Storage):
         self.session = GLOBAL_SESSION
         self.environment = GLOBAL_ENVIRONMENT
 
+    def get_image_coll_path(self, image_file_name):
+        """
+        Get image collection path in iRODS
+        :param image_file_name: image file name to get such as 757000958286.jpg
+        :return: the collection path in iRODS
+        """
+        qrystr = "SELECT COLL_NAME WHERE DATA_NAME = '{}'".format(image_file_name)
+        coll_name = self.session.run("iquest", None, "%s", qrystr)[0]
+
+        if "CAT_NO_ROWS_FOUND" in coll_name:
+            raise ValidationError("{} cannot be found".format(image_file_name))
+        return coll_name.strip('\n')
+
     def get_one_image_frame(self, image_file_name, dest_path):
         """
         Get one image frame by file name
@@ -22,13 +35,9 @@ class IrodsStorage(Storage):
         :param dest_path: destination path on web server to retrieve image from iRODS to
         :return: the image file name with full path
         """
-        qrystr = "SELECT COLL_NAME WHERE DATA_NAME = '{}'".format(image_file_name)
-        coll_name = self.session.run("iquest", None, "%s", qrystr)[0]
 
-        if "CAT_NO_ROWS_FOUND" in coll_name:
-            raise ValidationError("{} cannot be found".format(image_file_name))
-
-        src_path = os.path.join(coll_name.strip('\n'), image_file_name)
+        coll_name = self.get_image_coll_path(image_file_name)
+        src_path = os.path.join(coll_name, image_file_name)
         self.session.run("iget", None, '-f', src_path, dest_path)
         return dest_path
 

@@ -13,6 +13,9 @@ ENV APP_HOME=/home/app/server
 # create directory for the app user and the server directory
 RUN mkdir -p $APP_HOME/static
 
+# create directory for the mounted image directory which is needed when USE_IRODS flag is FALSE
+RUN mkdir -p $APP_HOME/data
+
 # create the app user
 RUN groupadd --system app && useradd --system -g app --shell /bin/bash --home /home/app app
 
