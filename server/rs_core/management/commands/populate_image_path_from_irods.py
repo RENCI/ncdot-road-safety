@@ -18,11 +18,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         istorage = IrodsStorage()
         irods_prefix_str = '/ncdotZone/home/dotProxyUser/images/'
-        vault_prefix_str = '/projects/ncdot/2018/NC_2018_Images/'
         for obj in RouteImage.objects.all():
             path = istorage.get_image_coll_path(f'{obj.image_base_name}5.jpg')
             if path.startswith(irods_prefix_str):
-                path = '{}{}'.format(vault_prefix_str, path[len(irods_prefix_str):])
+                path = path[len(irods_prefix_str):]
                 obj.image_path = path
                 obj.save()
             else:

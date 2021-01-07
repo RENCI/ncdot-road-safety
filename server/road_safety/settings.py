@@ -120,7 +120,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 USE_IRODS = os.environ.get("USE_IRODS", True)
-
+DATA_ROOT = 'data'
 local_settings_module = 'road_safety.local_settings'
 local_settings = __import__(local_settings_module, globals(), locals(), ['*'])
 for k in dir(local_settings):

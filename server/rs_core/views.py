@@ -135,23 +135,29 @@ def edit_user(request, pk):
 
 @login_required
 def get_image_by_name(request, name):
-    istorage = IrodsStorage()
-    image_path = os.path.join(settings.IRODS_ROOT, 'images')
-    if not os.path.exists(image_path):
-        # os.path.exists() occasionally returns False even when the directory exists,
-        # so need to catch the exception to double make sure
-        try:
-            os.makedirs(image_path)
-        except FileExistsError:
-            pass
-    ifile = os.path.join(image_path, name)
-    if not os.path.isfile(ifile):
-        try:
-            dest_path = istorage.get_one_image_frame(name, image_path)
-            ifile = os.path.join(dest_path, name)
-        except SessionException as ex:
-            return HttpResponseServerError(ex.stderr)
-
+    if settings.USE_IRODS:
+        istorage = IrodsStorage()
+        image_path = os.path.join(settings.IRODS_ROOT, 'images')
+        if not os.path.exists(image_path):
+            # os.path.exists() occasionally returns False even when the directory exists,
+            # so need to catch the exception to double make sure
+            try:
+                os.makedirs(image_path)
+            except FileExistsError:
+                pass
+        ifile = os.path.join(image_path, name)
+        if not os.path.isfile(ifile):
+            try:
+                dest_path = istorage.get_one_image_frame(name, image_path)
+                ifile = os.path.join(dest_path, name)
+            except SessionException as ex:
+                return HttpResponseServerError(ex.stderr)
+    else:
+        image_base_name = name[:11]
+        image_path = RouteImage.objects.get(image_base_name=image_base_name).image_path
+        ifile = os.path.join(settings.DATA_ROOT, image_path, name)
+        if not os.path.isfile(ifile):
+            return HttpResponseServerError(f'{ifile} cannot be found')
     return HttpResponse(open(ifile, 'rb'), content_type='image/jpg')
 
 
