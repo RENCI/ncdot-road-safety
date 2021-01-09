@@ -8,14 +8,21 @@ from django.db.models.functions import Abs
 from django.contrib.gis.db.models.functions import Distance
 
 
-def save_metadata_to_db(route_id, set, image, lat, long):
+def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', predict='', feature_name='guardrail'):
     route_image = RouteImage.objects.create(
         route_id=str(route_id),
-        set=str(set),
         image_base_name=str(image),
-        location=fromstr(f'POINT({long} {lat})', srid=4326)
+        location=fromstr(f'POINT({long} {lat})', srid=4326),
+        mile_post=milepost,
+        image_path=path
     )
     route_image.save()
+    if predict:
+        annot_obj = AnnotationSet.objects.get(name__iexact=feature_name)
+        presence = True if predict >= 0.5 else False
+        AIImageAnnotation.objects.get_or_create(image=route_image,
+                                                annotation=annot_obj,
+                                                defaults={'presence': presence, 'certainty': predict})
     return
 
 

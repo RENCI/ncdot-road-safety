@@ -32,6 +32,6 @@ class Command(BaseCommand):
         print('Before removing potential duplicates:', len(df))
         df.drop_duplicates(subset=['MAPPED_IMAGE'], keep='first', inplace=True)
         print('After removing potential duplicates:', len(df))
-        df.apply(lambda row: save_metadata_to_db(row['ROUTEID'], row['SET'], row['MAPPED_IMAGE'], row['LATITUDE'],
+        df.apply(lambda row: save_metadata_to_db(row['ROUTEID'], row['MAPPED_IMAGE'], row['LATITUDE'],
                                                  row['LONGITUDE']), axis=1)
         print('Done')
