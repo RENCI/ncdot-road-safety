@@ -7,7 +7,7 @@ while ! nc -z db 5432; do
 done
 echo "PostgreSQL started"
 
-if [ -v INITBUILD ]; then
+if [ -v $INITBUILD ]; then
   for pc in $(seq 3 -1 1); do
     echo -ne "$pc ...\033[0K\r"
     sleep 1
