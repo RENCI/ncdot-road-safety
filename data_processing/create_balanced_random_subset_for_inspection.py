@@ -13,8 +13,10 @@ parser.add_argument('--input_file_exclude', type=str,
                     default='../server/metadata/mapped_2lane_sr_images_d4_subset.csv',
                     help='input file with path to be excluded for subset selection for model prediction inspection')
 parser.add_argument('--subset_size', type=int, default=100, help='number of images in the subset')
+parser.add_argument('--common', type=bool, default=True,
+                    help='whether to save random subset from model common or different predictions')
 parser.add_argument('--output_file', type=str,
-                    default='../server/metadata/balanced_d4_subset_for_manual_inspection.csv',
+                    default='../server/metadata/balanced_d4_subset_for_manual_inspection_common.csv',
                     help='output file for the subset for manual inspection to compare 2 model predictions')
 
 args = parser.parse_args()
@@ -23,8 +25,9 @@ input_file_2 = args.input_file_2
 input_file_exclude = args.input_file_exclude
 subset_size = args.subset_size
 output_file = args.output_file
+common = args.common
 
-#df_exclude = pd.read_csv(input_file_exclude, header=0, index_col=False, dtype=str, usecols=['MAPPED_IMAGE'])
+df_exclude = pd.read_csv(input_file_exclude, header=0, index_col=False, dtype=str, usecols=['MAPPED_IMAGE'])
 df1 = pd.read_csv(input_file_1, header=0, index_col=False, dtype={'MAPPED_IMAGE': 'str', 'ROUND_PREDICT_2': 'float'},
                   usecols=['MAPPED_IMAGE', 'ROUND_PREDICT_2'])
 df2 = pd.read_csv(input_file_2, header=0, index_col=False, dtype={'MAPPED_IMAGE': 'str', 'ROUND_PREDICT_4': 'float'},
@@ -34,11 +37,19 @@ print(df.shape)
 df['PATH'] = df['MAPPED_IMAGE'].str.slice(stop=-15)
 df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.replace('.jpg', '')
 df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.split('/').str[-1]
-#df = df[~df.MAPPED_IMAGE.isin(df_exclude.MAPPED_IMAGE)]
-df_diff = df[df.ROUND_PREDICT_2 != df.ROUND_PREDICT_4]
-print(df_diff.shape)
-df_diff = df_diff[((df.ROUND_PREDICT_2>=0.5) & (df.ROUND_PREDICT_4<0.5)) | ((df.ROUND_PREDICT_2<0.5) & (df.ROUND_PREDICT_4>=0.5))]
-print(df_diff.shape)
-#sub_df = df_diff.sample(n=subset_size, random_state=1)
-#sub_df.to_csv(output_file, index=False)
+df = df[~df.MAPPED_IMAGE.isin(df_exclude.MAPPED_IMAGE)]
+if common:
+    df_common_yes = df[(df.ROUND_PREDICT_2>=0.5) & (df.ROUND_PREDICT_4>=0.5)]
+    df_common_no = df[(df.ROUND_PREDICT_2 < 0.5) & (df.ROUND_PREDICT_4 < 0.5)]
+    print(df_common_yes.shape, df_common_no.shape)
+    sample_size = (int)(subset_size/2)
+    sub_df = pd.concat([df_common_yes.sample(n=sample_size, random_state=1),
+                        df_common_no.sample(n=sample_size, random_state=1)])
+else:
+    df_diff = df[df.ROUND_PREDICT_2 != df.ROUND_PREDICT_4]
+    print(df_diff.shape)
+    df_diff = df_diff[((df.ROUND_PREDICT_2>=0.5) & (df.ROUND_PREDICT_4<0.5)) | ((df.ROUND_PREDICT_2<0.5) & (df.ROUND_PREDICT_4>=0.5))]
+    print(df_diff.shape)
+    sub_df = df_diff.sample(n=subset_size, random_state=1)
+sub_df.to_csv(output_file, index=False)
 print('Done')
