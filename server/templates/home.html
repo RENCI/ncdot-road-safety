@@ -21,5 +21,8 @@
     {% endif %}
   </div>
 </div>
+{% if user.is_authenticated %}
+<input type="hidden" name="user_id" id="user_id" value="{{ user.id }}"/>
+{% endif %}
 <div id="app"></div>
 {% endblock %}
