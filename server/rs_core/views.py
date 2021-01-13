@@ -215,6 +215,8 @@ def get_next_images_for_annot(request, annot_name, count):
 
     route_id = request.GET.get('route_id', None)
     offset = request.GET.get('offset', None)
+    if offset is not None:
+        offset = int(offset)
     count = int(count)
 
     if not AIImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists() and \
