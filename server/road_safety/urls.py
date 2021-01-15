@@ -21,6 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('rs_core.urls')),
     path('', TemplateView.as_view(template_name='home.html'), name='home'),
-    path('browse/annotation', TemplateView.as_view(template_name='home.html'), name='home'),
-    path('browse/route', TemplateView.as_view(template_name='home.html'), name='home')
+    re_path(r'routes(?:.*)/?', TemplateView.as_view(template_name='home.html'), name='home'),
 ]
