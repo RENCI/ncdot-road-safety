@@ -3,6 +3,7 @@ set -e
 
 set -o allexport
 source .env.prod
+export INITBUILD=True
 set +o allexport
 
-INITBUILD=TRUE docker-compose -f docker-compose-prod.yml up -d --build -V
+docker-compose -f docker-compose-prod.yml up -d --build -V
