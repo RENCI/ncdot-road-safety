@@ -2,6 +2,7 @@ import os
 import json
 import random
 from datetime import timezone, datetime
+import logging
 
 from django.db import transaction
 from django.contrib.auth.views import PasswordResetView, LogoutView
@@ -28,6 +29,9 @@ from rest_framework import status
 from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
 from rs_core.models import UserProfile, RouteImage, AnnotationSet, AIImageAnnotation, UserImageAnnotation
 from rs_core.utils import get_image_base_names_by_annotation, get_image_annotations_queryset
+
+
+logger = logging.getLogger('django')
 
 
 class RequestPasswordResetView(PasswordResetView):

@@ -164,3 +164,53 @@ else:
 
 # inform django that a reverse proxy sever (nginx) is handling ssl/https for it
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+####################
+# LOGGING SETTINGS #
+####################
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'syslog': {
+            'level': 'WARNING',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': '/home/app/server/log/system.log',
+            'formatter': 'simple',
+            'maxBytes': 1024*1024*15,  # 15MB
+            'backupCount': 10,
+        },
+        'djangolog': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': '/home/app/server/log/django.log',
+            'formatter': 'verbose',
+            'maxBytes': 1024*1024*15,  # 15MB
+            'backupCount': 10,
+        }
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['djangolog'],
+            'propagate': True,
+            'level': 'WARNING',
+        },
+        # Catch-all logger
+        '': {
+            'handlers': ['djangolog'],
+            'propagate': False,
+            'level': 'ERROR'
+        }
+    }
+}
