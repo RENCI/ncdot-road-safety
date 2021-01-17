@@ -10,8 +10,9 @@ class Command(BaseCommand):
     docker exec -ti dot-server python manage.py load_full_metadata <input_metadata_file_with_path>
     <input_predict_file_with_path>
     For example:
-    docker exec -ti dot-server python manage.py load_full_metadata metadata/mapped_2lane_sr_images_d4.csv
-    metadata/model_2lane_predict_d4.csv d8 d08
+    docker exec -ti dot-server python manage.py load_full_metadata
+    metadata/data-mapping/secondary_road/mapped_2lane_sr_images_d4.csv
+    metadata/metadata/data-mapping/secondary_road/model_2lane_predict_d4.csv d4 d04
     """
     help = "Process the metadata file and model prediction file both in csv format to load into database"
 
@@ -36,13 +37,17 @@ class Command(BaseCommand):
                                                                                                       "LONGITUDE",
                                                                                                       "MILE_POST",
                                                                                                       "PATH"])
-        df_metadata.PATH = df_metadata.PATH.str.replace(
-            '/projects/ncdot/NC_2018_Secondary/images/{}'.format(division_str), replace_division_str)
+        if division_str != replace_division_str:
+            df_metadata.PATH = df_metadata.PATH.str.replace(
+                '/projects/ncdot/NC_2018_Secondary/images/{}'.format(division_str), replace_division_str)
+        else:
+            df_metadata.PATH = df_metadata.PATH.str.replace('/projects/ncdot/NC_2018_Secondary/images/', '')
 
         print(len(df_metadata))
 
-        df_predict = pd.read_csv(input_predict_file, header=0, index_col=False, usecols=["MAPPED_IMAGE",
-                                                                                         "ROUND_PREDICT"])
+        df_predict = pd.read_csv(input_predict_file, header=0, index_col=False, dtype={"MAPPED_IMAGE": str,
+                                                                                       "ROUND_PREDICT": float},
+                                 usecols=["MAPPED_IMAGE", "ROUND_PREDICT"])
         df_predict['MAPPED_IMAGE'] = df_predict['MAPPED_IMAGE'].str.replace('.jpg', '')
         df_predict['MAPPED_IMAGE'] = df_predict['MAPPED_IMAGE'].str.split('/').str[-1]
 
