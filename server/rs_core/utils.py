@@ -27,31 +27,30 @@ def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', predic
     return
 
 
-def get_image_base_names_by_annotation(annot_name, count=None, route_id=None, offset=None):
+def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offset=None):
+    if count and offset:
+        idx1 = offset
+        idx2 = offset + count
+    else:
+        idx1 = 0
+        idx2 = count
+
     if route_id:
         user_images = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
                                                          image__route_id=route_id).values_list("image__image_base_name")
         images = AIImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name, image__route_id=route_id).exclude(
             image__image_base_name__in=user_images).annotate(
-            uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty').values_list(
-            "image__image_base_name", flat=True).distinct()
-        if count and offset and offset < count:
-            images = images[offset:count]
-        elif count:
-            images = images[:count]
+            uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty')[idx1:idx2].values_list(
+            "image__image_base_name", flat=True)
     else:
         user_images = UserImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).values_list("image__image_base_name")
         images = AIImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).exclude(
             image__image_base_name__in=user_images).annotate(
-            uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty').values_list("image__image_base_name",
-                                                                                     flat=True).distinct()
-        if count and offset:
-            images = images[offset:offset + count]
-        elif count:
-            images = images[:count]
+            uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty')[idx1:idx2].values_list(
+            "image__image_base_name", flat=True)
     return list(images)
 
 
