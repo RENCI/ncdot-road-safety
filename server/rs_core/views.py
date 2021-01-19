@@ -28,7 +28,7 @@ from rest_framework import status
 
 from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
 from rs_core.models import UserProfile, RouteImage, AnnotationSet, AIImageAnnotation, UserImageAnnotation
-from rs_core.utils import get_image_base_names_by_annotation, get_image_annotations_queryset
+from rs_core.utils import get_image_base_names_by_annotation, get_image_annotations_queryset, save_annot_data_to_db
 
 
 logger = logging.getLogger('django')
@@ -315,14 +315,8 @@ def save_annotations(request):
         else:
             annot_present_view_str = ''
         try:
-            with transaction.atomic():
-                obj = UserImageAnnotation(image=RouteImage.objects.get(image_base_name=img_base_name),
-                                          annotation=AnnotationSet.objects.get(name__iexact=annot_name),
-                                          user=User.objects.get(username=username),
-                                          presence=annot_present,
-                                          presence_views=annot_present_views,
-                                          comment=annot_comment)
-                obj.save()
+            save_annot_data_to_db(img_base_name, username, annot_name, annot_present,
+                                  annot_present_views=annot_present_views, annot_comment=annot_comment)
         except Exception as ex:
             return JsonResponse({'error': str(ex)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

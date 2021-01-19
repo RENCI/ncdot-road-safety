@@ -1,11 +1,14 @@
 import bisect
 
-from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, AnnotationSet
 from django.contrib.gis.geos import fromstr
 from django.contrib.gis.geos import Point
 from django.db.models import F
 from django.db.models.functions import Abs
 from django.contrib.gis.db.models.functions import Distance
+from django.contrib.auth.models import User
+from django.db import transaction
+
+from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, AnnotationSet
 
 
 def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', predict=None, feature_name='guardrail'):
@@ -60,6 +63,18 @@ def get_image_annotations_queryset(image_base_name):
     u_annot = UserImageAnnotation.objects.filter(image__image_base_name=image_base_name).values_list(
         'annotation__name', flat=True).distinct()
     return ai_annot.union(u_annot)
+
+
+def save_annot_data_to_db(img_base_name, username, annot_name, annot_present, annot_present_views='', annot_comment=''):
+    with transaction.atomic():
+        obj = UserImageAnnotation(image=RouteImage.objects.get(image_base_name=img_base_name),
+                                  annotation=AnnotationSet.objects.get(name__iexact=annot_name),
+                                  user=User.objects.get(username=username),
+                                  presence=annot_present,
+                                  presence_views=annot_present_views,
+                                  comment=annot_comment)
+        obj.save()
+    return
 
 
 def create_ai_image_annotation(image_base_name, annotation, presence, certainty):
