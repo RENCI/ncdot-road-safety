@@ -41,7 +41,7 @@ ts = time.time()
 strategy = tf.distribute.MirroredStrategy()
 pred = None
 with strategy.scope():
-    pred=model.predict_generator(test_gen, steps=int(test_gen.samples/batch_size + 1), verbose=1)
+    pred=model.predict(test_gen, steps=int(test_gen.samples/batch_size + 1), verbose=1)
 te = time.time()
 print('batch prediction is done, time taken:', te-ts)
 pred_rounded = np.round(pred, decimals=2)
