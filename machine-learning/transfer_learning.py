@@ -97,7 +97,10 @@ def make_inference(feature_model, bat_size, feat_name, threshold=0.5):
                                            classes=[f'{feat_name}_no', f'{feat_name}_yes'],
                                            batch_size=bat_size,
                                            shuffle=False)
+    ts = time.time()
     predictions = feature_model.predict(test_gen, steps=int(test_gen.samples / bat_size + 1), verbose=1)
+    te = time.time()
+    print('time taken for model inference on test set:', te - ts)
     y_pred = [1 if y[0] >= threshold else 0 for y in predictions]
     print('Confusion Matrix')
     print(confusion_matrix(test_gen.classes, y_pred))
@@ -159,10 +162,10 @@ if __name__ == '__main__':
 
             layers = [(layer, layer.name, layer.trainable) for layer in model.layers]
             print(layers)
-            ts = time.time()
             model.compile(optimizer=keras.optimizers.Adam(1e-5),  # Very low learning rate
                           loss=keras.losses.BinaryCrossentropy(from_logits=True),
                           metrics=[keras.metrics.BinaryAccuracy()])
+            ts = time.time()
             history = model.fit(train_generator, epochs=num_of_epoch, callbacks=callbacks_list,
                                 steps_per_epoch=int(train_generator.samples/batch_size + 1),
                                 validation_data=validation_generator,
@@ -174,7 +177,6 @@ if __name__ == '__main__':
             model.save(output_model_file)
     else:
         model = tf.keras.models.load_model(model_file)
-    ts = time.time()
     make_inference(model, batch_size*2, feature_name)
-    te = time.time()
-    print('time taken for model inference on test set:', te - ts)
+    print('Done')
+

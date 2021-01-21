@@ -66,12 +66,13 @@ if is_subset:
 else:
     df = pd.read_csv(image_base_names_file, dtype=str, header=0, index_col=False, usecols=["MAPPED_IMAGE"])
 
-ts = time.time()
 strategy = tf.distribute.MirroredStrategy()
 with strategy.scope():
+    ts = time.time()
     df['Probability'] = df.apply(lambda row: predict(row['MAPPED_IMAGE']), axis=1)
+    te = time.time()
+    print('time taken for model prediction:', te-ts)
 
 df.to_csv(output_file, index=False)
+print('Done')
 
-te = time.time()
-print('time taken for model prediction:', te-ts)

@@ -37,13 +37,13 @@ test_gen = datagen.flow_from_directory(data_dir,
                                        batch_size=batch_size,
                                        follow_links=False,
                                        shuffle=False)
-ts = time.time()
 strategy = tf.distribute.MirroredStrategy()
 pred = None
 with strategy.scope():
+    ts = time.time()
     pred=model.predict(test_gen, steps=int(test_gen.samples/batch_size + 1), verbose=1)
-te = time.time()
-print('batch prediction is done, time taken:', te-ts)
+    te = time.time()
+    print('batch prediction is done, time taken:', te-ts)
 pred_rounded = np.round(pred, decimals=2)
 
 results=pd.DataFrame({"file":test_gen.filenames,"prediction":pred[:,0], "class":pred_rounded[:,0]})
