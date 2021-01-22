@@ -46,6 +46,6 @@ with strategy.scope():
     print('batch prediction is done, time taken:', te-ts)
 pred_rounded = np.round(pred, decimals=2)
 
-results=pd.DataFrame({"file":test_gen.filenames,"prediction":pred[:,0], "class":pred_rounded[:,0]})
+results=pd.DataFrame({"MAPPED_IMAGE":test_gen.filenames,"PREDICT":pred[:,0], "ROUND_PREDICT":pred_rounded[:,0]})
 results.to_csv(output_file, index=False)
 print('Done')
