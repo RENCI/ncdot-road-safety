@@ -154,6 +154,7 @@ if __name__ == '__main__':
 
         strategy = tf.distribute.MirroredStrategy()
         with strategy.scope():
+            # Everthing that creates variables should be under the strategy scope
             if use_own_base_model:
                 model = tf.keras.models.load_model(model_file)
                 model.trainable = True
@@ -165,18 +166,18 @@ if __name__ == '__main__':
             model.compile(optimizer=keras.optimizers.Adam(1e-5),  # Very low learning rate
                           loss=keras.losses.BinaryCrossentropy(from_logits=True),
                           metrics=[keras.metrics.BinaryAccuracy()])
-            ts = time.time()
-            history = model.fit(train_generator, epochs=num_of_epoch, callbacks=callbacks_list,
-                                steps_per_epoch=int(train_generator.samples/batch_size + 1),
-                                validation_data=validation_generator,
-                                validation_steps=int(validation_generator.samples/batch_size + 1))
-            te = time.time()
-            print('time taken for model fine tuning:', te - ts)
-            print(history.history)
-            model.save(f'{feature_name}_model.h5')
-            model.save(output_model_file)
+
+        ts = time.time()
+        history = model.fit(train_generator, epochs=num_of_epoch, callbacks=callbacks_list,
+                            steps_per_epoch=int(train_generator.samples/batch_size + 1),
+                            validation_data=validation_generator,
+                            validation_steps=int(validation_generator.samples/batch_size + 1))
+        te = time.time()
+        print('time taken for model fine tuning:', te - ts)
+        print(history.history)
+        model.save(f'{feature_name}_model.h5')
+        model.save(output_model_file)
     else:
         model = tf.keras.models.load_model(model_file)
     make_inference(model, batch_size*2, feature_name)
     print('Done')
-
