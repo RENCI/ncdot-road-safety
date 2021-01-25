@@ -33,7 +33,7 @@ print(model.summary())
 datagen = ImageDataGenerator(rescale=1 / 255)
 test_gen = datagen.flow_from_directory(data_dir,
                                        target_size=(299, 299),
-                                       class_mode='binary',
+                                       class_mode=None,
                                        batch_size=batch_size,
                                        follow_links=False,
                                        shuffle=False)
