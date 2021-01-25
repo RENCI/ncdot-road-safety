@@ -8,15 +8,17 @@ from utils import setup_gpu_memory
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
-parser.add_argument('--data_dir', type=str, default='/projects/ncdot/NC_2018_Secondary/images/d4',
-                    help='input dir of image data to apply model prediction for')
+parser.add_argument('--data_dir', type=str,
+                    default='/projects/ncdot/NC_2018_Secondary/images/d4',
+                    help='input dir of data to apply model prediction for')
 parser.add_argument('--model_file', type=str,
                     default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_2lane_epoch_10.h5',
                     help='model file with path to be load for prediction')
 parser.add_argument('--output_file', type=str,
                     default='/projects/ncdot/secondary_road/model_2lane_predict_d4.csv',
                     help='prediction output csv file')
-parser.add_argument('--batch_size', type=int, default=1024, help='prediction batch size')
+parser.add_argument('--batch_size', type=int, default=1024,
+                    help='prediction batch size')
 
 args = parser.parse_args()
 data_dir = args.data_dir
@@ -41,11 +43,15 @@ strategy = tf.distribute.MirroredStrategy()
 pred = None
 with strategy.scope():
     ts = time.time()
-    pred=model.predict(test_gen, steps=int(test_gen.samples/batch_size + 1), verbose=1)
+    pred = model.predict(test_gen,
+                         steps=int(test_gen.samples/batch_size + 1),
+                         verbose=1)
     te = time.time()
     print('batch prediction is done, time taken:', te-ts)
 pred_rounded = np.round(pred, decimals=2)
 
-results=pd.DataFrame({"MAPPED_IMAGE":test_gen.filenames,"PREDICT":pred[:,0], "ROUND_PREDICT":pred_rounded[:,0]})
+results = pd.DataFrame({"MAPPED_IMAGE": test_gen.filenames,
+                        "PREDICT": pred[:, 0],
+                        "ROUND_PREDICT": pred_rounded[:, 0]})
 results.to_csv(output_file, index=False)
 print('Done')
