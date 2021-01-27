@@ -305,6 +305,7 @@ def save_annotations(request):
         annot_name = annot.get('annotation_name', '')
         annot_present = annot.get('is_present', None)
         annot_present_views = annot.get('is_present_views', [])
+        flag = annot.get('flag', None)
         annot_comment = annot.get('comment', '')
         if not img_base_name or not annot_name or annot_present is None:
             return JsonResponse({'error': 'bad request'}, status=status.HTTP_400_BAD_REQUEST)
@@ -315,7 +316,7 @@ def save_annotations(request):
         else:
             annot_present_view_str = ''
         try:
-            save_annot_data_to_db(img_base_name, username, annot_name, annot_present,
+            save_annot_data_to_db(img_base_name, username, annot_name, annot_present, annot_flag=flag,
                                   annot_present_views=annot_present_views, annot_comment=annot_comment)
         except Exception as ex:
             return JsonResponse({'error': str(ex)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
