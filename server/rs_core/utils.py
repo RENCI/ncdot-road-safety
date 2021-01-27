@@ -65,7 +65,8 @@ def get_image_annotations_queryset(image_base_name):
     return ai_annot.union(u_annot)
 
 
-def save_annot_data_to_db(img_base_name, username, annot_name, annot_present, annot_present_views='', annot_comment=''):
+def save_annot_data_to_db(img_base_name, username, annot_name, annot_present, annot_flag=None,
+                          annot_present_views='', annot_comment=''):
     with transaction.atomic():
         obj = UserImageAnnotation(image=RouteImage.objects.get(image_base_name=img_base_name),
                                   annotation=AnnotationSet.objects.get(name__iexact=annot_name),
@@ -73,6 +74,8 @@ def save_annot_data_to_db(img_base_name, username, annot_name, annot_present, an
                                   presence=annot_present,
                                   presence_views=annot_present_views,
                                   comment=annot_comment)
+        if annot_flag is not None and annot_flag:
+            obj.flag = annot_flag
         obj.save()
     return
 
