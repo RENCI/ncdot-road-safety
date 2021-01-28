@@ -14,7 +14,7 @@ class UserProfile(models.Model):
 
 
 class RouteImage(models.Model):
-    route_id = models.CharField(max_length=20)
+    route_id = models.CharField(max_length=20, db_index=True)
     # 8 digit number string with first 2 digit representing hour (00 or 01), next 2 digit
     # representing minute (00 to 59), next 2 digit representing second (00 to 59), and the
     # last 2 digit representing frame number (max of 29)
@@ -23,11 +23,6 @@ class RouteImage(models.Model):
     mile_post = models.FloatField(blank=True, null=True)
     location = models.PointField()
     image_path = models.CharField(max_length=100, default='')
-
-    class Meta:
-        indexes = [
-            models.Index(fields=['route_id', 'image_base_name']),
-        ]
 
 
 class AnnotationSet(models.Model):
@@ -51,6 +46,7 @@ class AIImageAnnotation(models.Model):
         indexes = [
             models.Index(fields=['image', 'annotation']),
         ]
+        unique_together = ('image', 'annotation')
 
 
 class UserImageAnnotation(models.Model):
@@ -67,3 +63,4 @@ class UserImageAnnotation(models.Model):
         indexes = [
             models.Index(fields=['image', 'annotation']),
         ]
+        unique_together = ('user', 'image', 'annotation')
