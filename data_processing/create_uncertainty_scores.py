@@ -18,7 +18,7 @@ parser.add_argument('--input_file_d14', type=str,
                     default='../server/metadata/model-related/secondary_road/model_2lane_predict_d14.csv',
                     help='input prediction file for mapped images to create uncertainty scores for')
 parser.add_argument('--sample_size', type=int,
-                    default=10000,
+                    default=20000,
                     help='sample size for manual annotation with uncertainty scores computed to be ingested into db')
 parser.add_argument('--output_file', type=str,
                     default='../server/metadata/image_uncertainty_scores.csv',
@@ -42,35 +42,32 @@ df_d13 = pd.read_csv(input_file_d13, header=0, index_col=['MAPPED_IMAGE'], useco
 # df_d14 = pd.read_csv(input_file_d14, header=0, index_col=['MAPPED_IMAGE'], usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'],
 #                    dtype={'MAPPED_IMAGE': str, 'ROUND_PREDICT': float})
 # print(df_d4.shape, df_d8.shape, df_d13.shape, df_d14.shape)
-print(df_d4.shape, df_d8.shape, df_d13.shape)
+df_d4['DIVISION_WEIGHT'] = 1
+df_d8['DIVISION_WEIGHT'] = 1
+df_d13['DIVISION_WEIGHT'] = 1.5
 df = pd.concat([df_d4, df_d8, df_d13])
 print(df.shape)
 # plt.hist(df['ROUND_PREDICT'], bins=10)
 # plt.show()
+
 # drop negative predictions
 df_yes = df[df.ROUND_PREDICT >= 0.5]
-print(df_yes.shape)
+print(f'positive predictions: {df_yes.shape}')
 plt.hist(df_yes['ROUND_PREDICT'], bins=5, log=True)
 plt.show()
 hist, bin_edges = np.histogram(df_yes['ROUND_PREDICT'], bins=5, density=True)
 bin_edges[5] = 1.1
-print(bin_edges)
-print(hist)
+print(f'bins: {bin_edges}, hists: {hist}')
+
 df_yes['BIN_INDEX'] = np.digitize(df_yes['ROUND_PREDICT'], bin_edges)
-df_yes['WEIGHT'] = hist[df_yes['BIN_INDEX'] - 1]
-print(len(df_yes[df_yes['WEIGHT'] < hist[1]]), len(df_yes[df_yes['ROUND_PREDICT'] < 0.6]))
-print(len(df_yes[(df_yes['WEIGHT'] >= hist[1]) & (df_yes['WEIGHT'] < hist[2])]), len(df_yes[(df_yes['ROUND_PREDICT'] >= 0.6) & (df_yes['ROUND_PREDICT'] < 0.7)]))
-print(len(df_yes[(df_yes['WEIGHT'] >= hist[2]) & (df_yes['WEIGHT'] < hist[3])]), len(df_yes[(df_yes['ROUND_PREDICT'] >= 0.7) & (df_yes['ROUND_PREDICT'] < 0.8)]))
-print(len(df_yes[(df_yes['WEIGHT'] >= hist[3]) & (df_yes['WEIGHT'] < hist[4])]), len(df_yes[(df_yes['ROUND_PREDICT'] >= 0.8) & (df_yes['ROUND_PREDICT'] < 0.9)]))
-print(len(df_yes[df_yes['WEIGHT'] >= hist[4]]), len(df_yes[(df_yes['ROUND_PREDICT'] >= 0.9) & (df_yes['ROUND_PREDICT'] <= 1)]))
-sub_df = df_yes.sample(n=sample_size, weights='WEIGHT', replace=False, random_state=2)
+# create random sampling with the same distribution as positive prediction data while giving west regions
+# such as division 13 more weight
+df_yes['WEIGHT'] = hist[df_yes['BIN_INDEX'] - 1] * df_yes['DIVISION_WEIGHT']
+sub_df = df_yes.sample(n=sample_size, weights='WEIGHT', replace=False, random_state=1)
 plt.hist(sub_df['ROUND_PREDICT'], bins=[0.5, 0.6, 0.7, 0.8, 0.9, 1], log=True)
 plt.show()
-print(len(sub_df[sub_df['WEIGHT'] < hist[1]]), len(sub_df[sub_df['ROUND_PREDICT'] < 0.6]))
-print(len(sub_df[(sub_df['WEIGHT'] >= hist[1]) & (sub_df['WEIGHT'] < hist[2])]), len(sub_df[(sub_df['ROUND_PREDICT'] >= 0.6) & (sub_df['ROUND_PREDICT'] < 0.7)]))
-print(len(sub_df[(sub_df['WEIGHT'] >= hist[2]) & (sub_df['WEIGHT'] < hist[3])]), len(sub_df[(sub_df['ROUND_PREDICT'] >= 0.7) & (sub_df['ROUND_PREDICT'] < 0.8)]))
-print(len(sub_df[(sub_df['WEIGHT'] >= hist[3]) & (sub_df['WEIGHT'] < hist[4])]), len(sub_df[(sub_df['ROUND_PREDICT'] >= 0.8) & (sub_df['ROUND_PREDICT'] < 0.9)]))
-print(len(sub_df[sub_df['WEIGHT'] >= hist[4]]), len(sub_df[(sub_df['ROUND_PREDICT'] >= 0.9) & (sub_df['ROUND_PREDICT'] <= 1)]))
+# print(sub_df[sub_df['DIVISION_WEIGHT'] == 1.5])
+# print(sub_df[sub_df['DIVISION_WEIGHT'] == 1])
 sub_df = sub_df.drop(columns=['BIN_INDEX', 'WEIGHT'])
 # uncertainty would be in the range of [0.1, 0.6]
 # where predict probability of 0.5 has higher uncertainty than
