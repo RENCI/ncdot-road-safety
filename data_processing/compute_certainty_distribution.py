@@ -19,6 +19,8 @@ if __name__ == '__main__':
     print("std:", prob_series.std())
     prob_series_yes = df['ROUND_PREDICT'][df['ROUND_PREDICT'] >= 0.5]
     prob_series_no = df['ROUND_PREDICT'][df['ROUND_PREDICT'] < 0.5]
+    prob_series_1 = df['ROUND_PREDICT'][df['ROUND_PREDICT'] == 1.0]
     print(f'{len(prob_series_yes)}, {len(prob_series_no)}, {len(prob_series)}')
+    print(len(prob_series_1), len(prob_series_1)/len(prob_series))
 
 
