@@ -63,7 +63,23 @@ print(len(df_yes[(df_yes['WEIGHT'] >= hist[1]) & (df_yes['WEIGHT'] < hist[2])]),
 print(len(df_yes[(df_yes['WEIGHT'] >= hist[2]) & (df_yes['WEIGHT'] < hist[3])]), len(df_yes[(df_yes['ROUND_PREDICT'] >= 0.7) & (df_yes['ROUND_PREDICT'] < 0.8)]))
 print(len(df_yes[(df_yes['WEIGHT'] >= hist[3]) & (df_yes['WEIGHT'] < hist[4])]), len(df_yes[(df_yes['ROUND_PREDICT'] >= 0.8) & (df_yes['ROUND_PREDICT'] < 0.9)]))
 print(len(df_yes[df_yes['WEIGHT'] >= hist[4]]), len(df_yes[(df_yes['ROUND_PREDICT'] >= 0.9) & (df_yes['ROUND_PREDICT'] <= 1)]))
-sub_df = df_yes.sample(n=sample_size, weights='WEIGHT', replace=False, random_state=1)
-plt.hist(sub_df['ROUND_PREDICT'], bins=5, log=True)
+sub_df = df_yes.sample(n=sample_size, weights='WEIGHT', replace=False, random_state=2)
+plt.hist(sub_df['ROUND_PREDICT'], bins=[0.5, 0.6, 0.7, 0.8, 0.9, 1], log=True)
 plt.show()
+print(len(sub_df[sub_df['WEIGHT'] < hist[1]]), len(sub_df[sub_df['ROUND_PREDICT'] < 0.6]))
+print(len(sub_df[(sub_df['WEIGHT'] >= hist[1]) & (sub_df['WEIGHT'] < hist[2])]), len(sub_df[(sub_df['ROUND_PREDICT'] >= 0.6) & (sub_df['ROUND_PREDICT'] < 0.7)]))
+print(len(sub_df[(sub_df['WEIGHT'] >= hist[2]) & (sub_df['WEIGHT'] < hist[3])]), len(sub_df[(sub_df['ROUND_PREDICT'] >= 0.7) & (sub_df['ROUND_PREDICT'] < 0.8)]))
+print(len(sub_df[(sub_df['WEIGHT'] >= hist[3]) & (sub_df['WEIGHT'] < hist[4])]), len(sub_df[(sub_df['ROUND_PREDICT'] >= 0.8) & (sub_df['ROUND_PREDICT'] < 0.9)]))
+print(len(sub_df[sub_df['WEIGHT'] >= hist[4]]), len(sub_df[(sub_df['ROUND_PREDICT'] >= 0.9) & (sub_df['ROUND_PREDICT'] <= 1)]))
+sub_df = sub_df.drop(columns=['BIN_INDEX', 'WEIGHT'])
+# uncertainty would be in the range of [0.1, 0.6]
+# where predict probability of 0.5 has higher uncertainty than
+# predict probability of 1.0
+sub_df['UNCERTAINTY'] = 1.1 - sub_df['ROUND_PREDICT']
+sub_df['UNCERTAINTY'] = np.round(sub_df['UNCERTAINTY'], decimals=2)
+print(len(sub_df[sub_df['UNCERTAINTY'] > 0.2 ]))
+sub_df.index = sub_df.index.str.slice(start=-15)
+sub_df.index = sub_df.index.str.replace('.jpg', '')
+sub_df = sub_df.sort_values(by=['UNCERTAINTY'])
+sub_df.to_csv(output_file)
 print('Done')
