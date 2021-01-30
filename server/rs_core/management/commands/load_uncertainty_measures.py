@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+from django.conf import settings
 import pandas as pd
 from rs_core.models import RouteImage, AIImageAnnotation
 from rs_core.utils import save_uncertainty_measure_to_db
@@ -30,8 +31,8 @@ class Command(BaseCommand):
                                                                                     "UNCERTAINTY"])
         count = RouteImage.objects.count()
         df_len = len(df)
-        print(count, df_len)
-        if df_len != count:
+        print(count, df_len, settings.USE_IRODS)
+        if settings.USE_IRODS:
             # cannot load uncertainty score from csv file, computing uncertainty score instead
             for obj in AIImageAnnotation.objects.all():
                 obj.uncertainty_measure = abs(obj.certainty - 0.5)
