@@ -43,17 +43,15 @@ def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offs
                                                          image__route_id=route_id).values_list("image__image_base_name")
         images = AIImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name, image__route_id=route_id).exclude(
-            image__image_base_name__in=user_images).annotate(
-            uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty')[idx1:idx2].values_list(
-            "image__image_base_name", flat=True)
+            image__image_base_name__in=user_images).exclude(uncertainty_measure__isnull=True).order_by(
+            'uncertainty_measure')[idx1:idx2].values_list("image__image_base_name", flat=True)
     else:
         user_images = UserImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).values_list("image__image_base_name")
         images = AIImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).exclude(
-            image__image_base_name__in=user_images).annotate(
-            uncertainty=Abs(F('certainty')-0.5)).order_by('uncertainty')[idx1:idx2].values_list(
-            "image__image_base_name", flat=True)
+            image__image_base_name__in=user_images).exclude(uncertainty_measure__isnull=True).order_by(
+            'uncertainty_measure')[idx1:idx2].values_list("image__image_base_name", flat=True)
     return list(images)
 
 
@@ -108,6 +106,16 @@ def update_or_create_ai_image_annotation(image_base_name, annotation, presence, 
         return
     AIImageAnnotation.objects.update_or_create(image=image, annotation=annotation,
                                                defaults={'presence': presence, 'certainty': certainty})
+
+
+def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty):
+    try:
+        image = RouteImage.objects.get(image_base_name=image_base_name)
+    except RouteImage.DoesNotExist:
+        return
+    obj = AIImageAnnotation.objects.get(image=image, annotation=annotation)
+    obj.uncertainty_measure = uncertainty
+    obj.save()
 
 
 def save_guardrail_data_to_db_old(begin_long, begin_lat, end_long, end_lat, route_id):
