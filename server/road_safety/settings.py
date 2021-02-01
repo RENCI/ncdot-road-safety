@@ -206,7 +206,7 @@ LOGGING = {
         'django': {
             'handlers': ['djangolog'],
             'propagate': True,
-            'level': 'WARNING',
+            'level': 'ERROR',
         },
         # Catch-all logger
         '': {
