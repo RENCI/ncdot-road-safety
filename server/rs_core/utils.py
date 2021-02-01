@@ -41,17 +41,23 @@ def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offs
     if route_id:
         user_images = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
                                                          image__route_id=route_id).values_list("image__image_base_name")
-        images = AIImageAnnotation.objects.filter(
+        filtered_images = AIImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name, image__route_id=route_id).exclude(
-            image__image_base_name__in=user_images).exclude(uncertainty_measure__isnull=True).order_by(
-            'uncertainty_measure')[idx1:idx2].values_list("image__image_base_name", flat=True)
+            image__image_base_name__in=user_images)
     else:
         user_images = UserImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).values_list("image__image_base_name")
-        images = AIImageAnnotation.objects.filter(
-            annotation__name__iexact=annot_name).exclude(
-            image__image_base_name__in=user_images).exclude(uncertainty_measure__isnull=True).order_by(
-            'uncertainty_measure')[idx1:idx2].values_list("image__image_base_name", flat=True)
+        filtered_images = AIImageAnnotation.objects.filter(
+            annotation__name__iexact=annot_name).exclude(image__image_base_name__in=user_images)
+
+    filtered_images_2 = filtered_images.exclude(uncertainty_measure__isnull=True)
+    if filtered_images_2:
+        images = filtered_images_2.order_by('uncertainty_measure')[idx1:idx2].values_list("image__image_base_name",
+                                                                                          flat=True)
+    else:
+        images = filtered_images.annotate(uncertainty=Abs(F('certainty')-0.5)).order_by(
+             'uncertainty')[idx1:idx2].values_list("image__image_base_name", flat=True)
+
     return list(images)
 
 
