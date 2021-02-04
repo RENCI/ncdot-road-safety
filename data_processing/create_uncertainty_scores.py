@@ -132,6 +132,8 @@ df_d14['DIVISION'] = 'd14'
 # df_d14['DIVISION_WEIGHT'] = 1.5
 
 whole_df = pd.concat([df_d4, df_d8, df_d13, df_d14])
+whole_df.index = whole_df.index.str.slice(start=-15)
+whole_df.index = whole_df.index.str.replace('.jpg', '')
 whole_size = len(whole_df)
 # uncertainty currently only reflects sorting
 whole_df['UNCERTAINTY'] = whole_size
