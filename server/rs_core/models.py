@@ -39,7 +39,7 @@ class AIImageAnnotation(models.Model):
     annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
     presence = models.BooleanField()
     certainty = models.FloatField()
-    uncertainty_measure = models.FloatField(null=True, blank=True)
+    uncertainty_measure = models.IntegerField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
