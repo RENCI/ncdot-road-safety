@@ -27,7 +27,6 @@ class Command(BaseCommand):
         input_file = options['input_file']
         annot_name = options['annot_name']
         df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=["MAPPED_IMAGE",
-                                                                                    'ROUND_PREDICT',
                                                                                     "UNCERTAINTY"])
         count = RouteImage.objects.count()
         df_len = len(df)

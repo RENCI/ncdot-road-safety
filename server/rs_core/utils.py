@@ -52,7 +52,7 @@ def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offs
 
     filtered_images_2 = filtered_images.exclude(uncertainty_measure__isnull=True)
     if filtered_images_2:
-        images = filtered_images_2.order_by('uncertainty_measure', 'image__image_base_name')[idx1:idx2].values_list(
+        images = filtered_images_2.order_by('-uncertainty_measure', 'image__image_base_name')[idx1:idx2].values_list(
             "image__image_base_name", flat=True)
     else:
         images = filtered_images.annotate(uncertainty=Abs(F('certainty')-0.5)).order_by(
