@@ -22,25 +22,28 @@ def get_uniform_random_samples(df, initial_score, sample_n=5):
     idx = 0
     sample_df = None
     while idx < size:
+        group_size = len(df.groupby('DIVISION'))
         if sample_df is None:
             sample_df = df.groupby('DIVISION').sample(n=sample_n, random_state=42)
             sample_df["UNCERTAINTY"] = sample_df.apply(lambda row: initial_score - sample_df.index.get_loc(row.name),
                                                        axis=1)
+            idx += sample_n * group_size
         else:
             score = initial_score - len(sample_df)
             min_size = df.groupby('DIVISION').size().min()
             if min_size < sample_n:
                 new_sample_df = df.groupby('DIVISION').sample(n=min_size, random_state=42)
+                idx += min_size * group_size
             else:
                 new_sample_df = df.groupby('DIVISION').sample(n=sample_n, random_state=42)
+                idx += sample_n * group_size
             new_sample_df["UNCERTAINTY"] = new_sample_df.apply(lambda row: score-new_sample_df.index.get_loc(row.name),
                                                                axis=1)
             sample_df = pd.concat([sample_df, new_sample_df])
 
         df = df[~df.index.isin(sample_df.index)]
-        idx += sample_n * 4
-        if idx % 100000 == 0:
-            sample_df.to_csv(output_file + '.' + str(idx))
+        # if idx % 100000 == 0:
+        #     sample_df.to_csv(output_file + '.' + str(idx))
     return sample_df
 
 
