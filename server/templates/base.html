@@ -32,12 +32,6 @@
       <div class="col-sm-6 text-center">
         <h2>Roadway Hazard Finder (RHF)</h2>
         <p>Accelerating rural road safety using AI to unlock predictive insights from videolog data</p>
-        {% if user.is_authenticated and initial_login %}
-          <div class="card p-3">
-            <h5>Signed in as {{ user.username }} ({{ user.email }}}).</h5>
-            <div><a href="{% url 'logout' %}">logout</a></div>
-          </div>
-        {% endif %}
       </div>
       <div class="col-sm-3 text-center">
         <div class="vertical-spacing">

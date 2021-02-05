@@ -1,6 +1,6 @@
 import bisect
 
-from django.db.models import Min, Max
+from django.db.models import Min
 from django.contrib.gis.geos import fromstr
 from django.contrib.gis.geos import Point
 from django.db.models import F
