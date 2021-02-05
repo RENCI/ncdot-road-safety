@@ -51,14 +51,12 @@ def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offs
         filtered_images = AIImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).exclude(image__image_base_name__in=user_images)
 
-    filtered_images_2 = filtered_images.exclude(uncertainty_measure__isnull=True)
-    if filtered_images_2:
-        min_group_idx = filtered_images_2.aggregate(Min('uncertainty_group'))['uncertainty_group__min']
-        group_list = [min_group_idx, min_group_idx + 1]
-        images = filtered_images_2.filter(uncertainty_group__in=group_list).order_by(
-            '-uncertainty_measure', 'image__image_base_name')[idx1:idx2].values_list(
-            'image__image_base_name', flat=True)
-    else:
+    min_group_idx = filtered_images.aggregate(Min('uncertainty_group'))['uncertainty_group__min']
+    group_list = [min_group_idx, min_group_idx + 1]
+    images = filtered_images.filter(uncertainty_group__in=group_list).order_by(
+        '-uncertainty_measure', 'image__image_base_name')[idx1:idx2].values_list(
+        'image__image_base_name', flat=True)
+    if not images:
         images = filtered_images.annotate(uncertainty=Abs(F('certainty')-0.5)).order_by(
              'uncertainty', 'image__image_base_name')[idx1:idx2].values_list("image__image_base_name", flat=True)
 
