@@ -1,5 +1,6 @@
 import bisect
 
+from django.db.models import Min, Max
 from django.contrib.gis.geos import fromstr
 from django.contrib.gis.geos import Point
 from django.db.models import F
@@ -52,8 +53,19 @@ def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offs
 
     filtered_images_2 = filtered_images.exclude(uncertainty_measure__isnull=True)
     if filtered_images_2:
-        images = filtered_images_2.order_by('-uncertainty_measure', 'image__image_base_name')[idx1:idx2].values_list(
-            "image__image_base_name", flat=True)
+        min_group_idx = filtered_images_2.aggregate(Min('uncertainty_group'))['uncertainty_group__min']
+        max_group_idx = filtered_images_2.aggregate(Max('uncertainty_group'))['uncertainty_group__max']
+        if min_group_idx == max_group_idx:
+            group_list = [min_group_idx]
+        else:
+            grp_size = filtered_images_2.filter(uncertainty_group__exact=min_group_idx).count()
+            if idx2 < grp_size:
+                group_list = [min_group_idx]
+            else:
+                group_list = [min_group_idx, min_group_idx + 1]
+        images = filtered_images_2.filter(uncertainty_group__in=group_list).order_by(
+            '-uncertainty_measure', 'image__image_base_name')[idx1:idx2].values_list(
+            'image__image_base_name', flat=True)
     else:
         images = filtered_images.annotate(uncertainty=Abs(F('certainty')-0.5)).order_by(
              'uncertainty', 'image__image_base_name')[idx1:idx2].values_list("image__image_base_name", flat=True)

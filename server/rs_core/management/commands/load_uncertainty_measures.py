@@ -34,7 +34,8 @@ class Command(BaseCommand):
         if settings.USE_IRODS:
             # cannot load uncertainty score from csv file, computing uncertainty score instead
             for obj in AIImageAnnotation.objects.all():
-                obj.uncertainty_measure = abs(obj.certainty - 0.5)
+                # make uncertainty_measure integer in descending order
+                obj.uncertainty_measure = (0.5 - abs(obj.certainty - 0.5)) * 100
                 obj.save()
         else:
             df.apply(lambda row: save_uncertainty_measure_to_db(row['MAPPED_IMAGE'], annot_name, row['UNCERTAINTY']),
