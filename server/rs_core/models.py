@@ -39,14 +39,17 @@ class AIImageAnnotation(models.Model):
     annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
     presence = models.BooleanField()
     certainty = models.FloatField()
-    uncertainty_measure = models.FloatField(null=True, blank=True)
+    uncertainty_measure = models.IntegerField(null=True, blank=True)
+    uncertainty_group = models.IntegerField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         indexes = [
             models.Index(fields=['image', 'annotation']),
+            models.Index(fields=['annotation', 'uncertainty_group', '-uncertainty_measure', 'image']),
         ]
         unique_together = ('image', 'annotation')
+        # ordering = ['-uncertainty_measure', 'image__image_base_name']
 
 
 class UserImageAnnotation(models.Model):
