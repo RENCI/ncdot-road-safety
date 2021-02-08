@@ -23,10 +23,16 @@ class IrodsStorage(Storage):
         """
         qrystr = "SELECT COLL_NAME WHERE DATA_NAME = '{}'".format(image_file_name)
         coll_name = self.session.run("iquest", None, "%s", qrystr)[0]
-
         if "CAT_NO_ROWS_FOUND" in coll_name:
             raise ValidationError("{} cannot be found".format(image_file_name))
-        return coll_name.strip('\n')
+        coll_names = coll_name.split('\n')
+        if len(coll_names) == 1:
+            return coll_names[0].strip()
+        else:
+            for name in coll_names:
+                if "sr_images" in name:
+                    return name.strip()
+            return coll_names[0].strip()
 
     def get_one_image_frame(self, image_file_name, dest_path):
         """
