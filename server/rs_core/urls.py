@@ -16,8 +16,6 @@ urlpatterns = [
     path('get_image_names_by_loc/<long>/<lat>/<count>/', views.get_image_names_by_loc,
          name='get_image_names_by_loc'),
     path('get_image_metadata/<image_base_name>/', views.get_image_metadata, name='get_image_metadata'),
-    path('get_image_base_names_by_annot/<annot_name>/', views.get_image_base_names_by_annot,
-         name='get_image_base_names_by_annot'),
     path('get_next_images_for_annot/<annot_name>/<count>/', views.get_next_images_for_annot,
          name='get_next_images_for_annot'),
     path('get_all_routes/', views.get_all_routes, name='get_all_routes'),

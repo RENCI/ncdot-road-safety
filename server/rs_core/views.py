@@ -199,19 +199,6 @@ def get_image_metadata(request, image_base_name):
 
 
 @login_required
-def get_image_base_names_by_annot(request, annot_name):
-    if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
-        return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
-    if not AIImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists() and \
-            not UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists():
-        return JsonResponse({'image_base_names': []}, status=status.HTTP_200_OK)
-
-    route_id = request.GET.get('route_id', None)
-    images = get_image_base_names_by_annotation(annot_name, route_id=route_id)
-    return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
-
-
-@login_required
 def get_next_images_for_annot(request, annot_name, count):
     # return requested <count> number of images sorted by needs for human annotation
     if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():

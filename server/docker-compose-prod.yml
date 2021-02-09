@@ -50,3 +50,11 @@ services:
 volumes:
   postgres_data:
   static_volume:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${IPAM_CONFIG_SUBNET}
