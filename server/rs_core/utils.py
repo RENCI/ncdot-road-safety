@@ -54,6 +54,9 @@ def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offs
 
     min_group_idx = filtered_images.aggregate(Min('uncertainty_group'))['uncertainty_group__min']
     if settings.USE_IRODS:
+        if not filtered_images.exists():
+            # images runs out, return empty list
+            return []
         max_group_idx = filtered_images.aggregate(Max('uncertainty_group'))['uncertainty_group__max']
         if min_group_idx < max_group_idx:
             group_list = [min_group_idx, min_group_idx + 1]
