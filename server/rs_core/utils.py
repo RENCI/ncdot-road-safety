@@ -1,6 +1,7 @@
 import bisect
 
-from django.db.models import Min
+from django.db.models import Min, Max
+from django.conf import settings
 from django.contrib.gis.geos import fromstr
 from django.contrib.gis.geos import Point
 from django.db.models import F
@@ -52,7 +53,14 @@ def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offs
             annotation__name__iexact=annot_name).exclude(image__image_base_name__in=user_images)
 
     min_group_idx = filtered_images.aggregate(Min('uncertainty_group'))['uncertainty_group__min']
-    group_list = [min_group_idx, min_group_idx + 1]
+    if settings.USE_IRODS:
+        max_group_idx = filtered_images.aggregate(Max('uncertainty_group'))['uncertainty_group__max']
+        if min_group_idx < max_group_idx:
+            group_list = [min_group_idx, min_group_idx + 1]
+        else:
+            group_list = [min_group_idx]
+    else:
+        group_list = [min_group_idx, min_group_idx + 1]
     images = filtered_images.filter(uncertainty_group__in=group_list).order_by(
         '-uncertainty_measure', 'image__image_base_name')[idx1:idx2].values_list(
         'image__image_base_name', flat=True)
