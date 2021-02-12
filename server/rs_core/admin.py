@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 
-from rs_core.models import UserProfile, AnnotationSet
+from rs_core.models import UserProfile, AnnotationSet, AnnotationFlag
 
 
 # Define an inline admin descriptor for UserProfile model
@@ -21,4 +21,5 @@ class UserAdmin(BaseUserAdmin):
 # Re-register UserAdmin
 admin.site.unregister(User)
 admin.site.register(User, UserAdmin)
+admin.site.register(AnnotationFlag)
 admin.site.register(AnnotationSet)

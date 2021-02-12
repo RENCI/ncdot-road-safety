@@ -10,7 +10,7 @@ from django.contrib.gis.db.models.functions import Distance
 from django.contrib.auth.models import User
 from django.db import transaction
 
-from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, AnnotationSet
+from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, AnnotationSet, AnnotationFlag
 
 
 def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', predict=None, feature_name='guardrail'):
@@ -82,29 +82,41 @@ def get_image_annotations_queryset(image_base_name):
     return ai_annot.union(u_annot)
 
 
-def save_annot_data_to_db(img_base_name, username, annot_name, annot_present, annot_flag=None,
-                          annot_present_views='', annot_comment=''):
+def save_annot_data_to_db(img_base_name, username, annot_name, annot_views, annot_flags=None, annot_comments=''):
     with transaction.atomic():
+        if annot_views['left'] == 'present' or annot_views['front'] == 'present' or annot_views['right'] == 'present':
+            presence = True
+        else:
+            presence = False
         obj, created = UserImageAnnotation.objects.get_or_create(
             image=RouteImage.objects.get(image_base_name=img_base_name),
             annotation=AnnotationSet.objects.get(name__iexact=annot_name),
             user=User.objects.get(username=username),
             defaults={
-                'presence': annot_present,
-                'presence_views': annot_present_views,
-                'comment': annot_comment,
-                'flag': annot_flag if annot_flag is not None and annot_flag else False
+                'presence': presence,
+                'left_view': annot_views['left'][0],
+                'front_view': annot_views['front'][0],
+                'right_view': annot_views['right'][0],
+                'comment': ';'.join(annot_comments) if annot_comments else ''
             }
         )
+
         if not created:
             # update user annotation
-            obj.presence = annot_present
-            obj.presence_views = annot_present_views
-            obj.comment = annot_comment
-
-            if annot_flag is not None:
-                obj.flag = annot_flag
+            obj.presence = presence
+            obj.left_view = annot_views['left'][0]
+            obj.front_view = annot_views['front'][0]
+            obj.right_view = annot_views['right'][0]
+            obj.comments = ';'.join(annot_comments) if annot_comments else ''
+            obj.flags.clear()
             obj.save()
+        if annot_flags:
+            for flag in annot_flags:
+                try:
+                    flag_to_add = AnnotationFlag.objects.get(title__iexact=flag)
+                    obj.flags.add(flag_to_add)
+                except AnnotationFlag.DoesNotExist:
+                    continue
     return
 
 

@@ -25,6 +25,10 @@ class RouteImage(models.Model):
     image_path = models.CharField(max_length=100, default='')
 
 
+class AnnotationFlag(models.Model):
+    title = models.CharField(max_length=200, primary_key=True)
+
+
 class AnnotationSet(models.Model):
     TYPE_CHOICES = (
         ('pt', 'Point'),
@@ -32,6 +36,7 @@ class AnnotationSet(models.Model):
     )
     name = models.CharField(max_length=100, primary_key=True)
     type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='pt')
+    flags = models.ManyToManyField(AnnotationFlag, related_name='annotations', blank=True)
 
 
 class AIImageAnnotation(models.Model):
@@ -53,14 +58,21 @@ class AIImageAnnotation(models.Model):
 
 
 class UserImageAnnotation(models.Model):
+    ANNOTATION_CHOICES = (
+        ('a', 'Absent'),
+        ('p', 'Present'),
+        ('i', 'Irrelevant')
+    )
     image = models.ForeignKey(RouteImage, on_delete=models.CASCADE)
     annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     presence = models.BooleanField()
-    presence_views = models.CharField(max_length=10, null=True, blank=True, default='')
-    flag = models.BooleanField(default=False)
+    left_view = models.CharField(max_length=10, choices=ANNOTATION_CHOICES, default='i')
+    front_view = models.CharField(max_length=10, choices=ANNOTATION_CHOICES, default='i')
+    right_view = models.CharField(max_length=10, choices=ANNOTATION_CHOICES, default='i')
     timestamp = models.DateTimeField(auto_now_add=True)
     comment = models.CharField(max_length=1000, blank=True, null=True)
+    flags = models.ManyToManyField(AnnotationFlag, related_name='user_annotations', blank=True)
 
     class Meta:
         indexes = [
