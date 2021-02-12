@@ -241,8 +241,13 @@ def get_route_info(request, route_id):
 
 @login_required
 def get_annotation_set(request):
-    annotation_list = list(AnnotationSet.objects.all().values_list("name", flat=True))
-    return JsonResponse({'annotation_names': annotation_list}, status=status.HTTP_200_OK)
+    annot_list = []
+    for obj in AnnotationSet.objects.all():
+        obj_dict = {}
+        obj_dict['name'] = obj.name
+        obj_dict['flags'] = list(obj.flags.all().values_list("title", flat=True))
+        annot_list.append(obj_dict)
+    return JsonResponse({'annotations': annot_list}, status=status.HTTP_200_OK)
 
 
 @login_required
@@ -290,21 +295,17 @@ def save_annotations(request):
     for annot in annotations:
         img_base_name = annot.get('image_base_name', '')
         annot_name = annot.get('annotation_name', '')
-        annot_present = annot.get('is_present', None)
-        annot_present_views = annot.get('is_present_views', [])
-        flag = annot.get('flag', None)
-        annot_comment = annot.get('comment', '')
-        if not img_base_name or not annot_name or annot_present is None:
+        annot_views = annot.get('views', [])
+        flags = annot.get('flags', None)
+        comments = annot.get('comments', '')
+        if not img_base_name or not annot_name or not annot_views:
             return JsonResponse({'error': 'bad request'}, status=status.HTTP_400_BAD_REQUEST)
         if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
             return JsonResponse({'error': 'annotation name is not supported'}, status=status.HTTP_400_BAD_REQUEST)
-        if annot_present_views:
-            annot_present_view_str = ','.join([str(x) for x in annot_present_views])
-        else:
-            annot_present_view_str = ''
+
         try:
-            save_annot_data_to_db(img_base_name, username, annot_name, annot_present, annot_flag=flag,
-                                  annot_present_views=annot_present_views, annot_comment=annot_comment)
+            save_annot_data_to_db(img_base_name, username, annot_name, annot_views, annot_flags=flags,
+                                  annot_comments=comments)
         except Exception as ex:
             return JsonResponse({'error': str(ex)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
