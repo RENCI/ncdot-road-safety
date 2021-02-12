@@ -51,6 +51,7 @@ class AIImageAnnotation(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=['image', 'annotation']),
+            models.Index(fields=['uncertainty_group']),
             models.Index(fields=['annotation', 'uncertainty_group', '-uncertainty_measure', 'image']),
         ]
         unique_together = ('image', 'annotation')
