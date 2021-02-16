@@ -1,6 +1,7 @@
 import os
 from PIL import Image
 import tensorflow as tf
+import pandas as pd
 
 
 def setup_gpu_memory():
@@ -64,3 +65,27 @@ def join_images(left_image_path, front_image_path, right_image_path):
     except OSError as ex:
         print(left_image_path, str(ex))
         return None
+
+
+def split_to_train_valid_test(data_df, label_column, train_frac):
+    labels = data_df[label_column].unique()
+    split_train_df, split_valid_df, split_test_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    for lbl in labels:
+        lbl_df = data_df[data_df[label_column] == lbl]
+        lbl_train_df = lbl_df.sample(frac=train_frac, random_state=1)
+        lbl_valid_test_df = lbl_df.drop(lbl_train_df.index)
+        # further split remaining data into two equal sets for validation and test
+        lbl_valid_df = lbl_valid_test_df.sample(frac=0.5, random_state=1)
+        lbl_test_df = lbl_valid_test_df.drop(lbl_valid_df.index)
+        print(lbl, "total:", len(lbl_df), "train_df:", len(lbl_train_df), "valid_df", len(lbl_valid_df),
+              "test_df:", len(lbl_test_df))
+        split_train_df = split_train_df.append(lbl_train_df)
+        split_valid_df = split_valid_df.append(lbl_valid_df)
+        split_test_df = split_test_df.append(lbl_test_df)
+
+    return split_train_df, split_valid_df, split_test_df
+
+
+def create_yes_no_sub_dirs(root_path):
+    os.makedirs(os.path.join(root_path, 'yes'), exist_ok=True)
+    os.makedirs(os.path.join(root_path, 'no'), exist_ok=True)

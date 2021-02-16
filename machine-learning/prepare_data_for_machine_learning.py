@@ -1,7 +1,7 @@
 import argparse
 import os
 import pandas as pd
-from utils import get_image_names_with_path, join_images
+from utils import get_image_names_with_path, join_images, split_to_train_valid_test
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -25,25 +25,6 @@ feature_name = args.feature_name
 train_frac = args.train_frac
 
 
-def split_to_train_valid_test(data_df, label_column):
-    labels = data_df[label_column].unique()
-    split_train_df, split_valid_df, split_test_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    for lbl in labels:
-        lbl_df = data_df[data_df[label_column] == lbl]
-        lbl_train_df = lbl_df.sample(frac=train_frac, random_state=1)
-        lbl_valid_test_df = lbl_df.drop(lbl_train_df.index)
-        # further split remaining data into two equal sets for validation and test
-        lbl_valid_df = lbl_valid_test_df.sample(frac=0.5, random_state=1)
-        lbl_test_df = lbl_valid_test_df.drop(lbl_valid_df.index)
-        print(lbl, "total:", len(lbl_df), "train_df:", len(lbl_train_df), "valid_df", len(lbl_valid_df),
-              "test_df:", len(lbl_test_df))
-        split_train_df = split_train_df.append(lbl_train_df)
-        split_valid_df = split_valid_df.append(lbl_valid_df)
-        split_test_df = split_test_df.append(lbl_test_df)
-
-    return split_train_df, split_valid_df, split_test_df
-
-
 def prepare_image(mapped_image, label, data_type_subdir):
     path, left, front, right = get_image_names_with_path(input_data_path, mapped_image)
     if not path or not left or not front or not right:
@@ -62,7 +43,7 @@ def prepare_image(mapped_image, label, data_type_subdir):
 
 
 df = pd.read_csv(input_metadata_path, header=0, index_col=False, usecols=['MAPPED_IMAGE', 'GUARDRAIL_YN'], dtype=str)
-train_df, valid_df, test_df = split_to_train_valid_test(df, 'GUARDRAIL_YN')
+train_df, valid_df, test_df = split_to_train_valid_test(df, 'GUARDRAIL_YN', train_frac)
 print('training data:', len(train_df), 'validation data:', len(valid_df), 'test data:', len(test_df))
 train_df.apply(lambda row: prepare_image(row['MAPPED_IMAGE'], row['GUARDRAIL_YN'], 'train'), axis=1)
 valid_df.apply(lambda row: prepare_image(row['MAPPED_IMAGE'], row['GUARDRAIL_YN'], 'validation'), axis=1)
