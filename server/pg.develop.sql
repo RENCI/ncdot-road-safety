@@ -45,6 +45,7 @@ DROP INDEX public.rs_core_userimageannotation_annotation_id_1a04caa8_like;
 DROP INDEX public.rs_core_userimageannotation_annotation_id_1a04caa8;
 DROP INDEX public.rs_core_userimageannotatio_userimageannotation_id_f202c898;
 DROP INDEX public.rs_core_userimageannotat_annotationflag_id_cfa140bd_like;
+DROP INDEX public.rs_core_use_user_id_629c3d_idx;
 DROP INDEX public.rs_core_use_image_i_b448f4_idx;
 DROP INDEX public.rs_core_routeimage_route_id_ad5a35c3_like;
 DROP INDEX public.rs_core_routeimage_route_id_ad5a35c3;
@@ -60,6 +61,7 @@ DROP INDEX public.rs_core_aiimageannotation_image_id_efbb458d_like;
 DROP INDEX public.rs_core_aiimageannotation_image_id_efbb458d;
 DROP INDEX public.rs_core_aiimageannotation_annotation_id_5dd15dc7_like;
 DROP INDEX public.rs_core_aiimageannotation_annotation_id_5dd15dc7;
+DROP INDEX public.rs_core_aii_uncerta_217593_idx;
 DROP INDEX public.rs_core_aii_image_i_d04ca4_idx;
 DROP INDEX public.rs_core_aii_annotat_a4271a_idx;
 DROP INDEX public.django_site_domain_a2e37b91_like;
@@ -800,7 +802,7 @@ ALTER TABLE public.rs_core_routeimage OWNER TO postgres;
 
 CREATE TABLE public.rs_core_userimageannotation (
     id integer NOT NULL,
-    presence boolean NOT NULL,
+    presence boolean,
     "timestamp" timestamp with time zone NOT NULL,
     comment character varying(1000),
     annotation_id character varying(100) NOT NULL,
@@ -1110,7 +1112,7 @@ COPY public.auth_permission (id, name, content_type_id, codename) FROM stdin;
 --
 
 COPY public.auth_user (id, password, last_login, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined) FROM stdin;
-1	pbkdf2_sha256$216000$VxU2TdJOvJ2N$PH/qimirElGmCGYgR4gzOp8jEH+JmakdRSGBHKmoLOM=	2021-02-11 23:01:32.981621+00	t	admin			hongyi@renci.org	t	t	2020-10-18 19:38:21.120339+00
+1	pbkdf2_sha256$216000$VxU2TdJOvJ2N$PH/qimirElGmCGYgR4gzOp8jEH+JmakdRSGBHKmoLOM=	2021-02-17 22:25:22.69876+00	t	admin			hongyi@renci.org	t	t	2020-10-18 19:38:21.120339+00
 \.
 
 
@@ -1221,6 +1223,7 @@ COPY public.django_migrations (id, app, name, applied) FROM stdin;
 33	rs_core	0011_auto_20210204_2053	2021-02-04 20:53:30.456046+00
 34	rs_core	0012_auto_20210204_2131	2021-02-04 21:31:22.812551+00
 35	rs_core	0013_auto_20210211_2301	2021-02-11 23:01:13.865824+00
+39	rs_core	0014_auto_20210217_1740	2021-02-17 17:41:12.199569+00
 \.
 
 
@@ -1279,6 +1282,10 @@ kkpxwmxfthjq67tqtiystkc1g2n2csd0	.eJxVjDkOwjAUBe_iGll4i_0p6XMG6y8WDiBHipMKcXeIlA
 fjyp8cqihwa7mpu709zrp3bavt94s52o	.eJxVjEEOwiAQRe_C2pCBQgGX7nsGMjOgVA0kpV0Z765NutDtf-_9l4i4rSVuPS9xTuIslDj9boT8yHUH6Y711iS3ui4zyV2RB-1yaik_L4f7d1Cwl2-dzVUrcqxIJzAOAg3euzQCI4yGLXtGr63PEFR2RANr7UgTOwKwwYv3B9xkN5I:1l5wv9:ytL_vmIGAPCeKbRbj-bI_TF9JqZtRPj0xeBeDHfAyQo	2021-02-13 20:32:39.50621+00
 7o1t4i6qknxovoak8hr4vnrabjc93lh8	.eJxVjM0OwiAQhN-FsyGA_Ox69O4zkAW2UjU0Ke3J-O62SQ96m8z3zbxFpHWpce08x7GIi9BKnH7LRPnJbSflQe0-yTy1ZR6T3BV50C5vU-HX9XD_Dir1uq29xbNVztktOF0Mg0YswJSzDWDYG0BNg9fKUAgDkCZUCKBUguQZxOcLy_020Q:1l77iC:MB-EpkCsa0ngG35EVY1agmu4sZrPFPuxzOK4Rh6dH7o	2021-02-17 02:16:08.755788+00
 dyyol7gbe3s4fh2q1ctoeg6lst9eq1xb	.eJxVjEEOwiAQRe_C2pCBQgGX7nsGMjOgVA0kpV0Z765NutDtf-_9l4i4rSVuPS9xTuIslDj9boT8yHUH6Y711iS3ui4zyV2RB-1yaik_L4f7d1Cwl2-dzVUrcqxIJzAOAg3euzQCI4yGLXtGr63PEFR2RANr7UgTOwKwwYv3B9xkN5I:1l7r1M:xrViW0Gvcj_qmB-fMNCri1EcJ1002FslfcipxyBJefI	2021-02-19 02:38:56.598658+00
+m51cxluwmgm7o3xqnw5xrjk90tgqahoy	.eJxVjMEOwiAQRP-FsyFlgVA8evcbyC4sUjWQlPbU-O-2SQ96nHlvZhMB16WEtfMcpiSuQilx-S0J44vrQdIT66PJ2OoyTyQPRZ60y3tL_L6d7t9BwV72tXNEWo_WMpFxHjElyC7bPHrjMinwQ_aRkcwANlIG0NEw6z2CMkqLzxccgzgr:1lAL20:0p1c_-Z2tUTiKwTIcSV_oWk71TuVTyvthnQsgSAJNes	2021-02-25 23:05:52.514853+00
+s50tqow9pfbfxg70p8qzno94ml9e63tk	.eJxVjMEOwiAQRP-FsyFlgVA8evcbyC4sUjWQlPbU-O-2SQ96nHlvZhMB16WEtfMcpiSuQilx-S0J44vrQdIT66PJ2OoyTyQPRZ60y3tL_L6d7t9BwV72tXNEWo_WMpFxHjElyC7bPHrjMinwQ_aRkcwANlIG0NEw6z2CMkqLzxccgzgr:1lAZqV:O2AumnR8EzO8wtsMsbCJzRjQEe-euSZLQriU2sW3dJI	2021-02-26 14:54:59.322243+00
+sl7i57fpaj2lgefz6fdtz5unmjp0b0sp	.eJxVjMEOwiAQRP-FsyFlgVA8evcbyC4sUjWQlPbU-O-2SQ96nHlvZhMB16WEtfMcpiSuQilx-S0J44vrQdIT66PJ2OoyTyQPRZ60y3tL_L6d7t9BwV72tXNEWo_WMpFxHjElyC7bPHrjMinwQ_aRkcwANlIG0NEw6z2CMkqLzxccgzgr:1lBhwA:HE-AQJzgewkKZtawiTAfAMlLJdTVJ_BRE1JQxYmXHE8	2021-03-01 17:45:30.014361+00
+r40a1xfep6zpdwu177j4zqqosu7qsfoe	.eJxVjEEOwiAQRe_C2pCBQgGX7nsGMjOgVA0kpV0Z765NutDtf-_9l4i4rSVuPS9xTuIslDj9boT8yHUH6Y711iS3ui4zyV2RB-1yaik_L4f7d1Cwl2-dzVUrcqxIJzAOAg3euzQCI4yGLXtGr63PEFR2RANr7UgTOwKwwYv3B9xkN5I:1lCVG6:sqdxE6HQauP6LDcl11GZXRUC8k1UfTvRfT0gt1_n9U8	2021-03-03 22:25:22.710118+00
 \.
 
 
@@ -2051,7 +2058,7 @@ SELECT pg_catalog.setval('public.auth_user_groups_id_seq', 1, false);
 -- Name: auth_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.auth_user_id_seq', 10, true);
+SELECT pg_catalog.setval('public.auth_user_id_seq', 11, true);
 
 
 --
@@ -2079,7 +2086,7 @@ SELECT pg_catalog.setval('public.django_content_type_id_seq', 15, true);
 -- Name: django_migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.django_migrations_id_seq', 35, true);
+SELECT pg_catalog.setval('public.django_migrations_id_seq', 39, true);
 
 
 --
@@ -2114,21 +2121,21 @@ SELECT pg_catalog.setval('public.rs_core_annotationset_flags_id_seq', 3, true);
 -- Name: rs_core_userimageannotation_flags_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_userimageannotation_flags_id_seq', 1, false);
+SELECT pg_catalog.setval('public.rs_core_userimageannotation_flags_id_seq', 18, true);
 
 
 --
 -- Name: rs_core_userimageannotation_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_userimageannotation_id_seq', 225, true);
+SELECT pg_catalog.setval('public.rs_core_userimageannotation_id_seq', 310, true);
 
 
 --
 -- Name: rs_core_userprofile_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_userprofile_id_seq', 9, true);
+SELECT pg_catalog.setval('public.rs_core_userprofile_id_seq', 10, true);
 
 
 --
@@ -2545,6 +2552,13 @@ CREATE INDEX rs_core_aii_image_i_d04ca4_idx ON public.rs_core_aiimageannotation 
 
 
 --
+-- Name: rs_core_aii_uncerta_217593_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_aii_uncerta_217593_idx ON public.rs_core_aiimageannotation USING btree (uncertainty_group);
+
+
+--
 -- Name: rs_core_aiimageannotation_annotation_id_5dd15dc7; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -2647,6 +2661,13 @@ CREATE INDEX rs_core_routeimage_route_id_ad5a35c3_like ON public.rs_core_routeim
 --
 
 CREATE INDEX rs_core_use_image_i_b448f4_idx ON public.rs_core_userimageannotation USING btree (image_id, annotation_id);
+
+
+--
+-- Name: rs_core_use_user_id_629c3d_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX rs_core_use_user_id_629c3d_idx ON public.rs_core_userimageannotation USING btree (user_id, annotation_id, presence, image_id);
 
 
 --
