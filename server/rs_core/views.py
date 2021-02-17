@@ -294,6 +294,7 @@ def save_annotations(request):
     json_data = json.loads(request.body)
     annotations = json_data.get('annotations', None)
     ret_image_count = json_data.get('return_image_count', 0)
+    ret_annot_name = json_data.get('annotation_name', '')
     if annotations is None:
         return JsonResponse({'error': 'no annotations list in the request post'},
                             status=status.HTTP_400_BAD_REQUEST)
@@ -315,4 +316,12 @@ def save_annotations(request):
         except Exception as ex:
             return JsonResponse({'error': str(ex)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    return JsonResponse({'message': 'annotations saved successfully'}, status=status.HTTP_200_OK)
+    if ret_image_count > 0 and ret_annot_name:
+        # return the next ret_image_count images
+        images = get_image_base_names_by_annotation(ret_annot_name, username, count=ret_image_count)
+        # save the requested images to cache so they will not be sent to a different user later
+        save_annot_data_cache(images, username, ret_annot_name)
+    else:
+        images = []
+
+    return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
