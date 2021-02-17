@@ -32,11 +32,28 @@ def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', predic
     return
 
 
-def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offset=None):
-    if count and offset:
+def get_image_base_names_by_annotation(annot_name, req_username, count=5, route_id=None, offset=None):
+    if route_id:
+        cached_images = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
+                                                           user__username=req_username,
+                                                           image__route_id=route_id,
+                                                           presence__isnull=True).values_list("image__image_base_name",
+                                                                                              flat=True)
+    else:
+        cached_images = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
+                                                           user__username=req_username,
+                                                           presence__isnull=True).values_list("image__image_base_name",
+                                                                                              flat=True)
+    cache_cnt = len(cached_images)
+
+    if offset:
         idx1 = offset
         idx2 = offset + count
+        if cache_cnt >= idx2:
+            return list(cached_images)[idx1:idx2]
     else:
+        if cache_cnt >= count:
+            return list(cached_images)
         idx1 = 0
         idx2 = count
 
@@ -64,14 +81,19 @@ def get_image_base_names_by_annotation(annot_name, count=10, route_id=None, offs
             group_list = [min_group_idx]
     else:
         group_list = [min_group_idx, min_group_idx + 1]
+
     images = filtered_images.filter(uncertainty_group__in=group_list).order_by(
-        '-uncertainty_measure', 'image__image_base_name')[idx1:idx2].values_list(
+        '-uncertainty_measure', 'image__image_base_name')[:idx2-cache_cnt].values_list(
         'image__image_base_name', flat=True)
     if not images:
         images = filtered_images.annotate(uncertainty=Abs(F('certainty')-0.5)).order_by(
-             'uncertainty', 'image__image_base_name')[idx1:idx2].values_list("image__image_base_name", flat=True)
-
-    return list(images)
+             'uncertainty', 'image__image_base_name')[:idx2-cache_cnt].values_list("image__image_base_name", flat=True)
+    if cache_cnt > 0:
+        ret_list = list(cached_images)
+        ret_list.extend(list(images))
+        return ret_list[idx1:]
+    else:
+        return list(images)[idx1:]
 
 
 def get_image_annotations_queryset(image_base_name):
@@ -80,6 +102,16 @@ def get_image_annotations_queryset(image_base_name):
     u_annot = UserImageAnnotation.objects.filter(image__image_base_name=image_base_name).values_list(
         'annotation__name', flat=True).distinct()
     return ai_annot.union(u_annot)
+
+
+def save_annot_data_cache(img_base_name_list, username, annot_name):
+    annot_obj = AnnotationSet.objects.get(name__iexact=annot_name)
+    user_obj = User.objects.get(username=username)
+    obj_list = [UserImageAnnotation(image=RouteImage.objects.get(image_base_name=img_base_name),
+                                    annotation=annot_obj,
+                                    user=user_obj) for img_base_name in img_base_name_list]
+    UserImageAnnotation.objects.bulk_create(obj_list, ignore_conflicts=True)
+    return
 
 
 def save_annot_data_to_db(img_base_name, username, annot_name, annot_views, annot_flags=None, annot_comments=''):
