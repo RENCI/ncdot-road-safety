@@ -28,7 +28,8 @@ from rest_framework import status
 
 from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
 from rs_core.models import UserProfile, RouteImage, AnnotationSet, AIImageAnnotation, UserImageAnnotation
-from rs_core.utils import get_image_base_names_by_annotation, get_image_annotations_queryset, save_annot_data_to_db
+from rs_core.utils import get_image_base_names_by_annotation, get_image_annotations_queryset, \
+    save_annot_data_to_db, save_annot_data_cache
 
 
 logger = logging.getLogger('django')
@@ -209,6 +210,7 @@ def get_next_images_for_annot(request, annot_name, count):
     if offset is not None:
         offset = int(offset)
     count = int(count)
+    req_username = request.user.username
 
     if not AIImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists() and \
             not UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name).exists():
@@ -223,7 +225,10 @@ def get_next_images_for_annot(request, annot_name, count):
 
         return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
 
-    images = get_image_base_names_by_annotation(annot_name, count=count, route_id=route_id, offset=offset)
+    images = get_image_base_names_by_annotation(annot_name, req_username, count=count, route_id=route_id, offset=offset)
+    if not offset:
+        # save the requested images to cache so they will not be sent to a different user later
+        save_annot_data_cache(images, req_username, annot_name)
     return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
 
 
@@ -287,7 +292,8 @@ def get_image_annotations(request, image_base_name):
 def save_annotations(request):
     username = request.user.username
     json_data = json.loads(request.body)
-    annotations = json_data.get('annotations')
+    annotations = json_data.get('annotations', None)
+    ret_image_count = json_data.get('return_image_count', 0)
     if annotations is None:
         return JsonResponse({'error': 'no annotations list in the request post'},
                             status=status.HTTP_400_BAD_REQUEST)

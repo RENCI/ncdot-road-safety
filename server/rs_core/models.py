@@ -67,17 +67,18 @@ class UserImageAnnotation(models.Model):
     image = models.ForeignKey(RouteImage, on_delete=models.CASCADE)
     annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    presence = models.BooleanField()
+    # make presence default as None for user annotation caching to reduce duplicate annotations as much as possible
+    presence = models.BooleanField(null=True, default=None)
     left_view = models.CharField(max_length=10, choices=ANNOTATION_CHOICES, default='i')
     front_view = models.CharField(max_length=10, choices=ANNOTATION_CHOICES, default='i')
     right_view = models.CharField(max_length=10, choices=ANNOTATION_CHOICES, default='i')
     timestamp = models.DateTimeField(auto_now_add=True)
     comment = models.CharField(max_length=1000, blank=True, null=True)
     flags = models.ManyToManyField(AnnotationFlag, related_name='user_annotations', blank=True)
-    al_round = models.IntegerField(null=True, blank=True)
 
     class Meta:
         indexes = [
             models.Index(fields=['image', 'annotation']),
+            models.Index(fields=['user', 'annotation', 'presence', 'image']),
         ]
         unique_together = ('user', 'image', 'annotation')
