@@ -5,6 +5,7 @@ from datetime import timezone, datetime
 import logging
 
 from django.db import transaction
+from django.contrib.admin.views.decorators import user_passes_test
 from django.contrib.auth.views import PasswordResetView, LogoutView
 from django.contrib.auth import login, authenticate
 from django.forms.models import inlineformset_factory
@@ -200,6 +201,7 @@ def get_image_metadata(request, image_base_name):
 
 
 @login_required
+@user_passes_test(lambda u: False if u.is_superuser else True)
 def get_next_images_for_annot(request, annot_name, count):
     # return requested <count> number of images sorted by needs for human annotation
     if not AnnotationSet.objects.filter(name__iexact=annot_name).exists():
