@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing import image_dataset_from_directory
 from utils import setup_gpu_memory
 
 
@@ -28,29 +28,27 @@ batch_size = args.batch_size
 
 setup_gpu_memory()
 
-# load the model
-model = tf.keras.models.load_model(model_file)
-print(model.summary())
+normalization_layer = tf.keras.layers.experimental.preprocessing.Rescaling(1./255)
+AUTOTUNE = tf.data.experimental.AUTOTUNE
+test_ds = image_dataset_from_directory(
+    data_dir, validation_split=None, subset=None, label_mode=None,
+    shuffle=False, image_size=(299, 299), batch_size=batch_size)
+normalized_test_ds = test_ds.map(lambda x, y: (normalization_layer(x), y))
+normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
 
-datagen = ImageDataGenerator(rescale=1 / 255)
-test_gen = datagen.flow_from_directory(data_dir,
-                                       target_size=(299, 299),
-                                       class_mode=None,
-                                       batch_size=batch_size,
-                                       follow_links=False,
-                                       shuffle=False)
 strategy = tf.distribute.MirroredStrategy()
 pred = None
 with strategy.scope():
-    ts = time.time()
-    pred = model.predict(test_gen,
-                         steps=int(test_gen.samples/batch_size + 1),
-                         verbose=1)
-    te = time.time()
-    print('batch prediction is done, time taken:', te-ts)
+    # load the model
+    model = tf.keras.models.load_model(model_file)
+
+ts = time.time()
+pred = model.predict(normalized_test_ds)
+te = time.time()
+print('batch prediction is done, time taken:', te-ts)
 pred_rounded = np.round(pred, decimals=2)
 
-results = pd.DataFrame({"MAPPED_IMAGE": test_gen.filenames,
+results = pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
                         "PREDICT": pred[:, 0],
                         "ROUND_PREDICT": pred_rounded[:, 0]})
 results.to_csv(output_file, index=False)
