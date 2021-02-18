@@ -1112,7 +1112,7 @@ COPY public.auth_permission (id, name, content_type_id, codename) FROM stdin;
 --
 
 COPY public.auth_user (id, password, last_login, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined) FROM stdin;
-1	pbkdf2_sha256$216000$VxU2TdJOvJ2N$PH/qimirElGmCGYgR4gzOp8jEH+JmakdRSGBHKmoLOM=	2021-02-17 22:25:22.69876+00	t	admin			hongyi@renci.org	t	t	2020-10-18 19:38:21.120339+00
+1	pbkdf2_sha256$216000$VxU2TdJOvJ2N$PH/qimirElGmCGYgR4gzOp8jEH+JmakdRSGBHKmoLOM=	2021-02-18 19:21:13.196007+00	t	admin			hongyi@renci.org	t	t	2020-10-18 19:38:21.120339+00
 \.
 
 
@@ -1158,6 +1158,9 @@ COPY public.django_admin_log (id, action_time, object_id, object_repr, action_fl
 19	2021-02-11 23:03:42.350911+00	Obstructed	AnnotationFlag object (Obstructed)	1	[{"added": {}}]	15	1
 20	2021-02-11 23:03:57.006306+00	Edge of image	AnnotationFlag object (Edge of image)	1	[{"added": {}}]	15	1
 21	2021-02-11 23:04:00.881967+00	guardrail	AnnotationSet object (guardrail)	2	[{"changed": {"fields": ["Flags"]}}]	6	1
+22	2021-02-18 19:20:22.946587+00	Atypical	AnnotationFlag object (Atypical)	1	[{"added": {}}]	15	1
+23	2021-02-18 19:20:26.29828+00	guardrail	AnnotationSet object (guardrail)	2	[{"changed": {"fields": ["Flags"]}}]	6	1
+24	2021-02-18 19:21:25.71108+00	12	hongyi	3		12	1
 \.
 
 
@@ -1285,7 +1288,9 @@ dyyol7gbe3s4fh2q1ctoeg6lst9eq1xb	.eJxVjEEOwiAQRe_C2pCBQgGX7nsGMjOgVA0kpV0Z765Nut
 m51cxluwmgm7o3xqnw5xrjk90tgqahoy	.eJxVjMEOwiAQRP-FsyFlgVA8evcbyC4sUjWQlPbU-O-2SQ96nHlvZhMB16WEtfMcpiSuQilx-S0J44vrQdIT66PJ2OoyTyQPRZ60y3tL_L6d7t9BwV72tXNEWo_WMpFxHjElyC7bPHrjMinwQ_aRkcwANlIG0NEw6z2CMkqLzxccgzgr:1lAL20:0p1c_-Z2tUTiKwTIcSV_oWk71TuVTyvthnQsgSAJNes	2021-02-25 23:05:52.514853+00
 s50tqow9pfbfxg70p8qzno94ml9e63tk	.eJxVjMEOwiAQRP-FsyFlgVA8evcbyC4sUjWQlPbU-O-2SQ96nHlvZhMB16WEtfMcpiSuQilx-S0J44vrQdIT66PJ2OoyTyQPRZ60y3tL_L6d7t9BwV72tXNEWo_WMpFxHjElyC7bPHrjMinwQ_aRkcwANlIG0NEw6z2CMkqLzxccgzgr:1lAZqV:O2AumnR8EzO8wtsMsbCJzRjQEe-euSZLQriU2sW3dJI	2021-02-26 14:54:59.322243+00
 sl7i57fpaj2lgefz6fdtz5unmjp0b0sp	.eJxVjMEOwiAQRP-FsyFlgVA8evcbyC4sUjWQlPbU-O-2SQ96nHlvZhMB16WEtfMcpiSuQilx-S0J44vrQdIT66PJ2OoyTyQPRZ60y3tL_L6d7t9BwV72tXNEWo_WMpFxHjElyC7bPHrjMinwQ_aRkcwANlIG0NEw6z2CMkqLzxccgzgr:1lBhwA:HE-AQJzgewkKZtawiTAfAMlLJdTVJ_BRE1JQxYmXHE8	2021-03-01 17:45:30.014361+00
-r40a1xfep6zpdwu177j4zqqosu7qsfoe	.eJxVjEEOwiAQRe_C2pCBQgGX7nsGMjOgVA0kpV0Z765NutDtf-_9l4i4rSVuPS9xTuIslDj9boT8yHUH6Y711iS3ui4zyV2RB-1yaik_L4f7d1Cwl2-dzVUrcqxIJzAOAg3euzQCI4yGLXtGr63PEFR2RANr7UgTOwKwwYv3B9xkN5I:1lCVG6:sqdxE6HQauP6LDcl11GZXRUC8k1UfTvRfT0gt1_n9U8	2021-03-03 22:25:22.710118+00
+ju4w1cxji3lxttc0nw3xuxa6vr0opyhb	.eJxVjMsOwiAQRf-FtSF0eIlL934DmWGoVA0kpV0Z_92QdKHbe865bxFx30rce17jwuIiJhCn35EwPXMdhB9Y702mVrd1ITkUedAub43z63q4fwcFexm108CendVgHDNni55sNkgGZgXehHNwagZMxMrR5DVrRYnIW2YKKD5fD4s4tg:1lCVRK:RqBG_0mIssT3OhzSy2LpzReOlN3Jl1Nn8L7Ui9TrCmc	2021-03-03 22:36:58.605791+00
+khco8lq4xnw16l2hd929cn9bcs6rf01u	.eJxVjMsOwiAQRf-FtSF0eIlL934DmWGoVA0kpV0Z_92QdKHbe865bxFx30rce17jwuIiJhCn35EwPXMdhB9Y702mVrd1ITkUedAub43z63q4fwcFexm108CendVgHDNni55sNkgGZgXehHNwagZMxMrR5DVrRYnIW2YKKD5fD4s4tg:1lCkgg:zgpKLaJFSEzBUsrEVx5-Yh6obpnUJQbu3e8dxQgNUVw	2021-03-04 14:53:50.930063+00
+9xdtww4nwhop2anbp6jij7ki3p9ftmnd	.eJxVjEEOwiAQRe_C2pCBQgGX7nsGMjOgVA0kpV0Z765NutDtf-_9l4i4rSVuPS9xTuIslDj9boT8yHUH6Y711iS3ui4zyV2RB-1yaik_L4f7d1Cwl2-dzVUrcqxIJzAOAg3euzQCI4yGLXtGr63PEFR2RANr7UgTOwKwwYv3B9xkN5I:1lCorR:WuPB7VeaayxchG6-Kne9cw1AS2SuhlzrwUuRjOW-n2E	2021-03-04 19:21:13.209609+00
 \.
 
 
@@ -1615,6 +1620,7 @@ COPY public.rs_core_annotationflag (title) FROM stdin;
 Fence
 Obstructed
 Edge of image
+Atypical
 \.
 
 
@@ -1635,6 +1641,7 @@ COPY public.rs_core_annotationset_flags (id, annotationset_id, annotationflag_id
 1	guardrail	Fence
 2	guardrail	Obstructed
 3	guardrail	Edge of image
+4	guardrail	Atypical
 \.
 
 
@@ -1951,6 +1958,26 @@ COPY public.rs_core_routeimage (route_id, image_base_name, location, mile_post, 
 --
 
 COPY public.rs_core_userimageannotation (id, presence, "timestamp", comment, annotation_id, image_id, user_id, front_view, left_view, right_view) FROM stdin;
+481	\N	2021-02-18 19:20:47.841242+00	\N	guardrail	30001011809	1	i	i	i
+482	\N	2021-02-18 19:20:47.841691+00	\N	guardrail	35801340023	1	i	i	i
+483	\N	2021-02-18 19:20:47.842054+00	\N	guardrail	35101534826	1	i	i	i
+484	\N	2021-02-18 19:20:47.842412+00	\N	guardrail	42400183706	1	i	i	i
+485	\N	2021-02-18 19:20:47.84277+00	\N	guardrail	34000182102	1	i	i	i
+491	\N	2021-02-18 19:20:54.300384+00	\N	guardrail	16301022617	1	i	i	i
+492	\N	2021-02-18 19:20:54.300752+00	\N	guardrail	34100282611	1	i	i	i
+493	\N	2021-02-18 19:20:54.30111+00	\N	guardrail	34400595700	1	i	i	i
+494	\N	2021-02-18 19:20:54.301467+00	\N	guardrail	35501325128	1	i	i	i
+495	\N	2021-02-18 19:20:54.30183+00	\N	guardrail	32300263521	1	i	i	i
+496	\N	2021-02-18 19:20:54.302188+00	\N	guardrail	34301453523	1	i	i	i
+497	\N	2021-02-18 19:20:54.302549+00	\N	guardrail	34301374813	1	i	i	i
+498	\N	2021-02-18 19:20:54.302906+00	\N	guardrail	32301141114	1	i	i	i
+499	\N	2021-02-18 19:20:54.303271+00	\N	guardrail	32700281324	1	i	i	i
+500	\N	2021-02-18 19:20:54.303638+00	\N	guardrail	16501580619	1	i	i	i
+501	\N	2021-02-18 19:20:54.303996+00	\N	guardrail	34301424707	1	i	i	i
+502	\N	2021-02-18 19:20:54.304489+00	\N	guardrail	31801174924	1	i	i	i
+503	\N	2021-02-18 19:20:54.305265+00	\N	guardrail	32400271918	1	i	i	i
+504	\N	2021-02-18 19:20:54.305829+00	\N	guardrail	16100345009	1	i	i	i
+505	\N	2021-02-18 19:20:54.306384+00	\N	guardrail	30401244412	1	i	i	i
 \.
 
 
@@ -2058,7 +2085,7 @@ SELECT pg_catalog.setval('public.auth_user_groups_id_seq', 1, false);
 -- Name: auth_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.auth_user_id_seq', 11, true);
+SELECT pg_catalog.setval('public.auth_user_id_seq', 12, true);
 
 
 --
@@ -2072,7 +2099,7 @@ SELECT pg_catalog.setval('public.auth_user_user_permissions_id_seq', 1, false);
 -- Name: django_admin_log_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.django_admin_log_id_seq', 21, true);
+SELECT pg_catalog.setval('public.django_admin_log_id_seq', 24, true);
 
 
 --
@@ -2114,7 +2141,7 @@ SELECT pg_catalog.setval('public.rs_core_aiimageannotation_id_seq', 12576797, tr
 -- Name: rs_core_annotationset_flags_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_annotationset_flags_id_seq', 3, true);
+SELECT pg_catalog.setval('public.rs_core_annotationset_flags_id_seq', 4, true);
 
 
 --
@@ -2128,14 +2155,14 @@ SELECT pg_catalog.setval('public.rs_core_userimageannotation_flags_id_seq', 18, 
 -- Name: rs_core_userimageannotation_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_userimageannotation_id_seq', 310, true);
+SELECT pg_catalog.setval('public.rs_core_userimageannotation_id_seq', 505, true);
 
 
 --
 -- Name: rs_core_userprofile_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_userprofile_id_seq', 10, true);
+SELECT pg_catalog.setval('public.rs_core_userprofile_id_seq', 11, true);
 
 
 --
