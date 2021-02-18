@@ -53,7 +53,7 @@ def get_image_base_names_by_annotation(annot_name, req_username, count=5, route_
             return list(cached_images)[idx1:idx2]
     else:
         if cache_cnt >= count:
-            return list(cached_images)
+            return list(cached_images)[:count]
         idx1 = 0
         idx2 = count
 
