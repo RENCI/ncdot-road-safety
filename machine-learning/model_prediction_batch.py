@@ -33,7 +33,7 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 test_ds = image_dataset_from_directory(
     data_dir, validation_split=None, subset=None, label_mode=None,
     shuffle=False, image_size=(299, 299), batch_size=batch_size)
-normalized_test_ds = test_ds.map(lambda x: (normalization_layer(x)))
+normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
 normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
 
 strategy = tf.distribute.MirroredStrategy()
