@@ -49,7 +49,7 @@ def get_train_val_data(bat_size):
     normalized_valid_ds = val_ds.map(lambda x, y: (normalization_layer(x), y))
     normalized_train_ds = normalized_train_ds.cache().prefetch(buffer_size=AUTOTUNE)
     normalized_valid_ds = normalized_valid_ds.cache().prefetch(buffer_size=AUTOTUNE)
-    return normalized_train_ds, normalized_valid_ds
+    return normalized_train_ds, len(train_ds), normalized_valid_ds, len(val_ds)
 
 
 def get_model():
@@ -132,7 +132,7 @@ if __name__ == '__main__':
     if not make_inference_only:
         callbacks_list = get_call_backs_list()
 
-        norm_train_ds, norm_val_ds = get_train_val_data(batch_size)
+        norm_train_ds, train_ds_len, norm_val_ds, val_ds_len = get_train_val_data(batch_size)
 
         strategy = tf.distribute.MirroredStrategy()
         with strategy.scope():
@@ -140,7 +140,9 @@ if __name__ == '__main__':
 
         ts = time.time()
         history = model.fit(norm_train_ds, epochs=num_of_epoch, callbacks=callbacks_list,
-                            validation_data=norm_val_ds)
+                            steps_per_epoch=int(train_ds_len / batch_size + 1),
+                            validation_data=norm_val_ds,
+                            validation_steps=int(val_ds_len/batch_size + 1))
         te = time.time()
         print('time taken for model fine tuning:', te - ts)
         print(history.history)
