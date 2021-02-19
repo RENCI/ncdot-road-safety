@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.preprocessing import image_dataset_from_directory
+from image_dataset import image_dataset_from_directory
 from utils import setup_gpu_memory
 
 
@@ -33,7 +33,7 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 test_ds = image_dataset_from_directory(
     data_dir, validation_split=None, subset=None, label_mode=None,
     shuffle=False, image_size=(299, 299), batch_size=batch_size)
-normalized_test_ds = test_ds.map(lambda x, y: (normalization_layer(x), y))
+normalized_test_ds = test_ds.map(lambda x: (normalization_layer(x)))
 normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
 
 strategy = tf.distribute.MirroredStrategy()

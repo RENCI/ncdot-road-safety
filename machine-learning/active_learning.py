@@ -2,7 +2,7 @@ import time
 import argparse
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.preprocessing import image_dataset_from_directory
+from image_dataset import image_dataset_from_directory
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from sklearn.metrics import classification_report, confusion_matrix
 from utils import setup_gpu_memory
@@ -108,7 +108,7 @@ if __name__ == '__main__':
                         help='the number of total epoch to train the model')
     parser.add_argument('--batch_size', type=int, default=128,
                         help='batch size for training the model')
-    
+
     parser.add_argument('--model_file', type=str,
                         default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_2lane_epoch_10.h5',
                         help='model file with path to be loaded as the base model for further training')
