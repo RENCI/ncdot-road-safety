@@ -88,10 +88,7 @@ def make_inference(feature_model, bat_size, threshold=0.5):
     te = time.time()
     print('time taken for model inference on test set:', te - ts)
     y_pred = [1 if y[0] >= threshold else 0 for y in predictions]
-    labels = []
-    for image_batch, labl_batch in test_ds:
-        for lbl in labl_batch:
-            labels.append(lbl.numpy()[0])
+    labels = test_ds.labels
     print('Confusion Matrix')
     print(confusion_matrix(labels, y_pred))
     print('Classification Report')
