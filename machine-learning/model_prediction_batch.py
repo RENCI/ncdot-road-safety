@@ -40,7 +40,7 @@ with strategy.scope():
 result_file_list = []
 for subdir in os.listdir(data_dir):
     test_ds = image_dataset_from_directory(
-        subdir, validation_split=None, subset=None, label_mode=None,
+        os.path.join(data_dir, subdir), validation_split=None, subset=None, label_mode=None,
         shuffle=False, image_size=(299, 299), batch_size=batch_size)
     normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
     normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
