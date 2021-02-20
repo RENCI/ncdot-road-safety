@@ -38,6 +38,7 @@ with strategy.scope():
     model = tf.keras.models.load_model(model_file)
 
 result_file_list = []
+time_list = []
 for subdir in os.listdir(data_dir):
     test_ds = image_dataset_from_directory(
         os.path.join(data_dir, subdir), validation_split=None, subset=None, label_mode=None,
@@ -45,9 +46,9 @@ for subdir in os.listdir(data_dir):
     normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
     normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
     ts = time.time()
-    pred = model.predict(normalized_test_ds)
+    pred = model.predict(normalized_test_ds, verbose=1)
     te = time.time()
-    print(f'batch prediction for {subdir} is done, time taken:', te-ts)
+    time_list.append(te-ts)
     pred_rounded = np.round(pred, decimals=2)
 
     results = pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
@@ -73,4 +74,4 @@ combined_results.to_csv(output_file, index=False)
 # remove subset files now that combines results are saved to file
 for res_file in result_file_list:
     os.remove(res_file)
-print('Done')
+print('Done, total time taken for prediction: ', sum(time_list))
