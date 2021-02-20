@@ -19,12 +19,16 @@ parser.add_argument('--output_file', type=str,
                     help='prediction output csv file')
 parser.add_argument('--batch_size', type=int, default=1024,
                     help='prediction batch size')
+parser.add_argument('--cache_file', type=str, default='/projects/ncdot/NC_2018_Secondary/cache.txt',
+                    help='cache file on disk since data is too large to fit into memory for cache')
+
 
 args = parser.parse_args()
 data_dir = args.data_dir
 model_file = args.model_file
 output_file = args.output_file
 batch_size = args.batch_size
+cache_file = args.cache_file
 
 setup_gpu_memory()
 
@@ -34,7 +38,7 @@ test_ds = image_dataset_from_directory(
     data_dir, validation_split=None, subset=None, label_mode=None,
     shuffle=False, image_size=(299, 299), batch_size=batch_size)
 normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
-normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
+normalized_test_ds = normalized_test_ds.cache(cache_file).prefetch(buffer_size=AUTOTUNE)
 
 strategy = tf.distribute.MirroredStrategy()
 pred = None
