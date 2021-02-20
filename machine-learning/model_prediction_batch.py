@@ -27,7 +27,6 @@ data_dir = args.data_dir
 model_file = args.model_file
 output_file = args.output_file
 batch_size = args.batch_size
-cache_file = args.cache_file
 
 setup_gpu_memory()
 
