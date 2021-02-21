@@ -86,4 +86,5 @@ combined_results.to_csv(output_file, index=False)
 # remove subset files now that combines results are saved to file
 for res_file in result_file_list:
     os.remove(res_file)
+del combined_results    
 print('Done, total time taken for prediction: ', sum(time_list))
