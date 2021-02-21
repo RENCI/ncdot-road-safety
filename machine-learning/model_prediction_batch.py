@@ -63,7 +63,6 @@ for div_dir in divisions:
         pred_rounded = np.round(pred, decimals=2)
 
         results = pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
-                                "PREDICT": pred[:, 0],
                                 "ROUND_PREDICT": pred_rounded[:, 0]})
         results.MAPPED_IMAGE = results.MAPPED_IMAGE.str.replace('/projects/ncdot/NC_2018_Secondary/images/', '')
         div_str = div_dir.split('/')[-1]
