@@ -20,6 +20,8 @@ parser.add_argument('--output_file', type=str,
                     help='prediction output csv file')
 parser.add_argument('--batch_size', type=int, default=512,
                     help='prediction batch size')
+parser.add_argument('--is_one_division', type=bool, default=True,
+                    help='whether to predict for one division or for all divisions under the data_dir input directory')
 
 
 args = parser.parse_args()
@@ -27,6 +29,7 @@ data_dir = args.data_dir
 model_file = args.model_file
 output_file = args.output_file
 batch_size = args.batch_size
+is_one_division = args.is_one_division
 
 setup_gpu_memory()
 
@@ -39,30 +42,39 @@ with strategy.scope():
 
 result_file_list = []
 time_list = []
-for subdir in os.listdir(data_dir):
-    test_ds = image_dataset_from_directory(
-        os.path.join(data_dir, subdir), validation_split=None, subset=None, label_mode=None,
-        shuffle=False, image_size=(299, 299), batch_size=batch_size)
-    normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
-    normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
-    ts = time.time()
-    pred = model.predict(normalized_test_ds, verbose=1)
-    te = time.time()
-    time_list.append(te-ts)
-    pred_rounded = np.round(pred, decimals=2)
+divisions = []
+if is_one_division:
+    divisions.append(data_dir)
+else:
+    for subdir in os.listdir(data_dir):
+        divisions.append(os.path.join(data_dir, subdir))
 
-    results = pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
-                            "PREDICT": pred[:, 0],
-                            "ROUND_PREDICT": pred_rounded[:, 0]})
-    results.MAPPED_IMAGE = results.MAPPED_IMAGE.str.replace('/projects/ncdot/NC_2018_Secondary/images/', '')
-    result_file_list.append(f'{output_file}.{subdir}')
-    results.to_csv(result_file_list[-1], index=False)
-    # release memory
-    del results
-    del test_ds
-    del normalized_test_ds
-    del pred
-    del pred_rounded
+for div_dir in divisions:
+    for subdir in os.listdir(div_dir):
+        test_ds = image_dataset_from_directory(
+            os.path.join(div_dir, subdir), validation_split=None, subset=None, label_mode=None,
+            shuffle=False, image_size=(299, 299), batch_size=batch_size)
+        normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
+        normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
+        ts = time.time()
+        pred = model.predict(normalized_test_ds, verbose=1)
+        te = time.time()
+        time_list.append(te-ts)
+        pred_rounded = np.round(pred, decimals=2)
+
+        results = pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
+                                "PREDICT": pred[:, 0],
+                                "ROUND_PREDICT": pred_rounded[:, 0]})
+        results.MAPPED_IMAGE = results.MAPPED_IMAGE.str.replace('/projects/ncdot/NC_2018_Secondary/images/', '')
+        div_str = div_dir.split('/')[-1]
+        result_file_list.append(f'{output_file}.{div_str}.{subdir}')
+        results.to_csv(result_file_list[-1], index=False)
+        # release memory
+        del results
+        del test_ds
+        del normalized_test_ds
+        del pred
+        del pred_rounded
 
 del model
 # combine multiple results into one
