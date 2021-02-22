@@ -1,5 +1,6 @@
 import time
 import os
+import gc
 import argparse
 import pandas as pd
 import numpy as np
@@ -37,10 +38,10 @@ normalization_layer = tf.keras.layers.experimental.preprocessing.Rescaling(1./25
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 strategy = tf.distribute.MirroredStrategy()
 with strategy.scope():
-    # load the model
-    model = tf.keras.models.load_model(model_file)
+    # load the model for prediction only, no need to compile the model
+    model = tf.keras.models.load_model(model_file, compile=False)
 
-result_file_list = []
+res_df_list = []
 time_list = []
 divisions = []
 if is_one_division:
@@ -57,33 +58,23 @@ for div_dir in divisions:
         normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
         normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
         ts = time.time()
-        pred = model.predict(normalized_test_ds, verbose=1)
+        pred = model.predict(normalized_test_ds)
         te = time.time()
         time_list.append(te-ts)
         pred_rounded = np.round(pred, decimals=2)
 
-        results = pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
-                                "ROUND_PREDICT": pred_rounded[:, 0]})
-        results.MAPPED_IMAGE = results.MAPPED_IMAGE.str.replace('/projects/ncdot/NC_2018_Secondary/images/', '')
-        div_str = div_dir.split('/')[-1]
-        result_file_list.append(f'{output_file}.{div_str}.{subdir}')
-        results.to_csv(result_file_list[-1], index=False)
+        res_df_list.append(pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
+                                         "ROUND_PREDICT": pred_rounded[:, 0]}))
+        res_df_list[-1].MAPPED_IMAGE = res_df_list[-1].MAPPED_IMAGE.str.replace(
+            '/projects/ncdot/NC_2018_Secondary/images/', '')
         # release memory
-        del results
         del test_ds
         del normalized_test_ds
         del pred
         del pred_rounded
-
-del model
+print('Total time taken for prediction: ', sum(time_list))
 # combine multiple results into one
-res_df_list = []
-for res_file in result_file_list:
-    res_df_list.append(pd.read_csv(res_file, header=0, index_col=False))
 combined_results = pd.concat(res_df_list)
 combined_results.to_csv(output_file, index=False)
-# remove subset files now that combines results are saved to file
-for res_file in result_file_list:
-    os.remove(res_file)
-del combined_results    
-print('Done, total time taken for prediction: ', sum(time_list))
+count = gc.collect()
+print('Done - count from return of gc.collect()', count)
