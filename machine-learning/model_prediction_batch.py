@@ -28,6 +28,14 @@ model_file = args.model_file
 output_file = args.output_file
 batch_size = args.batch_size
 
+
+def predict(feature):
+    feat_ary = np.array(feature)
+    feat_ary = feat_ary[None, :]
+    predictions = model.predict(feat_ary)
+    return predictions[0][0]
+
+
 # read feature vectors from input file
 in_df = pd.read_csv(input_file, header=0, index_col=False)
 in_df['FEATURES'] = in_df['FEATURES'].apply(lambda row: json.loads(row))
@@ -39,13 +47,12 @@ with strategy.scope():
     # load the model for prediction only, no need to compile the model
     model = tf.keras.models.load_model(model_file, compile=False)
 
-res_df_list = []
-time_list = []
 ts = time.time()
-in_df['PREDICT'] = in_df['FEATURES'].apply(lambda row: (model.predict(np.array(row)))[0][0])
+in_df['PREDICT'] = in_df['FEATURES'].apply(lambda row: predict(row))
 te = time.time()
 print('Total time taken for prediction: ', te-ts)
-in_df.drop(columns=['FEATURES'])
+in_df = in_df.drop(columns=['FEATURES'])
+in_df['PREDICT'] = in_df['PREDICT'].round(2)
 in_df.to_csv(output_file, index=False)
 count = gc.collect()
 print('Done - count from return of gc.collect()', count)
