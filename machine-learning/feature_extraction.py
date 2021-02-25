@@ -62,7 +62,7 @@ for div_dir in divisions:
         te = time.time()
         time_list.append(te-ts)
         res_df_list.append(pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
-                                         "FEATURES": pred[:, :]}))
+                                         "FEATURES": list(pred)}))
         res_df_list[-1].MAPPED_IMAGE = res_df_list[-1].MAPPED_IMAGE.str.replace(
             '/projects/ncdot/NC_2018_Secondary/images/', '')
         # release memory
