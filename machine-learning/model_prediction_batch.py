@@ -1,41 +1,39 @@
 import time
-import os
+import json
 import gc
 import argparse
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from image_dataset import image_dataset_from_directory
 from utils import setup_gpu_memory
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
-parser.add_argument('--data_dir', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/images/d13',
-                    help='input dir of data to apply model prediction for')
+parser.add_argument('--input_file', type=str,
+                    default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round0/predict/features_d13.csv',
+                    help='input file of feature vector data to apply model prediction for')
 parser.add_argument('--model_file', type=str,
-                    default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_2lane_epoch_10.h5',
+                    default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_classification_head_model.h5',
                     help='model file with path to be load for prediction')
 parser.add_argument('--output_file', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round0/predict/predict_d13.csv',
                     help='prediction output csv file')
 parser.add_argument('--batch_size', type=int, default=512,
                     help='prediction batch size')
-parser.add_argument('--is_one_division', type=bool, default=True,
-                    help='whether to predict for one division or for all divisions under the data_dir input directory')
 
 
 args = parser.parse_args()
-data_dir = args.data_dir
+input_file = args.input_file
 model_file = args.model_file
 output_file = args.output_file
 batch_size = args.batch_size
-is_one_division = args.is_one_division
+
+# read feature vectors from input file
+in_df = pd.read_csv(input_file, header=0, index_col=False)
+in_df['FEATURES'] = in_df['FEATURES'].apply(lambda row: json.loads(row))
 
 setup_gpu_memory()
 
-normalization_layer = tf.keras.layers.experimental.preprocessing.Rescaling(1./255)
-AUTOTUNE = tf.data.experimental.AUTOTUNE
 strategy = tf.distribute.MirroredStrategy()
 with strategy.scope():
     # load the model for prediction only, no need to compile the model
@@ -43,38 +41,11 @@ with strategy.scope():
 
 res_df_list = []
 time_list = []
-divisions = []
-if is_one_division:
-    divisions.append(data_dir)
-else:
-    for subdir in os.listdir(data_dir):
-        divisions.append(os.path.join(data_dir, subdir))
-
-for div_dir in divisions:
-    for subdir in os.listdir(div_dir):
-        test_ds = image_dataset_from_directory(
-            os.path.join(div_dir, subdir), validation_split=None, subset=None, label_mode=None,
-            shuffle=False, image_size=(299, 299), batch_size=batch_size)
-        normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
-        normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
-        ts = time.time()
-        pred = model.predict(normalized_test_ds)
-        te = time.time()
-        time_list.append(te-ts)
-        pred_rounded = np.round(pred, decimals=2)
-
-        res_df_list.append(pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
-                                         "ROUND_PREDICT": pred_rounded[:, 0]}))
-        res_df_list[-1].MAPPED_IMAGE = res_df_list[-1].MAPPED_IMAGE.str.replace(
-            '/projects/ncdot/NC_2018_Secondary/images/', '')
-        # release memory
-        del test_ds
-        del normalized_test_ds
-        del pred
-        del pred_rounded
-print('Total time taken for prediction: ', sum(time_list))
-# combine multiple results into one
-combined_results = pd.concat(res_df_list)
-combined_results.to_csv(output_file, index=False)
+ts = time.time()
+in_df['PREDICT'] = in_df['FEATURES'].apply(lambda row: (model.predict(np.array(row)))[0][0])
+te = time.time()
+print('Total time taken for prediction: ', te-ts)
+in_df.drop(columns=['FEATURES'])
+in_df.to_csv(output_file, index=False)
 count = gc.collect()
 print('Done - count from return of gc.collect()', count)
