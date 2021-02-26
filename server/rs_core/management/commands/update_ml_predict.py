@@ -2,7 +2,7 @@ import pandas as pd
 
 from django.core.management.base import BaseCommand
 
-from rs_core.models import AnnotationSet
+from rs_core.models import AnnotationSet, AIImageAnnotation
 from rs_core.utils import update_ai_image_annotation
 
 
@@ -36,6 +36,8 @@ class Command(BaseCommand):
         print(df.shape)
         df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.replace('.jpg', '')
         df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.split('/').str[-1]
+        image_list = list(AIImageAnnotation.objects.values_list("image", flat=True))
+        df = df[df.MAPPED_IMAGE.isin(image_list)]
         annot_obj = AnnotationSet.objects.get(name__iexact=feature_name)
         df.apply(lambda row: update_ai_image_annotation(row['MAPPED_IMAGE'], annot_obj,
                                                         True if row["ROUND_PREDICT"] >= 0.5 else False,
