@@ -17,7 +17,7 @@ parser.add_argument('--model_file', type=str,
                     default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_feature_extraction_model.h5',
                     help='model file with path to be load for feature extraction')
 parser.add_argument('--output_file', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round0/predict/predict_d13.csv',
+                    default='/projects/ncdot/NC_2018_Secondary/image_features/d13_image_features.csv',
                     help='prediction output csv file')
 parser.add_argument('--batch_size', type=int, default=512,
                     help='prediction batch size')
