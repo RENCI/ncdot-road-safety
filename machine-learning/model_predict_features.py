@@ -47,7 +47,7 @@ pred_rounded = np.round(pred, decimals=2)
 te = time.time()
 print('Total time taken for prediction: ', te-ts)
 in_df = in_df.drop(columns=['FEATURES'])
-in_df['PREDICT'] = pred_rounded[:, 0]
+in_df['ROUND_PREDICT'] = pred_rounded[:, 0]
 in_df.to_csv(output_file, index=False)
 count = gc.collect()
 print('Done - count from return of gc.collect()', count)
