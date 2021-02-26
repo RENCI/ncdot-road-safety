@@ -162,13 +162,15 @@ def create_ai_image_annotation(image_base_name, annotation, presence, certainty)
                                             defaults={'presence': presence, 'certainty': certainty})
 
 
-def update_or_create_ai_image_annotation(image_base_name, annotation, presence, certainty):
+def update_ai_image_annotation(image_base_name, annotation, presence, certainty):
     try:
         image = RouteImage.objects.get(image_base_name=image_base_name)
     except RouteImage.DoesNotExist:
         return
-    AIImageAnnotation.objects.update_or_create(image=image, annotation=annotation,
-                                               defaults={'presence': presence, 'certainty': certainty})
+    obj = AIImageAnnotation.objects.get(image=image, annotation=annotation)
+    obj.presence = presence
+    obj.certainty = certainty
+    obj.save()
 
 
 def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty):
