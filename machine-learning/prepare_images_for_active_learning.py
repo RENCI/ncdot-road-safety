@@ -48,14 +48,14 @@ print('training data:', len(train_df), 'validation data:', len(valid_df), 'test 
 
 train_path = f'{root_al_dir}/train/'
 create_yes_no_sub_dirs(train_path)
-train_df.apply(lambda row: os.symlink(os.path.join(input_prefix_dir, row['Image']),
-                                      os.path.join(train_path, 'yes' if row['Presence'] == 'True' else 'no',
-                                                   row['Image'])), axis=1)
+train_df.apply(lambda row: prepare_image(os.path.join(input_prefix_dir, row['Image']),
+                                         os.path.join(train_path, 'yes' if row['Presence'] == 'True' else 'no',
+                                                      row['Image'])), axis=1)
 valid_path = f'{root_al_dir}/validation/'
 create_yes_no_sub_dirs(valid_path)
-valid_df.apply(lambda row: os.symlink(os.path.join(input_prefix_dir, row['Image']),
-                                      os.path.join(valid_path, 'yes' if row['Presence'] == 'True' else 'no',
-                                                    row['Image'])), axis=1)
+valid_df.apply(lambda row: prepare_image(os.path.join(input_prefix_dir, row['Image']),
+                                         os.path.join(valid_path, 'yes' if row['Presence'] == 'True' else 'no',
+                                                      row['Image'])), axis=1)
 test_path = f'{root_al_dir}/test/'
 create_yes_no_sub_dirs(test_path)
 test_df.apply(lambda row: prepare_image(os.path.join(input_prefix_dir, row['Image']),
