@@ -20,8 +20,8 @@ def get_call_backs_list():
     filepath = "weights-best.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True,
                                  mode='min', save_freq='epoch')
-    earlystop = EarlyStopping(monitor='binary_accuracy', patience=1)
-    reduce = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
+    earlystop = EarlyStopping(monitor='val_binary_accuracy', patience=4)
+    reduce = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=2)
     return [earlystop, reduce, checkpoint]
 
 
@@ -59,7 +59,7 @@ def get_train_val_data(bat_size):
 def get_model(input_file):
     feature_model = tf.keras.models.load_model(input_file)
     # print(feature_model.summary())
-    feature_model.trainable = False
+    feature_model.trainable = True
     # only make the top dense classification layer (2049 parameters) trainable
     for layer in feature_model.layers[:-1]:
         layer.trainable = False
@@ -68,6 +68,7 @@ def get_model(input_file):
     feature_model.compile(optimizer=keras.optimizers.Adam(1e-5),
                           loss=keras.losses.BinaryCrossentropy(from_logits=True),
                           metrics=[keras.metrics.BinaryAccuracy()])
+    print(feature_model.summary())
     return feature_model
 
 
@@ -109,7 +110,7 @@ if __name__ == '__main__':
     parser.add_argument('--train_dir', type=str, required=True, help='input dir of the training data')
     parser.add_argument('--val_dir', type=str, required=True, help='input dir of the validation data')
     parser.add_argument('--test_dir', type=str, required=True, help='input dir of the test data')
-    parser.add_argument('--num_of_epoch', type=int, default=10,
+    parser.add_argument('--num_of_epoch', type=int, default=100,
                         help='the number of total epoch to train the model')
     parser.add_argument('--batch_size', type=int, default=128,
                         help='batch size for training the model')
