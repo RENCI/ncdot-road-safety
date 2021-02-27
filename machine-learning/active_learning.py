@@ -2,13 +2,14 @@ import time
 import argparse
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from image_dataset import image_dataset_from_directory
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from sklearn.metrics import classification_report, confusion_matrix
 from utils import setup_gpu_memory
 
 
-datagen = ImageDataGenerator(rescale=1/255)
+normalization_layer = tf.keras.layers.experimental.preprocessing.Rescaling(1./255)
+AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
 def get_call_backs_list():
@@ -23,23 +24,32 @@ def get_call_backs_list():
 def get_train_val_data(bat_size):
     # All images will be rescaled by 1./255
     # load and iterate training dataset in batches of 128
-    train_gen = datagen.flow_from_directory(
+    train_ds = image_dataset_from_directory(
         train_dir,
-        target_size=(299, 299),  # All images will be resized to 299 x 299
-        class_mode='binary',
-        batch_size=bat_size,
+        validation_split=None,
+        subset=None,
+        label_mode='binary',
+        shuffle=True,
+        seed=123,
         # Specify the classes explicitly
-        classes=['no', 'yes'],
-        shuffle=True)
-    val_gen = datagen.flow_from_directory(
+        class_names=['no', 'yes'],
+        image_size=(299, 299),
+        batch_size=bat_size)
+    val_ds = image_dataset_from_directory(
         val_dir,
-        target_size=(299, 299),
-        class_mode='binary',
+        validation_split=None,
+        subset=None,
+        label_mode='binary',
         shuffle=False,
         # Specify the classes explicitly
-        classes=['no', 'yes'],
+        class_names=['no', 'yes'],
+        image_size=(299, 299),
         batch_size=bat_size)
-    return train_gen, val_gen
+    normalized_train_ds = train_ds.map(lambda x, y: (normalization_layer(x), y))
+    normalized_valid_ds = val_ds.map(lambda x, y: (normalization_layer(x), y))
+    normalized_train_ds = normalized_train_ds.cache().prefetch(buffer_size=AUTOTUNE)
+    normalized_valid_ds = normalized_valid_ds.cache().prefetch(buffer_size=AUTOTUNE)
+    return normalized_train_ds, len(train_ds), normalized_valid_ds, len(val_ds)
 
 
 def get_model(input_file):
@@ -61,14 +71,20 @@ def make_inference(feature_model, bat_size, threshold=0.5):
     # load and iterate test dataset. Important to set shuffle to False. Otherwise, labels will not
     # match when doing prediction on test set
     # load and iterate test dataset in batches of 128
-    test_gen = datagen.flow_from_directory(test_dir,
-                                           target_size=(299, 299),
-                                           class_mode='binary',
-                                           classes=['no', 'yes'],
-                                           batch_size=bat_size,
-                                           shuffle=False)
+    test_ds = image_dataset_from_directory(
+        test_dir,
+        validation_split=None,
+        subset=None,
+        label_mode='binary',
+        shuffle=False,
+        # Specify the classes explicitly
+        class_names=['no', 'yes'],
+        image_size=(299, 299),
+        batch_size=bat_size)
+    normalized_test_ds = test_ds.map(lambda x, y: (normalization_layer(x), y))
+    normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
     ts = time.time()
-    predictions = feature_model.predict(test_gen, steps=int(test_gen.samples / bat_size + 1), verbose=1)
+    predictions = feature_model.predict(normalized_test_ds)
     te = time.time()
     print('time taken for model inference on test set:', te - ts)
     y_pred = [1 if y[0] >= threshold else 0 for y in predictions]
@@ -76,11 +92,12 @@ def make_inference(feature_model, bat_size, threshold=0.5):
     #for image_batch, labl_batch in test_ds:
     #    for lbl in labl_batch:
     #        labels.append(lbl.numpy()[0])
+    labels = test_ds.labels
     print('Confusion Matrix')
-    print(confusion_matrix(test_gen.classes, y_pred))
+    print(confusion_matrix(labels, y_pred))
     print('Classification Report')
     target_names = ['no', 'yes']
-    print(classification_report(test_gen.classes, y_pred, target_names=target_names))
+    print(classification_report(labels, y_pred, target_names=target_names))
 
 
 if __name__ == '__main__':
@@ -119,16 +136,16 @@ if __name__ == '__main__':
     if not make_inference_only:
         callbacks_list = get_call_backs_list()
 
-        train_generator, validation_generator = get_train_val_data(batch_size)
+        norm_train_ds, train_ds_len, norm_val_ds, val_ds_len = get_train_val_data(batch_size)
 
         with strategy.scope():
             model = get_model(model_file)
 
         ts = time.time()
-        history = model.fit(train_generator, epochs=num_of_epoch, callbacks=callbacks_list,
-                            steps_per_epoch=int(train_generator.samples / batch_size + 1),
-                            validation_data=validation_generator,
-                            validation_steps=int(validation_generator.samples/batch_size + 1))
+        history = model.fit(norm_train_ds, epochs=num_of_epoch, callbacks=callbacks_list,
+                            steps_per_epoch=int(train_ds_len / batch_size + 1),
+                            validation_data=norm_val_ds,
+                            validation_steps=int(val_ds_len/batch_size + 1))
         te = time.time()
         print('time taken for model fine tuning:', te - ts)
         print(history.history)
