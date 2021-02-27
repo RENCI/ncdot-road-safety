@@ -1,3 +1,7 @@
+# Reference: https://machinelearningmastery.com/reproducible-results-neural-networks-keras/
+from numpy.random import seed
+seed(42)
+
 import time
 import argparse
 import tensorflow as tf
@@ -7,7 +11,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLRO
 from sklearn.metrics import classification_report, confusion_matrix
 from utils import setup_gpu_memory
 
-
+tf.compat.v1.random.set_random_seed(42)
 normalization_layer = tf.keras.layers.experimental.preprocessing.Rescaling(1./255)
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
