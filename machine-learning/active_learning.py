@@ -143,9 +143,7 @@ if __name__ == '__main__':
 
         ts = time.time()
         history = model.fit(norm_train_ds, epochs=num_of_epoch, callbacks=callbacks_list,
-                            steps_per_epoch=int(train_ds_len / batch_size + 1),
-                            validation_data=norm_val_ds,
-                            validation_steps=int(val_ds_len/batch_size + 1))
+                            validation_data=norm_val_ds)
         te = time.time()
         print('time taken for model fine tuning:', te - ts)
         print(history.history)
