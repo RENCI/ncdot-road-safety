@@ -32,7 +32,7 @@ input_prefix_dir = args.input_prefix_dir
 root_dir = args.root_dir
 root_al_dir = os.path.join(root_dir, feature_name, f'round{cur_round}', 'data')
 df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=['Image', 'Presence'])
-df.drop_duplicates(subset=['Image'])
+df = df.drop_duplicates(subset=['Image'])
 print(df.shape)
 
 
