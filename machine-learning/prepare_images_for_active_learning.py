@@ -35,6 +35,14 @@ df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=['Ima
 df.drop_duplicates(subset=['Image'])
 print(df.shape)
 
+
+def prepare_image(src, dst):
+    dst_path = os.path.dirname(dst)
+    os.makedirs(dst_path, exist_ok=True)
+    os.symlink(src, dst)
+    return
+
+
 train_df, valid_df, test_df = split_to_train_valid_test_for_al(df, 'Presence', train_frac)
 print('training data:', len(train_df), 'validation data:', len(valid_df), 'test data:', len(test_df))
 
@@ -50,7 +58,7 @@ valid_df.apply(lambda row: os.symlink(os.path.join(input_prefix_dir, row['Image'
                                                     row['Image'])), axis=1)
 test_path = f'{root_al_dir}/test/'
 create_yes_no_sub_dirs(test_path)
-test_df.apply(lambda row: os.symlink(os.path.join(input_prefix_dir, row['Image']),
-                                     os.path.join(test_path, 'yes' if row['Presence'] == 'True' else 'no',
-                                                  row['Image'])), axis=1)
+test_df.apply(lambda row: prepare_image(os.path.join(input_prefix_dir, row['Image']),
+                                        os.path.join(test_path, 'yes' if row['Presence'] == 'True' else 'no',
+                                                     row['Image'])), axis=1)
 print('Done')
