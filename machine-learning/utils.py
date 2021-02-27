@@ -94,7 +94,7 @@ def split_to_train_valid_test_for_al(data_df, label_column, train_frac, split_te
     split_test_count optional parameter
     """
     labels = data_df[label_column].unique()
-    test_lbl_count = split_test_count/len(labels)
+    test_lbl_count = (int)(split_test_count/len(labels))
     split_train_df, split_valid_df, split_test_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     for lbl in labels:
         lbl_df = data_df[data_df[label_column] == lbl]
