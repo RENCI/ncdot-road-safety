@@ -18,6 +18,8 @@ target_dir = args.target_dir
 
 df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=['MAPPED_IMAGE', 'PATH'])
 df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'] + '.jpg'
+df['PATH'] = df['PATH'].str.replace('/projects/ncdot/NC_2018_Secondary/images/d4',
+                                    '/projects/ncdot/NC_2018_Secondary/images/d04')
 df['PATH'] = df['PATH'] + '/' + df['MAPPED_IMAGE']
 
 print(df.shape)
