@@ -2,6 +2,9 @@ import os
 from PIL import Image
 import tensorflow as tf
 import pandas as pd
+from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import roc_curve
+import matplotlib.pyplot as plt
 
 
 def setup_gpu_memory():
@@ -115,3 +118,18 @@ def split_to_train_valid_test_for_al(data_df, label_column, train_frac, split_te
 def create_yes_no_sub_dirs(root_path):
     os.makedirs(os.path.join(root_path, 'yes'), exist_ok=True)
     os.makedirs(os.path.join(root_path, 'no'), exist_ok=True)
+
+
+def draw_plots(y_true, y_predict):
+    precision, recall, threshold = precision_recall_curve(y_true, y_predict)
+    plt.plot(threshold, precision[:-1], "b--", label='Precision')
+    plt.plot(threshold, recall[:-1], "g--", label='Recall')
+    plt.grid(True)
+    plt.show()
+
+    fpr, tpr, threshold = roc_curve(y_true, y_predict)
+    plt.plot(fpr, tpr, linewidth=2)
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.grid(True)
+    plt.show()
+    return

@@ -3,24 +3,7 @@ import numpy as np
 import argparse
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import average_precision_score
-from sklearn.metrics import precision_recall_curve
-from sklearn.metrics import roc_curve
-import matplotlib.pyplot as plt
-
-
-def draw_plots(y_true, y_predict):
-    precision, recall, threshold = precision_recall_curve(y_true, y_predict)
-    plt.plot(threshold, precision[:-1], "b--", label='Precision')
-    plt.plot(threshold, recall[:-1], "g--", label='Recall')
-    plt.grid(True)
-    plt.show()
-
-    fpr, tpr, threshold = roc_curve(y_true, y_predict)
-    plt.plot(fpr, tpr, linewidth=2)
-    plt.plot([0, 1], [0, 1], 'k--')
-    plt.grid(True)
-    plt.show()
-    return
+# from utils import draw_plots
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
