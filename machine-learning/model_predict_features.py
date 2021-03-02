@@ -24,7 +24,6 @@ args = parser.parse_args()
 input_file = args.input_file
 model_file = args.model_file
 output_file = args.output_file
-batch_size = args.batch_size
 
 
 # read feature vectors from input file

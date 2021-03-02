@@ -1,14 +1,18 @@
 import sys
 import pandas as pd
+import argparse
 import matplotlib.pyplot as plt
 
 
 if __name__ == '__main__':
-    if len(sys.argv) <= 1:
-        print('One input parameter, input file to draw certainty scores, is needed to run the script')
-        exit(1)
+    parser = argparse.ArgumentParser(description='Process arguments.')
+    parser.add_argument('--input_file', type=str,
+                        default='../server/metadata/model-related/secondary_road/model_2lane_predict_d14.csv',
+                        help='input file with path with model predictions')
 
-    input_file = sys.argv[1]
+    args = parser.parse_args()
+    input_file = args.input_file
+
     df = pd.read_csv(input_file, header=0, index_col='MAPPED_IMAGE', dtype={'MAPPED_IMAGE': 'str',
                                                                             'ROUND_PREDICT': 'float'})
     df.dropna(inplace=True)
