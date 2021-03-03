@@ -36,10 +36,8 @@ class Command(BaseCommand):
                 "image__image_base_name"))
         print(df.shape)
         sub_df = df.sample(frac=0.02, random_state=42)
-        sub_df.reset_index(drop=True)
+        sub_df = sub_df.reset_index(drop=True)
         print(sub_df.shape)
-
-
         sub_df.apply(lambda row: save_uncertainty_measure_to_db(row['image__image_base_name'], annot_name,
                                                                 row.name), axis=1)
         print('Done')
