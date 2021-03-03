@@ -26,7 +26,7 @@ class Command(BaseCommand):
         division = options['division']
         annot_name = options['annot_name']
         # delete existing uncertainty measures and uncertainty groups if any
-        for obj in AIImageAnnotation.objects.filter(annotation__name=annot_name, uncertainty_group__isnull=False):
+        for obj in AIImageAnnotation.objects.filter(annotation__name=annot_name, uncertainty_measure__isnull=False):
             obj.uncertainty_measure = None
             obj.uncertainty_group = None
             obj.save()
