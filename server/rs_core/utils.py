@@ -61,12 +61,14 @@ def get_image_base_names_by_annotation(annot_name, req_username, count=5, route_
         user_images = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
                                                          image__route_id=route_id).values_list("image__image_base_name")
         filtered_images = AIImageAnnotation.objects.filter(
+            uncertainty_group__isnull=False,
             annotation__name__iexact=annot_name, image__route_id=route_id).exclude(
             image__image_base_name__in=user_images)
     else:
         user_images = UserImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).values_list("image__image_base_name")
         filtered_images = AIImageAnnotation.objects.filter(
+            uncertainty_group__isnull=False,
             annotation__name__iexact=annot_name).exclude(image__image_base_name__in=user_images)
 
     min_group_idx = filtered_images.aggregate(Min('uncertainty_group'))['uncertainty_group__min']
