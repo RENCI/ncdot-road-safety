@@ -1,6 +1,5 @@
 from django.core.management.base import BaseCommand
 import pandas as pd
-import random
 from rs_core.models import AIImageAnnotation
 from rs_core.utils import save_uncertainty_measure_to_db
 
@@ -37,9 +36,10 @@ class Command(BaseCommand):
                 "image__image_base_name"))
         print(df.shape)
         sub_df = df.sample(frac=0.02, random_state=42)
+        sub_df.reset_index(drop=True)
         print(sub_df.shape)
-        cnt = len(sub_df)
-        sub_df['order'] = [random.randint(0, cnt) for x in range(cnt)]
+
+
         sub_df.apply(lambda row: save_uncertainty_measure_to_db(row['image__image_base_name'], annot_name,
-                                                                row['order']), axis=1)
+                                                                row.name), axis=1)
         print('Done')
