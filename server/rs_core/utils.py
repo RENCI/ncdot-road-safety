@@ -141,7 +141,7 @@ def save_annot_data_to_db(img_base_name, username, annot_name, annot_views, anno
             obj.left_view = annot_views['left'][0]
             obj.front_view = annot_views['front'][0]
             obj.right_view = annot_views['right'][0]
-            obj.comments = ';'.join(annot_comments) if annot_comments else ''
+            obj.comment = ';'.join(annot_comments) if annot_comments else ''
             obj.flags.clear()
             obj.save()
         if annot_flags:
