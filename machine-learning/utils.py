@@ -89,30 +89,23 @@ def split_to_train_valid_test(data_df, label_column, train_frac):
     return split_train_df, split_valid_df, split_test_df
 
 
-def split_to_train_valid_test_for_al(data_df, label_column, train_frac, split_test_count=600):
+def split_to_train_valid_for_al(data_df, label_column, train_frac):
     """
-    For Active Learning, the collected user annotated dataset is not balanced, and we want test set to be
-    balanced for fair model performance assessment across rounds. By default, 600 will be used for the total
-    number of test set, i.e., 300 positive and 300 negative test set, but the count can be specified via
-    split_test_count optional parameter
+    For Active Learning, the collected user annotated dataset is not balanced. Since we have an annotated balanced
+    holdout test set for model performance assessment across rounds, we only need to split data into train and
+    validation sets.
     """
     labels = data_df[label_column].unique()
-    test_lbl_count = (int)(split_test_count/len(labels))
-    split_train_df, split_valid_df, split_test_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    split_train_df, split_valid_df = pd.DataFrame(), pd.DataFrame()
     for lbl in labels:
         lbl_df = data_df[data_df[label_column] == lbl]
-        # randomly sample test set first
-        lbl_test_df = lbl_df.sample(n=test_lbl_count, random_state=42)
-        lbl_train_valid_df = lbl_df.drop(lbl_test_df.index)
-        lbl_train_df = lbl_train_valid_df.sample(frac=train_frac, random_state=42)
-        lbl_valid_df = lbl_train_valid_df.drop(lbl_train_df.index)
-        print(lbl, "total:", len(lbl_df), "train_df:", len(lbl_train_df), "valid_df", len(lbl_valid_df),
-              "test_df:", len(lbl_test_df))
+        lbl_train_df = lbl_df.sample(frac=train_frac, random_state=42)
+        lbl_valid_df = lbl_df.drop(lbl_train_df.index)
+        print(lbl, "total:", len(lbl_df), "train_df:", len(lbl_train_df), "valid_df", len(lbl_valid_df))
         split_train_df = split_train_df.append(lbl_train_df)
         split_valid_df = split_valid_df.append(lbl_valid_df)
-        split_test_df = split_test_df.append(lbl_test_df)
 
-    return split_train_df, split_valid_df, split_test_df
+    return split_train_df, split_valid_df
 
 
 def create_yes_no_sub_dirs(root_path):
