@@ -46,7 +46,7 @@ exist_train_percent = args.exist_train_percent
 root_al_dir = os.path.join(root_dir, feature_name, f'round{cur_round}', 'data')
 df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=['Image', 'Presence'])
 df = df.drop_duplicates(subset=['Image'])
-df.Full_Path_Image = input_prefix_dir + df.Image
+df['Full_Path_Image'] = input_prefix_dir + df.Image
 print(df.shape)
 df_yes_cnt = len(df[df.Presence == 'True'])
 df_no_cnt = len(df[df.Presence == 'False'])
