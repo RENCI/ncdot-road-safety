@@ -29,7 +29,7 @@ parser.add_argument('--exist_train_no_file', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round0/'
                             'data_info/train_guardrail_no_2lane.csv',
                     help='existing train negative data to select to add to the AL')
-parser.add_argument('--exist_train_percent', type=float, default=0.01,
+parser.add_argument('--exist_train_percent', type=float, default=0.06,
                     help='existing train percentage to add to the AL round annotation data for the larger class count')
 
 args = parser.parse_args()
@@ -51,14 +51,16 @@ print(df.shape)
 df_yes_cnt = len(df[df.Presence == 'True'])
 df_no_cnt = len(df[df.Presence == 'False'])
 
-exist_train_yes_df = pd.read_csv(exist_train_yes_file, header=None, index_col=False, dtype = str,
+exist_train_yes_df = pd.read_csv(exist_train_yes_file, header=None, index_col=False, dtype=str,
                                  names=['Full_Path_Image'])
 exist_train_yes_df['Presence'] = 'True'
 exist_train_yes_df['Image'] = exist_train_yes_df.Full_Path_Image.str.split('/').str[-1]
-exist_train_no_df = pd.read_csv(exist_train_no_file, header=None, index_col=False, dtype = str,
+
+exist_train_no_df = pd.read_csv(exist_train_no_file, header=None, index_col=False, dtype=str,
                                 names=['Full_Path_Image'])
 exist_train_no_df['Presence'] = 'False'
 exist_train_no_df['Image'] = exist_train_no_df.Full_Path_Image.str.split('/').str[-1]
+
 # train data is balanced, so it suffices to get count from either class
 exist_train_cnt = len(exist_train_no_df)
 exist_train_cnt_to_add = (int)(exist_train_cnt * exist_train_percent)
@@ -67,11 +69,20 @@ exist_train_yes_cnt_to_add = df_total_cnt - df_yes_cnt
 exist_train_no_cnt_to_add = df_total_cnt - df_no_cnt
 exist_train_yes_df_to_add = exist_train_yes_df.sample(n=exist_train_yes_cnt_to_add, random_state=42)
 exist_train_no_df_to_add = exist_train_no_df.sample(n=exist_train_no_cnt_to_add, random_state=42)
+
 df = df.set_index('Image')
 exist_train_yes_df_to_add = exist_train_yes_df_to_add.set_index('Image')
 exist_train_no_df_to_add = exist_train_no_df_to_add.set_index('Image')
-df_all = pd.concat([df, exist_train_yes_df_to_add, exist_train_no_df_to_add])
-df_all = df_all.reset_index()
+
+train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence', train_frac)
+train_exist_df_yes, valid_exist_df_yes = split_to_train_valid_for_al(exist_train_yes_df_to_add, 'Presence', train_frac)
+train_exist_df_no, valid_exist_df_no = split_to_train_valid_for_al(exist_train_no_df_to_add, 'Presence', train_frac)
+
+train_df = pd.concat([train_df_user, train_exist_df_yes, train_exist_df_no])
+train_df.reset_index()
+
+valid_df = pd.concat([valid_df_user, valid_exist_df_yes, valid_exist_df_no])
+valid_df.reset_index()
 
 
 def prepare_image(src, dst):
@@ -80,9 +91,6 @@ def prepare_image(src, dst):
     os.symlink(src, dst)
     return
 
-
-train_df, valid_df = split_to_train_valid_for_al(df_all, 'Presence', train_frac)
-print('training data:', len(train_df), 'validation data:', len(valid_df))
 
 train_path = f'{root_al_dir}/train/'
 create_yes_no_sub_dirs(train_path)
