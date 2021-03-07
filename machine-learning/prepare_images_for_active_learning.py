@@ -79,10 +79,10 @@ train_exist_df_yes, valid_exist_df_yes = split_to_train_valid_for_al(exist_train
 train_exist_df_no, valid_exist_df_no = split_to_train_valid_for_al(exist_train_no_df_to_add, 'Presence', train_frac)
 
 train_df = pd.concat([train_df_user, train_exist_df_yes, train_exist_df_no])
-train_df.reset_index()
+train_df = train_df.reset_index()
 
 valid_df = pd.concat([valid_df_user, valid_exist_df_yes, valid_exist_df_no])
-valid_df.reset_index()
+valid_df = valid_df.reset_index()
 
 
 def prepare_image(src, dst):
