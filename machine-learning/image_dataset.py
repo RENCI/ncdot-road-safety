@@ -208,6 +208,7 @@ def image_dataset_from_directory(directory,
   dataset.class_names = class_names
   # Include file paths for images as attribute.
   dataset.file_paths = image_paths
+  dataset.labels = labels
   return dataset
 
 

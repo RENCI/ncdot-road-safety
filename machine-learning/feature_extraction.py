@@ -14,10 +14,10 @@ parser.add_argument('--data_dir', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/images/d13',
                     help='input dir of data to apply model prediction for')
 parser.add_argument('--model_file', type=str,
-                    default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_2lane_epoch_10.h5',
-                    help='model file with path to be load for prediction')
+                    default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_feature_extraction_model.h5',
+                    help='model file with path to be load for feature extraction')
 parser.add_argument('--output_file', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round0/predict/predict_d13.csv',
+                    default='/projects/ncdot/NC_2018_Secondary/image_features/d13_image_features.csv',
                     help='prediction output csv file')
 parser.add_argument('--batch_size', type=int, default=512,
                     help='prediction batch size')
@@ -61,17 +61,15 @@ for div_dir in divisions:
         pred = model.predict(normalized_test_ds)
         te = time.time()
         time_list.append(te-ts)
-        pred_rounded = np.round(pred, decimals=2)
-
         res_df_list.append(pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
-                                         "ROUND_PREDICT": pred_rounded[:, 0]}))
+                                         "FEATURES": pred.tolist()}))
         res_df_list[-1].MAPPED_IMAGE = res_df_list[-1].MAPPED_IMAGE.str.replace(
             '/projects/ncdot/NC_2018_Secondary/images/', '')
         # release memory
         del test_ds
         del normalized_test_ds
         del pred
-        del pred_rounded
+
 print('Total time taken for prediction: ', sum(time_list))
 # combine multiple results into one
 combined_results = pd.concat(res_df_list)

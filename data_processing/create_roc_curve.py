@@ -1,32 +1,57 @@
 import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_curve
+from sklearn.metrics import roc_curve, roc_auc_score
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    default='../server/metadata/d4_subset_with_manual_inspection_300.csv',
+                    default='../server/metadata/user_annotated_balanced_image_info.csv',
                     help='input file with path to create roc curve from')
+parser.add_argument('--model_predict_file', type=str,
+                    default='../server/metadata/model_predict_test_base.csv',
+                    help='the active learning model prediction file')
+parser.add_argument('--model_predict_file2', type=str,
+                    default='../server/metadata/model_predict_test.csv',
+                    help='the active learning model prediction file')
+
 args = parser.parse_args()
 input_file = args.input_file
+model_predict_file = args.model_predict_file
+model_predict_file2 = args.model_predict_file2
 
-df = pd.read_csv(input_file, header=0, index_col=False,
-                 dtype={'MAPPED_IMAGE': str,
-                        'MANUAL_YN': str,
-                        'ROUND_PREDICT_2': float,
-                        'ROUND_PREDICT_4': float})
-df['MANUAL_YN'] = df.MANUAL_YN.apply(lambda row: 0 if row == 'N' else 1)
-fpr, tpr, thresholds = roc_curve(df['MANUAL_YN'], df['ROUND_PREDICT_2'], pos_label=1)
-fpr4, tpr4, thresholds4 = roc_curve(df['MANUAL_YN'], df['ROUND_PREDICT_4'], pos_label=1)
+df_in = pd.read_csv(input_file, header=0, index_col=False, dtype={'Image': str, 'Presence': str},
+                    usecols=['Image', 'Presence'])
+df_in['Image'] = df_in['Image'].str.split('/').str[-1]
+df_al = pd.read_csv(model_predict_file, header=0, index_col=False,
+                    dtype={'MAPPED_IMAGE': str, 'ROUND_PREDICT': float},
+                    usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'])
+df_al2 = pd.read_csv(model_predict_file2, header=0, index_col=False,
+                     dtype={'MAPPED_IMAGE': str, 'ROUND_PREDICT': float},
+                     usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'])
+df_al['MAPPED_IMAGE'] = df_al['MAPPED_IMAGE'].str.split('/').str[-1]
+df_al2['MAPPED_IMAGE'] = df_al2['MAPPED_IMAGE'].str.split('/').str[-1]
+df_al2 = df_al2.rename(columns={'ROUND_PREDICT': 'ROUND_PREDICT2'})
+df_al = df_al[df_al.MAPPED_IMAGE.isin(df_in.Image)]
+df_al2 = df_al2[df_al2.MAPPED_IMAGE.isin(df_in.Image)]
+df_in = df_in.set_index('Image')
+df_al = df_al.set_index('MAPPED_IMAGE')
+df_al2 = df_al2.set_index('MAPPED_IMAGE')
+df = pd.concat([df_in, df_al, df_al2], axis=1)
+df = df.reset_index()
+df['Presence'] = df.Presence.apply(lambda row: 0 if row == 'False' else 1)
+print(df.shape)
+
+fpr, tpr, thresholds = roc_curve(df['Presence'], df['ROUND_PREDICT'], pos_label=1)
+fpr2, tpr2, thresholds2 = roc_curve(df['Presence'], df['ROUND_PREDICT2'], pos_label=1)
 plt.plot(fpr, tpr, linewidth=2)
-plt.plot(fpr4, tpr4, linewidth=2)
+plt.plot(fpr2, tpr2, linewidth=2)
 plt.title('ROC Curve')
 plt.ylabel('True Positive Rate (Recall)')
 plt.xlabel('False Positive Rate')
-plt.legend(['2 lane model', '4 lane model'], loc='lower right')
+score = round(roc_auc_score(df['Presence'], df['ROUND_PREDICT']), 3)
+score2 = round(roc_auc_score(df['Presence'], df['ROUND_PREDICT2']), 3)
+plt.legend([f'Baseline model (AUC: {score})', f'Updated model (AUC: {score2})'], loc='lower right')
 plt.plot([0, 1], [0, 1], 'k--')
 plt.show()
-score_2 = roc_auc_score(df['MANUAL_YN'], df['ROUND_PREDICT_2'])
-score_4 = roc_auc_score(df['MANUAL_YN'], df['ROUND_PREDICT_4'])
-print(score_2, score_4)
+print(score, score2)

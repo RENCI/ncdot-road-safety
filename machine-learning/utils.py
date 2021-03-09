@@ -2,6 +2,9 @@ import os
 from PIL import Image
 import tensorflow as tf
 import pandas as pd
+from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import roc_curve
+import matplotlib.pyplot as plt
 
 
 def setup_gpu_memory():
@@ -86,6 +89,40 @@ def split_to_train_valid_test(data_df, label_column, train_frac):
     return split_train_df, split_valid_df, split_test_df
 
 
+def split_to_train_valid_for_al(data_df, label_column, train_frac):
+    """
+    For Active Learning, the collected user annotated dataset is not balanced. Since we have an annotated balanced
+    holdout test set for model performance assessment across rounds, we only need to split data into train and
+    validation sets.
+    """
+    labels = data_df[label_column].unique()
+    split_train_df, split_valid_df = pd.DataFrame(), pd.DataFrame()
+    for lbl in labels:
+        lbl_df = data_df[data_df[label_column] == lbl]
+        lbl_train_df = lbl_df.sample(frac=train_frac, random_state=42)
+        lbl_valid_df = lbl_df.drop(lbl_train_df.index)
+        print(lbl, "total:", len(lbl_df), "train_df:", len(lbl_train_df), "valid_df", len(lbl_valid_df))
+        split_train_df = split_train_df.append(lbl_train_df)
+        split_valid_df = split_valid_df.append(lbl_valid_df)
+
+    return split_train_df, split_valid_df
+
+
 def create_yes_no_sub_dirs(root_path):
     os.makedirs(os.path.join(root_path, 'yes'), exist_ok=True)
     os.makedirs(os.path.join(root_path, 'no'), exist_ok=True)
+
+
+def draw_plots(y_true, y_predict):
+    precision, recall, threshold = precision_recall_curve(y_true, y_predict)
+    plt.plot(threshold, precision[:-1], "b--", label='Precision')
+    plt.plot(threshold, recall[:-1], "g--", label='Recall')
+    plt.grid(True)
+    plt.show()
+
+    fpr, tpr, threshold = roc_curve(y_true, y_predict)
+    plt.plot(fpr, tpr, linewidth=2)
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.grid(True)
+    plt.show()
+    return

@@ -61,12 +61,14 @@ def get_image_base_names_by_annotation(annot_name, req_username, count=5, route_
         user_images = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
                                                          image__route_id=route_id).values_list("image__image_base_name")
         filtered_images = AIImageAnnotation.objects.filter(
+            uncertainty_group__isnull=False,
             annotation__name__iexact=annot_name, image__route_id=route_id).exclude(
             image__image_base_name__in=user_images)
     else:
         user_images = UserImageAnnotation.objects.filter(
             annotation__name__iexact=annot_name).values_list("image__image_base_name")
         filtered_images = AIImageAnnotation.objects.filter(
+            uncertainty_group__isnull=False,
             annotation__name__iexact=annot_name).exclude(image__image_base_name__in=user_images)
 
     min_group_idx = filtered_images.aggregate(Min('uncertainty_group'))['uncertainty_group__min']
@@ -139,7 +141,7 @@ def save_annot_data_to_db(img_base_name, username, annot_name, annot_views, anno
             obj.left_view = annot_views['left'][0]
             obj.front_view = annot_views['front'][0]
             obj.right_view = annot_views['right'][0]
-            obj.comments = ';'.join(annot_comments) if annot_comments else ''
+            obj.comment = ';'.join(annot_comments) if annot_comments else ''
             obj.flags.clear()
             obj.save()
         if annot_flags:
@@ -162,13 +164,15 @@ def create_ai_image_annotation(image_base_name, annotation, presence, certainty)
                                             defaults={'presence': presence, 'certainty': certainty})
 
 
-def update_or_create_ai_image_annotation(image_base_name, annotation, presence, certainty):
+def update_ai_image_annotation(image_base_name, annotation, presence, certainty):
     try:
         image = RouteImage.objects.get(image_base_name=image_base_name)
     except RouteImage.DoesNotExist:
         return
-    AIImageAnnotation.objects.update_or_create(image=image, annotation=annotation,
-                                               defaults={'presence': presence, 'certainty': certainty})
+    obj = AIImageAnnotation.objects.get(image=image, annotation=annotation)
+    obj.presence = presence
+    obj.certainty = certainty
+    obj.save()
 
 
 def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty):
