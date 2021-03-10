@@ -1,6 +1,6 @@
 import pandas as pd
 from django.core.management.base import BaseCommand
-from rs_core.models import RouteImage
+from rs_core.models import RouteImage, AIImageAnnotation
 
 
 class Command(BaseCommand):
@@ -16,10 +16,16 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         # filename with full path to output image base names to
         parser.add_argument('output_file', help='file name with full path to output image base names to')
+        parser.add_argument('--AIAnnotationOnly', type=bool, default=True,
+                            help=('Optional, if set to True, only output image base names from AIImageAnnotations'))
 
     def handle(self, *args, **options):
         output_file = options['output_file']
-        image_list = list(RouteImage.objects.values_list("image_base_name", flat=True))
+        ai_only = options['AIAnnotationOnly']
+        if ai_only:
+            image_list = list(AIImageAnnotation.objects.values_list("image__image_base_name", flat=True))
+        else:
+            image_list = list(RouteImage.objects.values_list("image_base_name", flat=True))
         df = pd.DataFrame(image_list, columns=['ImageBaseName'])
         df.to_csv(output_file, index=False)
         print('Done')
