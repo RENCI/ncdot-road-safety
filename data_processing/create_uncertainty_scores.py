@@ -141,6 +141,8 @@ d1314_db = args.d1314_db
 remain_image_name_file = args.remain_image_name_file
 output_file = args.output_file
 
+np.random.seed(1)
+
 remain_image_df = pd.read_csv(remain_image_name_file, header=0, dtype=str)
 df_d4 = get_dataframe_from_csv(input_file_d4)
 print('d4 shape', df_d4.shape)
@@ -150,6 +152,11 @@ df_d13 = get_dataframe_from_csv(input_file_d13)
 print('d13 shape', df_d13.shape)
 df_d14 = get_dataframe_from_csv(input_file_d14)
 print('d14 shape', df_d14.shape)
+
+df_d4['DIVISION'] = 'd4'
+df_d8['DIVISION'] = 'd8'
+df_d13['DIVISION'] = 'd13'
+df_d14['DIVISION'] = 'd14'
 
 df_d4['SCORE'] = df_d4.apply(lambda row: compute_score(d4_db, row['ROUND_PREDICT']), axis=1)
 df_d8['SCORE'] = df_d8.apply(lambda row: compute_score(d8_db, row['ROUND_PREDICT']), axis=1)
