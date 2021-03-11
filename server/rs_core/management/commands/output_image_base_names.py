@@ -26,6 +26,6 @@ class Command(BaseCommand):
             image_list = list(AIImageAnnotation.objects.values_list("image__image_base_name", flat=True))
         else:
             image_list = list(RouteImage.objects.values_list("image_base_name", flat=True))
-        df = pd.DataFrame(image_list, columns=['ImageBaseName'])
+        df = pd.DataFrame(image_list, columns=['MAPPED_IMAGE'])
         df.to_csv(output_file, index=False)
         print('Done')
