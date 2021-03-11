@@ -1,11 +1,12 @@
 import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    default='../server/metadata/user_annotated_balanced_image_info_d4.csv',
+                    default='../server/metadata/user_annotated_balanced_image_info_d13_d14.csv',
                     help='input file with path to create scatter plot from')
 parser.add_argument('--model_predict_file', type=str,
                     default='../server/metadata/model_predict_test_base.csv',
@@ -32,13 +33,14 @@ df_al = pd.read_csv(model_predict_file, header=0, index_col=False,
                     usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'])
 df_al['MAPPED_IMAGE'] = df_al['MAPPED_IMAGE'].str.split('/').str[-1]
 df_al = df_al[df_al.MAPPED_IMAGE.isin(df_in.Image)]
+df_al = df_al.rename(columns={'ROUND_PREDICT': 'Initial_Model_PREDICT'})
 
 df_al2 = pd.read_csv(model_predict_file2, header=0, index_col=False,
                     dtype={'MAPPED_IMAGE': str, 'ROUND_PREDICT': float},
                     usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'])
 df_al2['MAPPED_IMAGE'] = df_al2['MAPPED_IMAGE'].str.split('/').str[-1]
 df_al2 = df_al2[df_al2.MAPPED_IMAGE.isin(df_in.Image)]
-df_al2 = df_al2.rename(columns={'ROUND_PREDICT': 'ROUND_PREDICT2'})
+df_al2 = df_al2.rename(columns={'ROUND_PREDICT': 'AL_Model_PREDICT'})
 
 df_in = df_in.set_index('Image')
 df_al = df_al.set_index('MAPPED_IMAGE')
@@ -48,34 +50,41 @@ df = df.reset_index()
 print(df.shape)
 
 X = df.index
-Y1 = df['ROUND_PREDICT']
-Y2 = df['ROUND_PREDICT2']
+Y1 = df['Initial_Model_PREDICT']
+Y2 = df['AL_Model_PREDICT']
 
 if probability_plot:
     # df['WRONG'] indicates those rows where the baseline model1 predicts wrongly but updated model2 predicts correctly
-    df['WRONG'] = df.apply(lambda row: 'Blue' if ((row['ROUND_PREDICT'] >= 0.5 and row['ROUND_PREDICT2'] < 0.5
-    and row['Presence'] == 'False') or (row['ROUND_PREDICT'] < 0.5 and row['ROUND_PREDICT2'] >= 0.5 and
+    df['Different_Predictions'] = df.apply(lambda row: 'FPs to TNs'
+    if ((row['Initial_Model_PREDICT'] >= 0.5 and row['AL_Model_PREDICT'] < 0.5
+    and row['Presence'] == 'False') or (row['Initial_Model_PREDICT'] < 0.5 and
+                                        row['AL_Model_PREDICT'] >= 0.5 and
                                         row['Presence'] == 'True'))
-    else 'Red' if ((row['ROUND_PREDICT2'] >= 0.5 and row['ROUND_PREDICT'] < 0.5 and row['Presence'] == 'False') or
-    (row['ROUND_PREDICT2'] < 0.5 and row['ROUND_PREDICT'] >= 0.5 and row['Presence'] == 'True')) else 'none',
-                           axis=1)
-    print('Number of wrong predictions of base model: ', len(df[df['WRONG'] == 'Blue']))
-    print('Number of wrong predictions of updated model: ', len(df[df['WRONG'] == 'Red']))
-    plt.scatter(Y1, Y2, s=20, marker='o', facecolors=df['WRONG'], edgecolors=df['WRONG'])
-    plt.title('Scatter plot for model comparison on holdout test (d4)')
-    plt.ylabel('Updated model prediction probability')
-    plt.xlabel('Base model prediction probability')
+    else 'TPs to FNs' if ((row['AL_Model_PREDICT'] >= 0.5 and
+                                         row['Initial_Model_PREDICT'] < 0.5 and row['Presence'] == 'False') or
+    (row['AL_Model_PREDICT'] < 0.5 and row['Initial_Model_PREDICT'] >= 0.5 and row['Presence'] == 'True'))
+    else 'none', axis=1)
+    print('Number of wrong predictions of base model: ', len(df[df['Different_Predictions'] ==
+                                                                'FPs to TNs']))
+    print('Number of wrong predictions of updated model: ', len(df[df['Different_Predictions'] ==
+                                                                   'TPs to FNs']))
+    ax = sns.stripplot(x="Initial_Model_PREDICT", y="AL_Model_PREDICT", data=df[df['Different_Predictions'] != 'none'],
+                       jitter=0.3, linewidth=1, hue='Different_Predictions', palette={"FPs to TNs": "blue",
+                                                                                       "TPs to FNs": "red"})
+    #plt.title('Scatter plot for model comparison on holdout test (d4)')
+    #plt.ylabel('Updated model prediction probability')
+    #plt.xlabel('Base model prediction probability')
 else:
     # df['WRONG'] indicates those rows where the baseline model1 predicts wrongly but updated model2 predicts correctly
-    df['WRONG'] = df.apply(lambda row: 'Blue' if ((row['ROUND_PREDICT'] >= 0.5 and row['ROUND_PREDICT2'] < 0.5
+    df['WRONG'] = df.apply(lambda row: 'Blue' if ((row['Initial_Model_PREDICT'] >= 0.5 and row['AL_Model_PREDICT'] < 0.5
                                                   and row['Presence'] == 'False') or
-                                                 (row['ROUND_PREDICT'] < 0.5 and row['ROUND_PREDICT2'] >= 0.5 and
+                                                 (row['Initial_Model_PREDICT'] < 0.5 and row['AL_Model_PREDICT'] >= 0.5 and
                                                   row['Presence'] == 'True')) else 'none',
                            axis=1)
     # df['WRONG2'] indicates those rows where the baseline model1 predicts correctly but updated model2 predicts wrongly
-    df['WRONG2'] = df.apply(lambda row: 'Red' if ((row['ROUND_PREDICT2'] >= 0.5 and row['ROUND_PREDICT'] < 0.5 and
+    df['WRONG2'] = df.apply(lambda row: 'Red' if ((row['AL_Model_PREDICT'] >= 0.5 and row['Initial_Model_PREDICT'] < 0.5 and
                                                     row['Presence'] == 'False') or
-                                                   (row['ROUND_PREDICT2'] < 0.5 and row['ROUND_PREDICT'] >= 0.5 and
+                                                   (row['AL_Model_PREDICT'] < 0.5 and row['Initial_Model_PREDICT'] >= 0.5 and
                                                     row['Presence'] == 'True')) else 'none',
                             axis=1)
     print('Number of wrong predictions of base model: ', len(df[df['WRONG'] == 'Red']))
