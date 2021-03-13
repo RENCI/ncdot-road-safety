@@ -8,10 +8,16 @@ from utils import split_to_train_valid_for_al, create_yes_no_sub_dirs
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round1/annot_data/user_annots.txt',
-                    help='input file with path for user annotated images to create image data for active learning')
+                    help='input file with path for previous user annotated images to create image data for active learning')
+parser.add_argument('--new_input_file', type=str,
+                    default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round2/annot_data/user_annots.txt',
+                    help='input file with path for current user annotated images to create image data for active learning')
+parser.add_argument('--output_annot_file', type=str,
+                    default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round2/annot_data/all_user_annots.txt',
+                    help='the combined user annotated file that contain all user annotated images so far')
 parser.add_argument('--cur_round', type=int, default=1,
                     help='the current round of active learning')
-parser.add_argument('--train_frac', type=float, default='0.8',
+parser.add_argument('--train_frac', type=float, default=0.8,
                     help='fraction of training data over all data')
 parser.add_argument('--feature_name', type=str, default='guardrail',
                     help='the name of the feature for the classifier, e.g., guardrail')
@@ -34,6 +40,8 @@ parser.add_argument('--exist_train_percent', type=float, default=0.06,
 
 args = parser.parse_args()
 input_file = args.input_file
+new_input_file = args.new_input_file
+output_annot_file = args.output_annot_file
 cur_round = args.cur_round
 feature_name = args.feature_name
 train_frac = args.train_frac
@@ -43,10 +51,21 @@ exist_train_yes_file = args.exist_train_yes_file
 exist_train_no_file = args.exist_train_no_file
 exist_train_percent = args.exist_train_percent
 
-root_al_dir = os.path.join(root_dir, feature_name, f'round{cur_round}', 'data')
 df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=['Image', 'Presence'])
 df = df.drop_duplicates(subset=['Image'])
 df['Full_Path_Image'] = input_prefix_dir + df.Image
+df = df.set_index('Image')
+if new_input_file:
+    # combine input_file and new_input_file to create output_annot_file which is used to prepare images
+    df_new = pd.read_csv(new_input_file, header=0, index_col=False, dtype=str, usecols=['Image', 'Presence'])
+    df_new = df_new.drop_duplicates(subset=['Image'])
+    df_new['Full_Path_Image'] = input_prefix_dir + df_new.Image
+    df_new = df_new.set_index('Image')
+    df = pd.concat([df, df_new])
+    df.to_csv(output_annot_file)
+
+root_al_dir = os.path.join(root_dir, feature_name, f'round{cur_round}', 'data')
+
 print(df.shape)
 df_yes_cnt = len(df[df.Presence == 'True'])
 df_no_cnt = len(df[df.Presence == 'False'])
@@ -70,7 +89,6 @@ exist_train_no_cnt_to_add = df_total_cnt - df_no_cnt
 exist_train_yes_df_to_add = exist_train_yes_df.sample(n=exist_train_yes_cnt_to_add, random_state=42)
 exist_train_no_df_to_add = exist_train_no_df.sample(n=exist_train_no_cnt_to_add, random_state=42)
 
-df = df.set_index('Image')
 exist_train_yes_df_to_add = exist_train_yes_df_to_add.set_index('Image')
 exist_train_no_df_to_add = exist_train_no_df_to_add.set_index('Image')
 
