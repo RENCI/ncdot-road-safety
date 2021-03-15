@@ -3,9 +3,9 @@ import pandas as pd
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
-parser.add_argument('--input_file', type=str, default='../server/metadata/model_2lane_predict_d4_with_manual_labels.csv',
+parser.add_argument('--input_file', type=str, default='../server/metadata/model_2lane_predict_d13_d14_with_manual_labels_3_models.csv',
                     help='input image file with model prediction')
-parser.add_argument('--output_html_file', type=str, default='../server/templates/model_2lane_d4_subset.html',
+parser.add_argument('--output_html_file', type=str, default='../server/templates/model_2lane_d13_d14_subset_3_models.html',
                     help='the output html file for looking at images')
 
 args = parser.parse_args()
@@ -13,7 +13,7 @@ input_file = args.input_file
 output_html_file = args.output_html_file
 
 df = pd.read_csv(input_file, header=0, dtype={'index': str, 'Presence': str, 'ROUND_PREDICT': float,
-                                              'ROUND_PREDICT2': float, 'WRONG': int, 'WRONG2': int})
+                                              'ROUND_PREDICT2': float, 'WRONG': int, 'WRONG2': int, 'WRONG3': int})
 df['index'] = df['index'].str.replace('.jpg', '')
 print(df.shape)
 html_str_head = """
@@ -21,7 +21,7 @@ html_str_head = """
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Show d4 test holdout images with baseline model and AL round 1 prediction info</title>
+    <title>Show d4 test holdout images with baseline model and AL rounds 1 and 2 prediction info</title>
 </head>
 <body>    
 """
@@ -36,7 +36,8 @@ img_str = """
     <img src='/get_image_by_name/{image_base_name}1.jpg' style="float:left;width:33.33%;"/>
     <img src='/get_image_by_name/{image_base_name}2.jpg' style="float:left;width:33.33%;"/>        
 </div>
-<p>Image base name: {image_base_name}, annotation: {annotation}, base model prediction: {prob} {WRONG}, round1 model prediction: {prob2} {WRONG2}</p>
+<p>Image base name: {image_base_name}, annotation: {annotation}, base model prediction: {prob} {WRONG}, 
+round1 model prediction: {prob2} {WRONG2}, round2 model prediction: {prob3} {WRONG3}</p>
 """
 img_str_list = []
 df.apply(lambda row: img_str_list.append(img_str.format(image_base_name=row['index'],
@@ -44,7 +45,9 @@ df.apply(lambda row: img_str_list.append(img_str.format(image_base_name=row['ind
                                                         prob=row['ROUND_PREDICT'],
                                                         WRONG="<b>WRONG</b>" if row['WRONG']==1 else '',
                                                         prob2=row['ROUND_PREDICT2'],
-                                                        WRONG2="<b>WRONG</b>" if row['WRONG2']==1 else '')), axis=1)
+                                                        WRONG2="<b>WRONG</b>" if row['WRONG2']==1 else '',
+                                                        prob3=row['ROUND_PREDICT3'],
+                                                        WRONG3="<b>WRONG</b>" if row['WRONG3']==1 else '')), axis=1)
 html_img_str = '\n'.join(img_str_list)
 html_str = f"{html_str_head}\n{html_img_str}\n{html_str_tail}"
 with open(output_html_file, 'w') as file:
