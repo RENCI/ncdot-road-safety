@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/model_2lane_predict_d14.csv',
+                        default='../server/metadata/model_predict_test_round2_round1_model.csv',
                         help='input file with path with model predictions')
 
     args = parser.parse_args()
@@ -17,6 +17,7 @@ if __name__ == '__main__':
                                                                             'ROUND_PREDICT': 'float'})
     df.dropna(inplace=True)
     prob_series = df['ROUND_PREDICT']
+    # prob_series = df[df.index.str.startswith('d13') | df.index.str.startswith('d14')]['ROUND_PREDICT']
     plt.hist(prob_series, bins=10, log=True)
     plt.show()
     print("mean:", prob_series.mean())
