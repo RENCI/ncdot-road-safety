@@ -28,12 +28,14 @@ def get_train_val_data(bat_size):
         target_size=(299, 299),  # All images will be resized to 299 x 299
         class_mode='binary',
         batch_size=bat_size,
+        follow_links=True,
         # Specify the classes explicitly
         classes=['no', 'yes'],
         shuffle=True)
     val_gen = datagen.flow_from_directory(
         val_dir,
         target_size=(299, 299),
+        follow_links=True,
         class_mode='binary',
         shuffle=False,
         # Specify the classes explicitly
@@ -64,6 +66,7 @@ def make_inference(feature_model, bat_size, threshold=0.5):
     test_gen = datagen.flow_from_directory(test_dir,
                                            target_size=(299, 299),
                                            class_mode='binary',
+                                           follow_links=True,
                                            classes=['no', 'yes'],
                                            batch_size=bat_size,
                                            shuffle=False)

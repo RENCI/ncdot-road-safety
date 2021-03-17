@@ -29,6 +29,7 @@ def get_train_val_generator(bat_size, feat_name):
         train_dir,  # This is the source directory for training images
         target_size=(299, 299),  # All images will be resized to 299 x 299
         batch_size=bat_size,
+        follow_links=True,
         # Specify the classes explicitly
         classes=[f'{feat_name}_no', f'{feat_name}_yes'],
         class_mode='binary', shuffle=True)
@@ -37,6 +38,7 @@ def get_train_val_generator(bat_size, feat_name):
     val_gen = datagen.flow_from_directory(val_dir,
                                           target_size=(299, 299),
                                           class_mode='binary',
+                                          follow_links=True,
                                           classes=[f'{feat_name}_no', f'{feat_name}_yes'],
                                           batch_size=bat_size,
                                           shuffle=False)
@@ -96,6 +98,7 @@ def make_inference(feature_model, bat_size, feat_name, threshold=0.5):
                                            class_mode='binary',
                                            classes=[f'{feat_name}_no', f'{feat_name}_yes'],
                                            batch_size=bat_size,
+                                           follow_links=True,
                                            shuffle=False)
     ts = time.time()
     predictions = feature_model.predict(test_gen, steps=int(test_gen.samples / bat_size + 1), verbose=1)

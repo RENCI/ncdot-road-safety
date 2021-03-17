@@ -63,7 +63,12 @@ def get_model(input_file):
     # only make the top dense classification layer (2049 parameters) trainable
     for layer in feature_model.layers[:-1]:
         layer.trainable = False
-    feature_model.layers[-1].trainable = True
+
+    head_layer = feature_model.layers[-1]
+    initializer = tf.keras.initializers.RandomNormal(mean=0., stddev=1., seed=42)
+    values = initializer(shape=(2, 2))
+    head_layer.set_weights()
+    head_layer.trainable = True
 
     feature_model.compile(optimizer=keras.optimizers.Adam(1e-5),
                           loss=keras.losses.BinaryCrossentropy(from_logits=True),

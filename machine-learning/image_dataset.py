@@ -47,7 +47,7 @@ def image_dataset_from_directory(directory,
                                  validation_split=None,
                                  subset=None,
                                  interpolation='bilinear',
-                                 follow_links=False):
+                                 follow_links=True):
   """Generates a `tf.data.Dataset` from image files in a directory.
 
   If your directory structure is:
@@ -114,7 +114,7 @@ def image_dataset_from_directory(directory,
       Defaults to `bilinear`. Supports `bilinear`, `nearest`, `bicubic`,
       `area`, `lanczos3`, `lanczos5`, `gaussian`, `mitchellcubic`.
     follow_links: Whether to visits subdirectories pointed to by symlinks.
-        Defaults to False.
+        Defaults to True.
 
   Returns:
     A `tf.data.Dataset` object.
