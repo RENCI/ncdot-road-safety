@@ -65,9 +65,6 @@ def get_model(input_file):
         layer.trainable = False
 
     head_layer = feature_model.layers[-1]
-    initializer = tf.keras.initializers.RandomNormal(mean=0., stddev=1., seed=42)
-    values = initializer(shape=(2, 2))
-    head_layer.set_weights()
     head_layer.trainable = True
 
     feature_model.compile(optimizer=keras.optimizers.Adam(1e-5),
