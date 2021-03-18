@@ -64,7 +64,14 @@ def get_model(input_file):
     for layer in feature_model.layers[:-1]:
         layer.trainable = False
 
+    # randomize classification head layer's weights and make it trainable
     head_layer = feature_model.layers[-1]
+    weight_initializer = tf.keras.initializers.GlorotUniform(seed=42)
+    bias_initializer = tf.keras.initializers.Zeros()
+    old_weights, old_biases = head_layer.get_weights()
+    head_layer.set_weights([
+        weight_initializer(shape=old_weights.shape),
+        bias_initializer(shape=old_biases.shape)])
     head_layer.trainable = True
 
     feature_model.compile(optimizer=keras.optimizers.Adam(1e-5),
