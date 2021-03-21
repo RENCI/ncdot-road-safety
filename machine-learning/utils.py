@@ -7,27 +7,31 @@ from sklearn.metrics import roc_curve
 import matplotlib.pyplot as plt
 
 
-def setup_gpu_memory():
-    # there are 2 GPUs with 32GB mem each on groucho. Need to set memory limit to 30G for each to avoid
-    # running exceptions
-    tf.config.experimental.set_memory_growth = True
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    if len(gpus) == 2:
-      try:
-        tf.config.experimental.set_virtual_device_configuration(
-            gpus[0],
-            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024*30)])
-        tf.config.experimental.set_virtual_device_configuration(
-            gpus[1],
-            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024*30)])
+def setup_gpu_memory(mem_limit=1024*30):
+    # there are 2 GPUs with 32GB mem each on groucho. Need to set memory limit to 30G
+    # for each to avoid running exceptions
+    try:
+        tf.config.experimental.set_memory_growth = True
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        for gpu in gpus:
+            # Virtual devices must be set before GPUs have been initialized
+            tf.config.experimental.set_virtual_device_configuration(
+                gpu,
+                [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=mem_limit)])
+
         logical_gpus = tf.config.experimental.list_logical_devices('GPU')
         print(len(gpus), "Physical GPU,", len(logical_gpus), "Logical GPUs")
-      except RuntimeError as e:
-        # Virtual devices must be set before GPUs have been initialized
+    except RuntimeError as e:
         print(e)
 
 
 def get_image_names_with_path(data_dir, mapped_image):
+    """
+    get image path from the mapped image base name
+    :param data_dir: the root data directory that contains the image
+    :param mapped_image: the mapped image base name
+    :return: image_path, left image name, front image name, right image name
+    """
     if len(mapped_image) != 11:
         print("mapped image in metadata must have a length of 11")
         return '', '', '', ''
@@ -53,6 +57,9 @@ def get_image_names_with_path(data_dir, mapped_image):
 
 
 def join_images(left_image_path, front_image_path, right_image_path):
+    """
+    join input left, front, and right images into a single image
+    """
     img_names = [left_image_path, front_image_path, right_image_path]
     imgs = []
     try:
@@ -71,6 +78,14 @@ def join_images(left_image_path, front_image_path, right_image_path):
 
 
 def split_to_train_valid_test(data_df, label_column, train_frac):
+    """
+    Split data randomly into train data by the specified training fraction, and
+    split the rest of data equally and randomly into validation and test data
+    :param data_df: input data dataframe
+    :param label_column: the column in the input data_df that is used for training labels
+    :param train_frac: the fraction of training data to split into from the input dataframe
+    :return: split training dataframe, validation dataframe, test dataframe
+    """
     labels = data_df[label_column].unique()
     split_train_df, split_valid_df, split_test_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     for lbl in labels:
@@ -91,9 +106,14 @@ def split_to_train_valid_test(data_df, label_column, train_frac):
 
 def split_to_train_valid_for_al(data_df, label_column, train_frac):
     """
+    Split data randomly into train data by the specified training fraction, and leave the rest as validation data.
     For Active Learning, the collected user annotated dataset is not balanced. Since we have an annotated balanced
     holdout test set for model performance assessment across rounds, we only need to split data into train and
     validation sets.
+    :param data_df: input data dataframe
+    :param label_column: the column in the input data_df that is used for training labels
+    :param train_frac: the fraction of training data to split into from the input dataframe
+    :return: split training dataframe, validation dataframe
     """
     labels = data_df[label_column].unique()
     split_train_df, split_valid_df = pd.DataFrame(), pd.DataFrame()
