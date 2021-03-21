@@ -6,24 +6,27 @@ import seaborn as sns
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    default='../server/metadata/user_annotated_balanced_image_info_d13_d14.csv',
+                    default='../server/metadata/user_annotated_balanced_image_info.csv',
                     help='input file with path to create scatter plot from')
 parser.add_argument('--model_predict_file', type=str,
-                    default='../server/metadata/model_predict_test.csv',
+                    default='../server/metadata/model_predict_test_round1.csv',
                     help='the active learning model prediction file')
+parser.add_argument('--plot_title', type=str,
+                    default='Round1 & round2 model prediction comparisons on holdout test',
+                    help='plot title')
 parser.add_argument('--x_axis_label', type=str,
-                    default='AL round1 model predict Probability',
+                    default='Initial model predict probability',
                     help='x axis label')
 parser.add_argument('--model_predict_file2', type=str,
-                    default='../server/metadata/model_predict_test_round2_round1_model.csv',
+                    default='../server/metadata/model_predict_test_round2.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--y_axis_label', type=str,
-                    default='AL round2 model predict Probability',
+                    default='AL round1 model predict probability',
                     help='y axis label')
-parser.add_argument('--probability_plot', type=bool, default=True,
+parser.add_argument('--probability_plot', type=bool, default=False,
                     help='If true, draw probability vs probability plot between two models for comparison; otherwise, '
                          'draw probability vs images plot for model comparison')
-parser.add_argument('--probability_plot_all', type=bool, default=True,
+parser.add_argument('--probability_plot_all', type=bool, default=False,
                     help='If true, draw probability vs probability plot between two models for comparison with '
                          'predictions for all images; otherwise, only draw different predictions between two models.')
 
@@ -33,6 +36,7 @@ model_predict_file = args.model_predict_file
 model_predict_file2 = args.model_predict_file2
 probability_plot = args.probability_plot
 probability_plot_all = args.probability_plot_all
+plot_title = args.plot_title
 
 x_axis_label = args.x_axis_label
 y_axis_label = args.y_axis_label
@@ -110,7 +114,7 @@ else:
                 label=["predict_correct: ", "predict_wrong: "] + df['WRONG'].unique())
     plt.scatter(X, Y2, s=20, marker='o', facecolors=df['WRONG2'], edgecolors=df['WRONG2'],
                 label=["predict_wrong: ", "predict_correct: "] + df['WRONG2'].unique())
-    plt.title('Scatter plot for model comparison on holdout test (d13/14)')
+    plt.title(plot_title)
     plt.ylabel('Prediction Probability')
     plt.xlabel('Image')
 

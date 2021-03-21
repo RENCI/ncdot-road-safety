@@ -12,19 +12,24 @@ parser.add_argument('--subplot', type=bool,
                     default=False,
                     help='whether to show subplot with limited X range or not')
 parser.add_argument('--model_predict_file', type=str,
-                    default='../server/metadata/model_predict_test.csv',
+                    default='../server/metadata/model_predict_test_random_weight_2.csv',
                     help='the active learning model prediction file')
+parser.add_argument('--plt_title', type=str,
+                    default='Scatter plot for updated round2 model prediction on holdout test',
+                    help='the plot title')
 parser.add_argument('--logplot', type=bool, default=False,
                     help='whether to show scatterplot of prediction probability vs log(1-prob+1e-5')
 parser.add_argument('--output_file', type=str,
                     default='../server/metadata/scatterplot_test.pdf',
                     help='output pdf file for the generated scatter plot')
+
 args = parser.parse_args()
 input_file = args.input_file
 subplot = args.subplot
 model_predict_file = args.model_predict_file
 logplot = args.logplot
 output_file = args.output_file
+plt_title = args.plt_title
 
 df_in = pd.read_csv(input_file, header=0, index_col=False, dtype={'Image': str, 'Presence': str},
                     usecols=['Image', 'Presence'])
@@ -71,7 +76,7 @@ else:
                 label=["guardrail_no: ", "guardrail_yes: "] + df['Presence'].unique())
     plt.scatter(X, Y, s=10, marker='o', facecolors=df['WRONG'], edgecolors='none',
                 label=['predict_correct:', 'predict_wrong: '] + df['WRONG'].unique() + [' fill', ' fill'])
-plt.title('Scatter plot for baseline model prediction on holdout test')
+plt.title(plt_title)
 plt.ylabel('Prediction Probability')
 plt.xlabel('Image')
 

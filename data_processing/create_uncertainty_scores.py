@@ -108,25 +108,25 @@ def get_sub_samples_by_distribution(df):
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file_d4', type=str,
-                    default='../server/metadata/predict_d4.csv',
+                    default='../server/metadata/model-related/secondary_road/round2/predict_d4.csv',
                     help='input prediction file for mapped images to create uncertainty scores for')
-parser.add_argument('--d4_db', type=float, default=0, help='decision boundary for division 4')
+parser.add_argument('--d4_db', type=float, default=0.01, help='decision boundary for division 4')
 parser.add_argument('--input_file_d8', type=str,
-                    default='../server/metadata/predict_d8.csv',
+                    default='../server/metadata/model-related/secondary_road/round2/predict_d8.csv',
                     help='input prediction file for mapped images to create uncertainty scores for')
 parser.add_argument('--d8_db', type=float, default=0, help='decision boundary for division 8')
 parser.add_argument('--input_file_d13', type=str,
-                    default='../server/metadata/predict_d13.csv',
+                    default='../server/metadata/model-related/secondary_road/round2/predict_d13.csv',
                     help='input prediction file for mapped images to create uncertainty scores for')
 parser.add_argument('--input_file_d14', type=str,
-                    default='../server/metadata/predict_d14.csv',
+                    default='../server/metadata/model-related/secondary_road/round2/predict_d14.csv',
                     help='input prediction file for mapped images to create uncertainty scores for')
-parser.add_argument('--d1314_db', type=float, default=1, help='decision boundary for division 13/14')
+parser.add_argument('--d1314_db', type=float, default=0.08, help='decision boundary for division 13/14')
 parser.add_argument('--remain_image_name_file', type=str,
                     default='../server/metadata/remain_image_base_names.csv',
                     help='input image base names remaining to create uncertainty scores for')
 parser.add_argument('--output_file', type=str,
-                    default='../server/metadata/image_uncertainty_scores_round1.csv',
+                    default='../server/metadata/image_uncertainty_scores_round2.csv',
                     help='output file for uncertainty scores of the mapped images to ingest into annotation tool db')
 
 
@@ -158,10 +158,10 @@ df_d8['DIVISION'] = 'd8'
 df_d13['DIVISION'] = 'd13'
 df_d14['DIVISION'] = 'd14'
 
-df_d4['SCORE'] = df_d4.apply(lambda row: compute_score(d4_db, row['ROUND_PREDICT']), axis=1)
-df_d8['SCORE'] = df_d8.apply(lambda row: compute_score(d8_db, row['ROUND_PREDICT']), axis=1)
-df_d13['SCORE'] = df_d13.apply(lambda row: compute_score(d1314_db, row['ROUND_PREDICT']), axis=1)
-df_d14['SCORE'] = df_d14.apply(lambda row: compute_score(d1314_db, row['ROUND_PREDICT']), axis=1)
+df_d4['SCORE'] = df_d4.apply(lambda row: compute_score(d4_db, row['ROUND_PREDICT'], 0.16), axis=1)
+df_d8['SCORE'] = df_d8.apply(lambda row: compute_score(d8_db, row['ROUND_PREDICT'], 0.16), axis=1)
+df_d13['SCORE'] = df_d13.apply(lambda row: compute_score(d1314_db, row['ROUND_PREDICT'], 0.2), axis=1)
+df_d14['SCORE'] = df_d14.apply(lambda row: compute_score(d1314_db, row['ROUND_PREDICT'], 0.2), axis=1)
 whole_df = pd.concat([df_d4, df_d8, df_d13, df_d14])
 print(whole_df.shape)
 print(whole_df.head())

@@ -6,16 +6,19 @@ from sklearn.metrics import roc_curve, roc_auc_score
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    default='../server/metadata/user_annotated_balanced_image_info_d4.csv',
+                    default='../server/metadata/user_annotated_balanced_image_info_d13_d14.csv',
                     help='input file with path to create roc curve from')
+parser.add_argument('--curve_title', type=str,
+                    default='ROC Curve (d13/14)',
+                    help='ROC curve title')
 parser.add_argument('--model_predict_file', type=str,
                     default='../server/metadata/model_predict_test_base.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--model_predict_file2', type=str,
-                    default='../server/metadata/model_predict_test.csv',
+                    default='../server/metadata/model_predict_test_random_weight.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--model_predict_file3', type=str,
-                    default='../server/metadata/model_predict_test_round2_round1_model.csv',
+                    default='../server/metadata/model_predict_test_random_weight_2.csv',
                     help='the active learning model prediction file')
 
 
@@ -24,6 +27,7 @@ input_file = args.input_file
 model_predict_file = args.model_predict_file
 model_predict_file2 = args.model_predict_file2
 model_predict_file3 = args.model_predict_file3
+curve_title = args.curve_title
 
 df_in = pd.read_csv(input_file, header=0, index_col=False, dtype={'Image': str, 'Presence': str},
                     usecols=['Image', 'Presence'])
@@ -60,7 +64,7 @@ fpr3, tpr3, thresholds3 = roc_curve(df['Presence'], df['ROUND_PREDICT3'], pos_la
 plt.plot(fpr, tpr, linewidth=2)
 plt.plot(fpr2, tpr2, linewidth=2)
 plt.plot(fpr3, tpr3, linewidth=2)
-plt.title('ROC Curve')
+plt.title(curve_title)
 plt.ylabel('True Positive Rate (Recall)')
 plt.xlabel('False Positive Rate')
 score = round(roc_auc_score(df['Presence'], df['ROUND_PREDICT']), 3)
