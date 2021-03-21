@@ -11,12 +11,16 @@ from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLRO
 from sklearn.metrics import classification_report, confusion_matrix
 from utils import setup_gpu_memory
 
+
 tf.compat.v1.random.set_random_seed(42)
 normalization_layer = tf.keras.layers.experimental.preprocessing.Rescaling(1./255)
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
 def get_call_backs_list():
+    """
+    return list of keras.callbacks.Callback instances that will be applied during training
+    """
     filepath = "weights-best.h5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True,
                                  mode='min', save_freq='epoch')
@@ -26,16 +30,21 @@ def get_call_backs_list():
 
 
 def get_train_val_data(bat_size):
+    """
+    Get normalized train and validation datasets
+    :param bat_size: batch size for loading dataset in batches
+    :return: normalized train dataset, size of train dataset, normalized validation dataset, size of validation dataset
+    """
     # All images will be rescaled by 1./255
-    # load and iterate training dataset in batches of 128
+    # load and iterate training dataset in batches
     train_ds = image_dataset_from_directory(
         train_dir,
         validation_split=None,
         subset=None,
         label_mode='binary',
         shuffle=True,
-        seed=123,
-        # Specify the classes explicitly
+        seed=42,
+        # specify the classes explicitly
         class_names=['no', 'yes'],
         image_size=(299, 299),
         batch_size=bat_size)
@@ -45,7 +54,7 @@ def get_train_val_data(bat_size):
         subset=None,
         label_mode='binary',
         shuffle=False,
-        # Specify the classes explicitly
+        # specify the classes explicitly
         class_names=['no', 'yes'],
         image_size=(299, 299),
         batch_size=bat_size)
@@ -57,6 +66,11 @@ def get_train_val_data(bat_size):
 
 
 def get_model(input_file):
+    """
+    Get the model for active learning with random weights for the top classification head layer
+    :param input_file: the model file to load model from
+    :return: the model instance
+    """
     feature_model = tf.keras.models.load_model(input_file)
     # print(feature_model.summary())
     feature_model.trainable = True
@@ -74,6 +88,7 @@ def get_model(input_file):
         bias_initializer(shape=old_biases.shape)])
     head_layer.trainable = True
 
+    # use a small learning rate 1e-5 given the active learning training dataset is relatively small
     feature_model.compile(optimizer=keras.optimizers.Adam(1e-5),
                           loss=keras.losses.BinaryCrossentropy(from_logits=True),
                           metrics=[keras.metrics.BinaryAccuracy()])
@@ -82,16 +97,22 @@ def get_model(input_file):
 
 
 def make_inference(feature_model, bat_size, threshold=0.5):
-    # load and iterate test dataset. Important to set shuffle to False. Otherwise, labels will not
-    # match when doing prediction on test set
-    # load and iterate test dataset in batches of 128
+    """
+    make model inference on test data and print confusion matrix and classification report
+    :param feature_model: the model used for making inference
+    :param bat_size: batch size for making inference
+    :param threshold: threshold used to separate binary classes, 0.5 by default
+    :return:
+    """
+    # load and iterate test dataset in batches. Important to set shuffle to False. Otherwise, labels will not
+    # match test set in returned predictions
     test_ds = image_dataset_from_directory(
         test_dir,
         validation_split=None,
         subset=None,
         label_mode='binary',
         shuffle=False,
-        # Specify the classes explicitly
+        # specify the classes explicitly
         class_names=['no', 'yes'],
         image_size=(299, 299),
         batch_size=bat_size)
@@ -102,10 +123,10 @@ def make_inference(feature_model, bat_size, threshold=0.5):
     te = time.time()
     print('time taken for model inference on test set:', te - ts)
     y_pred = [1 if y[0] >= threshold else 0 for y in predictions]
-    #labels = []
-    #for image_batch, labl_batch in test_ds:
-    #    for lbl in labl_batch:
-    #        labels.append(lbl.numpy()[0])
+    # labels = []
+    # for image_batch, labl_batch in test_ds:
+    #     for lbl in labl_batch:
+    #         labels.append(lbl.numpy()[0])
     labels = test_ds.labels
     print('Confusion Matrix')
     print(confusion_matrix(labels, y_pred))

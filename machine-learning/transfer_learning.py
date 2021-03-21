@@ -9,21 +9,30 @@ from sklearn.metrics import classification_report, confusion_matrix
 from utils import setup_gpu_memory
 
 
+# All images will be rescaled by 1./255
 datagen = ImageDataGenerator(rescale=1 / 255)
 
 
 def get_call_backs_list():
+    """
+    return list of keras.callbacks.Callback instances that will be applied during training
+    """
     tensorboard = TensorBoard(log_dir="logs/{}".format(time.time()))
     filepath = "weights-best.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True,
                                  mode='min', save_freq='epoch')
-    earlystop = EarlyStopping(monitor='binary_accuracy', patience=1)
+    earlystop = EarlyStopping(monitor='val_loss', mode='min', patience=2)
     reduce = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
     return [earlystop, reduce, checkpoint, tensorboard]
 
 
 def get_train_val_generator(bat_size, feat_name):
-    # All images will be rescaled by 1./255
+    """
+    Get train and validation data generators
+    :param bat_size: batch size
+    :param feat_name: feature name that is used in label/class directory
+    :return: train generator, validation generator
+    """
     # load and iterate training dataset in batches of 128 using datagen generator
     train_gen = datagen.flow_from_directory(
         train_dir,  # This is the source directory for training images
@@ -47,6 +56,16 @@ def get_train_val_generator(bat_size, feat_name):
 
 
 def initial_train(train_gen, callback_list, bat_size, val_gen):
+    """
+    Load Xception model trained on imagenet without the top classifier and add a new top classifier layer
+    to train our model; freeze convolutional base feature extraction layers and only train the added top
+    classification fully connected layer
+    :param train_gen: training data generator
+    :param callback_list: list of keras.callbacks.Callback instances to apply during training
+    :param bat_size: batch size for training
+    :param val_gen: validation data generator
+    :return: the model for further fine-tuning after the initial top classifier training
+    """
     initial_base_model = keras.applications.Xception(weights='imagenet', include_top=False)
     initial_base_model.trainable = False
 
@@ -67,7 +86,7 @@ def initial_train(train_gen, callback_list, bat_size, val_gen):
     feature_model = keras.Model(inputs, outputs)
     print(feature_model.summary())
 
-    feature_model.compile(optimizer=keras.optimizers.Adam(),
+    feature_model.compile(optimizer=keras.optimizers.Adam(), # used the default 0.001 as learning rate
                           loss=keras.losses.BinaryCrossentropy(from_logits=True),
                           metrics=[keras.metrics.BinaryAccuracy()])
     ts = time.time()
@@ -91,8 +110,16 @@ def initial_train(train_gen, callback_list, bat_size, val_gen):
 
 
 def make_inference(feature_model, bat_size, feat_name, threshold=0.5):
+    """
+    make model inference on test data and print confusion matrix and classification report
+    :param feature_model: the model used for making inference
+    :param bat_size: batch size for making inference
+    :param feat_name: feature name such as guardrail
+    :param threshold: threshold used to separate binary classes, 0.5 by default
+    :return:
+    """
     # load and iterate test dataset. Important to set shuffle to False. Otherwise, labels will not
-    # match when doing prediction on test set
+    # match test data in returned predictions
     test_gen = datagen.flow_from_directory(test_dir,
                                            target_size=(299, 299),
                                            class_mode='binary',
@@ -125,7 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=128,
                         help='batch size for training the model')
     parser.add_argument('--model_file', type=str,
-                        default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_subset.h5',
+                        default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_base.h5',
                         help='model file with path to be loaded as the base model for further training')
     parser.add_argument('--output_model_file', type=str,
                         default='/projects/ncdot/2018/machine_learning/model/guardrail_xception.h5',
@@ -166,7 +193,8 @@ if __name__ == '__main__':
 
             layers = [(layer, layer.name, layer.trainable) for layer in model.layers]
             print(layers)
-            model.compile(optimizer=keras.optimizers.Adam(1e-5),  # Very low learning rate
+            # fine tune the model with a very low learning rate 1e-5
+            model.compile(optimizer=keras.optimizers.Adam(1e-5),  # very low learning rate
                           loss=keras.losses.BinaryCrossentropy(from_logits=True),
                           metrics=[keras.metrics.BinaryAccuracy()])
 
