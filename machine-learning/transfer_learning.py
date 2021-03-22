@@ -22,7 +22,7 @@ def get_call_backs_list():
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True,
                                  mode='min', save_freq='epoch')
     earlystop = EarlyStopping(monitor='val_loss', mode='min', patience=2)
-    reduce = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
+    reduce = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=1)
     return [earlystop, reduce, checkpoint, tensorboard]
 
 
