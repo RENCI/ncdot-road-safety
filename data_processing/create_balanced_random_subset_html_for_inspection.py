@@ -2,7 +2,7 @@ import argparse
 import pandas as pd
 
 
-def create_html_file_for_inspection(input_df, output_file_name, two_models=True):
+def create_html_file_for_inspection(input_df, output_file_name, two_models=True, predict_only=False):
     html_str_head = """
     <!DOCTYPE html>
     <html lang="en">
@@ -23,26 +23,40 @@ def create_html_file_for_inspection(input_df, output_file_name, two_models=True)
         <img src='/get_image_by_name/{image_base_name}1.jpg' style="float:left;width:33.33%;"/>
         <img src='/get_image_by_name/{image_base_name}2.jpg' style="float:left;width:33.33%;"/>        
     </div>
-    <p>Image base name: {image_base_name}, 2 lane model prediction: {prob2}{WRONG} 
+    <p>Image base name: {image_base_name}, model prediction: {prob2} 
     """
+    if not predict_only:
+        img_str += '{WRONG}'
     if two_models:
-        img_str += ", updated model prediction: {prob}{WRONG2}</p>"
-    else:
-        img_str += "</p>"
+        img_str += ", updated model prediction: {prob}"
+        if not predict_only:
+            img_str += '{WRONG2}'
+    img_str += "</p>"
 
     img_str_list = []
     if two_models:
-        input_df.apply(lambda row: img_str_list.append(img_str.format(image_base_name=row['MAPPED_IMAGE'],
-                                                                      prob2=row['ROUND_PREDICT_2'],
-                                                                      WRONG="<b>WRONG</b>" if row['WRONG']==1 else '',
-                                                                      prob=row['ROUND_PREDICT'],
-                                                                      WRONG2="<b>WRONG</b>" if row['WRONG2']==1 else '')),
-                       axis=1)
+        if predict_only:
+            input_df.apply(lambda row: img_str_list.append(img_str.format(image_base_name=row['MAPPED_IMAGE'],
+                                                                          prob2=row['ROUND_PREDICT_2'],
+                                                                          prob=row['ROUND_PREDICT'])),
+                           axis=1)
+        else:
+            input_df.apply(lambda row: img_str_list.append(img_str.format(image_base_name=row['MAPPED_IMAGE'],
+                                                                          prob2=row['ROUND_PREDICT_2'],
+                                                                          WRONG="<b>WRONG</b>" if row['WRONG']==1 else '',
+                                                                          prob=row['ROUND_PREDICT'],
+                                                                          WRONG2="<b>WRONG</b>" if row['WRONG2']==1 else '')),
+                           axis=1)
     else:
-        input_df.apply(lambda row: img_str_list.append(img_str.format(image_base_name=row['MAPPED_IMAGE'],
-                                                                      prob2=row['ROUND_PREDICT_2'],
-                                                                      WRONG="<b>WRONG</b>" if row['WRONG']==1 else '')),
-                       axis=1)
+        if predict_only:
+            input_df.apply(lambda row: img_str_list.append(img_str.format(image_base_name=row['MAPPED_IMAGE'],
+                                                                          prob2=row['ROUND_PREDICT_2'])),
+                           axis=1)
+        else:
+            input_df.apply(lambda row: img_str_list.append(img_str.format(image_base_name=row['MAPPED_IMAGE'],
+                                                                          prob2=row['ROUND_PREDICT_2'],
+                                                                          WRONG="<b>WRONG</b>" if row['WRONG']==1 else '')),
+                           axis=1)
     html_img_str = '\n'.join(img_str_list)
     html_str = f"{html_str_head}\n{html_img_str}\n{html_str_tail}"
     with open(output_file_name, 'w') as file:

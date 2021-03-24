@@ -4,19 +4,19 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--label_file', type=str,
-                    default='../server/metadata/user_annotated_balanced_image_info_d13_d14.csv',
+                    default='../server/metadata/holdout_test/user_annotated_balanced_image_info_d4.csv',
                     help='labelled guardrail data obtained from guardrail survey data')
 parser.add_argument('--predict_label_file', type=str,
                     default='../server/metadata/model_predict_test_base.csv',
                     help='predicted guardrail lable data from first model')
 parser.add_argument('--predict_label_file2', type=str,
-                    default='../server/metadata/model_predict_test.csv',
+                    default='../server/metadata/model_predict_test_round1.csv',
                     help='predicted guardrail model lable data from second model')
 parser.add_argument('--predict_label_file3', type=str,
-                    default='../server/metadata/model_predict_test_round2_round1_model.csv',
+                    default='../server/metadata/model_predict_test_round2.csv',
                     help='predicted guardrail model lable data from second model')
 parser.add_argument('--output_file', type=str,
-                    default='../server/metadata/model_2lane_predict_d13_d14_with_manual_labels_3_models.csv',
+                    default='../server/metadata/model_2lane_predict_d4_with_manual_labels_3_models.csv',
                     help='output file with combined annotations and two model predictions')
 
 args = parser.parse_args()
