@@ -150,7 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_model_file', type=str,
                         default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round1/model/guardrail_round1.h5',
                         help='model file with path output by training')
-    parser.add_argument('--make_inference_only', action='store_false', default=False,
+    parser.add_argument('--make_inference_only', action='store_true', default=False,
                         help='if set, will make inference only')
 
     args = parser.parse_args()
