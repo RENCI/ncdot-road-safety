@@ -6,19 +6,19 @@ from sklearn.metrics import roc_curve, roc_auc_score
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    default='../server/metadata/user_annotated_balanced_image_info_d13_d14.csv',
+                    default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
                     help='input file with path to create roc curve from')
 parser.add_argument('--curve_title', type=str,
-                    default='ROC Curve (d13/14)',
+                    default='ROC Curve',
                     help='ROC curve title')
 parser.add_argument('--model_predict_file', type=str,
                     default='../server/metadata/model_predict_test_base.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--model_predict_file2', type=str,
-                    default='../server/metadata/model_predict_test_random_weight.csv',
+                    default='../server/metadata/model_predict_test_round1.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--model_predict_file3', type=str,
-                    default='../server/metadata/model_predict_test_random_weight_2.csv',
+                    default='../server/metadata/model_predict_test_round2.csv',
                     help='the active learning model prediction file')
 
 

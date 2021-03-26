@@ -8,10 +8,10 @@ from utils import split_to_train_valid_for_al, create_yes_no_sub_dirs
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round2/annot_data/user_annots.txt',
-                    help='input file with path for previous user annotated images to create image data for active learning')
+                    help='input file with path for current user annotated images to create image data for active learning')
 parser.add_argument('--prior_input_file', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round1/annot_data/user_annots.txt',
-                    help='input file with path for current user annotated images to create image data for active learning')
+                    help='input file with path for previous user annotated images to create image data for active learning')
 parser.add_argument('--all_annot_file', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round2/annot_data/all_user_annots.txt',
                     help='the combined user annotated file that contain all user annotated images so far')
@@ -73,7 +73,7 @@ exist_train_no_df['Presence'] = 'False'
 exist_train_no_df['Image'] = exist_train_no_df.Full_Path_Image.str.split('/').str[-1]
 exist_train_no_df = exist_train_no_df.set_index('Image')
 if prior_input_file:
-    # combine input_file and new_input_file to create output_annot_file which is used to prepare images
+    # combine prior_input_file and input_file to create output_annot_file which is used to prepare images
     df_prior = pd.read_csv(prior_input_file, header=0, index_col=False, dtype=str, usecols=['Image', 'Presence'])
     df_prior = df_prior.drop_duplicates(subset=['Image'])
     df_prior['Full_Path_Image'] = input_prefix_dir + df_prior.Image
@@ -81,7 +81,6 @@ if prior_input_file:
     df_all = pd.concat([df, df_prior])
     df_all.to_csv(all_annot_file)
     if cur_round_annot_only:
-        # concatenate prior user annotation data with existing training data
         exist_train_yes_df = pd.concat([exist_train_yes_df, df_prior[df_prior.Presence=='True']])
         exist_train_no_df = pd.concat([exist_train_no_df, df_prior[df_prior.Presence=='False']])
     else:
