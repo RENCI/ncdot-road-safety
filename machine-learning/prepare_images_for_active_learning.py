@@ -37,8 +37,8 @@ parser.add_argument('--exist_train_no_file', type=str,
                     help='existing train negative data to select to add to the AL')
 parser.add_argument('--exist_train_percent', type=float, default=0.06,
                     help='existing train percentage to add to the AL round annotation data for the larger class count')
-parser.add_argument('--cur_round_annot_only', type=bool, default=True,
-                    help='if true, only current round annotation is used while prior round annotations are treated as '
+parser.add_argument('--cur_round_annot_only', action='store_true', default=False,
+                    help='if set, only current round annotation is used while prior round annotations are treated as '
                          'existing training data; if false, all previous round annotations up to the current round are '
                          'used as training data')
 
