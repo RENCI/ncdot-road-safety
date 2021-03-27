@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
-                        default='../server/metadata/model_predict_test_round1.csv',
+                        default='../server/metadata/model_predict_test_round3.csv',
                         help='input file with path with model predictions')
 
     args = parser.parse_args()

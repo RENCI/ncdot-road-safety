@@ -7,10 +7,10 @@ from sklearn.metrics import average_precision_score
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--label_file', type=str,
-                    default='../server/metadata/user_annotated_balanced_image_info_d4.txt',
+                    default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
                     help='labelled guardrail data obtained from guardrail survey data')
 parser.add_argument('--predict_label_file', type=str,
-                    default='../server/metadata/model_predict_test_base.csv',
+                    default='../server/metadata/model_predict_test_round3.csv',
                     help='predicted guardrail lable data')
 
 args = parser.parse_args()

@@ -6,16 +6,16 @@ import math
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    default='../server/metadata/user_annotated_balanced_image_info.csv',
+                    default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
                     help='input file with path to create scatter plot from')
 parser.add_argument('--subplot', type=bool,
                     default=False,
                     help='whether to show subplot with limited X range or not')
 parser.add_argument('--model_predict_file', type=str,
-                    default='../server/metadata/model_predict_test_random_weight_2.csv',
+                    default='../server/metadata/model_predict_test_round3.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--plt_title', type=str,
-                    default='Scatter plot for updated round2 model prediction on holdout test',
+                    default='Scatter plot for round3 model prediction on balanced holdout test',
                     help='the plot title')
 parser.add_argument('--logplot', type=bool, default=False,
                     help='whether to show scatterplot of prediction probability vs log(1-prob+1e-5')

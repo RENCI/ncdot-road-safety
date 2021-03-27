@@ -6,19 +6,19 @@ import seaborn as sns
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    default='../server/metadata/user_annotated_balanced_image_info.csv',
+                    default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
                     help='input file with path to create scatter plot from')
 parser.add_argument('--model_predict_file', type=str,
-                    default='../server/metadata/model_predict_test_round1.csv',
+                    default='../server/metadata/model_predict_test_round2.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--plot_title', type=str,
-                    default='Round1 & round2 model prediction comparisons on holdout test',
+                    default='Round2 & round3 model prediction comparisons on holdout test',
                     help='plot title')
 parser.add_argument('--x_axis_label', type=str,
                     default='Initial model predict probability',
                     help='x axis label')
 parser.add_argument('--model_predict_file2', type=str,
-                    default='../server/metadata/model_predict_test_round2.csv',
+                    default='../server/metadata/model_predict_test_round3.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--y_axis_label', type=str,
                     default='AL round1 model predict probability',
