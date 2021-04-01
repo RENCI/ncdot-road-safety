@@ -163,12 +163,12 @@ df_d8['SCORE'] = df_d8.apply(lambda row: compute_score(d8_db, row['ROUND_PREDICT
 df_d13['SCORE'] = df_d13.apply(lambda row: compute_score(d1314_db, row['ROUND_PREDICT'], 0.2), axis=1)
 df_d14['SCORE'] = df_d14.apply(lambda row: compute_score(d1314_db, row['ROUND_PREDICT'], 0.2), axis=1)
 whole_df = pd.concat([df_d4, df_d8, df_d13, df_d14])
-print(whole_df.shape)
-print(whole_df.head())
 whole_df = whole_df.sort_values(by=['SCORE'])
 whole_size = len(whole_df)
+df_10k = whole_df.head(10000)
+print(whole_size, ', d4:', len(df_10k[df_10k.DIVISION=='d4']), ', d8:', len(df_10k[df_10k.DIVISION=='d8']),
+      ', d13:', len(df_10k[df_10k.DIVISION=='d13']), ', d14:', len(df_10k[df_10k.DIVISION=='d14']))
 # uncertainty reflects sorting by SCORE
 whole_df["UNCERTAINTY"] = whole_df.apply(lambda row: whole_size - whole_df.index.get_loc(row.name), axis=1)
-
 whole_df.to_csv(output_file)
 print('Done')
