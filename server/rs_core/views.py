@@ -12,6 +12,7 @@ from django.forms.models import inlineformset_factory
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
 from django.contrib import messages
 from django.conf import settings
@@ -137,6 +138,26 @@ def edit_user(request, pk):
     return render(request, 'accounts/account_update.html', {"profile_form": user_form,
                                                             "formset": formset
                                                             })
+
+
+@login_required
+def get_user_info(request, uid):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'you are not authenticated to get user info'}, status=status.HTTP_401_UNAUTHORIZED)
+    try:
+        user = User.objects.get(pk=uid)
+        up = user.user_profile
+    except ObjectDoesNotExist as ex:
+        return JsonResponse({'error': 'requested user does not exist'}, status=status.HTTP_404_NOT_FOUND)
+
+    user_info_dict = {'username': user.username,
+                      'firstname': user.first_name,
+                      'lastname': user.last_name,
+                      'email': up.email,
+                      'organization': up.organization,
+                      'years_of_service': up.years_of_service
+                      }
+    return JsonResponse(user_info_dict, status=status.HTTP_200_OK)
 
 
 @login_required

@@ -6,6 +6,7 @@ from rs_core import views
 urlpatterns = [
     path('login/', auth_views.LoginView.as_view(), name='login'),
     path('logout/', views.logout, name='logout'),
+    path('get_user_info/<uid>/', views.get_user_info, name='get_user_info'),
     path('password_reset/', views.RequestPasswordResetView.as_view(), name='password_reset'),
     path('password_reset/done/', auth_views.PasswordResetDoneView.as_view(), name='password_reset_done'),
     path('reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
