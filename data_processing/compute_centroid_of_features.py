@@ -9,7 +9,7 @@ def get_feature_dataframe_from_csv(input_csv_file, compute_centroid=False, image
                      converters={'FEATURES': ast.literal_eval})
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.slice(start=-15)
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.replace('.jpg', '')
-    if image_subset_col:
+    if image_subset_col is not None:
         df = df[df.MAPPED_IMAGE.isin(image_subset_col)]
     if compute_centroid:
         cent_vector = np.mean(df.FEATURES.tolist(), axis=0)
