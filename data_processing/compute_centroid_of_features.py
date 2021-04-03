@@ -10,32 +10,32 @@ div_feature_vector_files = ['/projects/ncdot/NC_2018_Secondary/image_features/d4
                             '/projects/ncdot/NC_2018_Secondary/image_features/d14_image_features.csv']
 
 
-def get_feature_dataframe_from_csv(input_csv_file, compute_centroid=False, image_subset_yes_col=None,
-                                   image_subset_no_col=None):
-    df = pd.read_csv(input_csv_file, header=0, index_col=False, usecols=['MAPPED_IMAGE', 'FEATURES'],
+def get_feature_dataframe_from_csv(input_csv_file, compute_centroid=False, image_subset_yes_df=None,
+                                   image_subset_no_df=None):
+    df = pd.read_csv(input_csv_file, header=0, index_col='MAPPED_IMAGE', usecols=['MAPPED_IMAGE', 'FEATURES'],
                      converters={'FEATURES': ast.literal_eval})
-    df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.slice(start=-15)
-    df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.replace('.jpg', '')
-    print(df.shape)
-    if image_subset_yes_col is not None:
-        df_yes = df[df.MAPPED_IMAGE.isin(image_subset_yes_col)]
-        print(df_yes.shape)
-    if image_subset_no_col is not None:
-        df_no = df[df.MAPPED_IMAGE.isin(image_subset_no_col)]
-        print(df_no.shape)
-    if image_subset_yes_col is None and image_subset_no_col is None:
+    df.index = df.index.str.slice(start=-15)
+    df.index = df.index.str.replace('.jpg', '')
+    print('total size of division:', df.shape, flush=True)
+    if image_subset_yes_df is not None:
+        df_yes = image_subset_yes_df.join(df)
+        print('positive size of division:', df_yes.shape, flush=True)
+    if image_subset_no_df is not None:
+        df_no = image_subset_no_df.join(df)
+        print('negative size of division:', df_no.shape, flush=True)
+    if image_subset_yes_df is None and image_subset_no_df is None:
         if compute_centroid:
             cent_vec = np.mean(df.FEATURES.tolist(), axis=0)
             return df, cent_vec
         else:
             return df
-    elif image_subset_yes_col is None: # image_subset_no_col is not None
+    elif image_subset_yes_df is None: # image_subset_no_col is not None
         if compute_centroid:
             cent_vec = np.mean(df_no.FEATURES.tolist(), axis=0)
             return df_no, cent_vec
         else:
             return df_no
-    elif image_subset_no_col is None: # image_subset_yes_col is not None
+    elif image_subset_no_df is None: # image_subset_yes_col is not None
         cent_vec = np.mean(df_yes.FEATURES.tolist(), axis=0)
         if compute_centroid:
             return df_yes, cent_vec
@@ -90,10 +90,10 @@ if __name__ == '__main__':
                                   converters={0: ast.literal_eval})
     centroid_no_df = pd.read_csv(centroid_no_input_file, header=None, index_col=False,
                                   converters={0: ast.literal_eval})
-    annot_df = pd.read_csv(annot_input_file, header=0, index_col=False, dtype=str, usecols=['Image', 'Presence'])
-    annot_df['DIVISION'] = annot_df.Image.str.split('/').str[0]
-    annot_df.Image = annot_df.Image.str.slice(start=-15)
-    annot_df.Image = annot_df.Image.str.replace('.jpg', '')
+    annot_df = pd.read_csv(annot_input_file, header=0, index_col='Image', dtype=str, usecols=['Image', 'Presence'])
+    annot_df['DIVISION'] = annot_df.index.str.split('/').str[0]
+    annot_df.index = annot_df.index.str.slice(start=-15)
+    annot_df.index = annot_df.index.str.replace('.jpg', '')
     annot_df_divs = [
         annot_df[annot_df.DIVISION == 'd04'],
         annot_df[annot_df.DIVISION == 'd08'],
@@ -111,8 +111,8 @@ if __name__ == '__main__':
     for i, div_file in enumerate(div_feature_vector_files):
         div_df_yes, div_df_no, centroid_vector_yes, centroid_vector_no = get_feature_dataframe_from_csv(
             div_file, compute_centroid=True,
-            image_subset_yes_col=annot_df_divs[i][annot_df_divs[i].Presence=='True'].Image,
-            image_subset_no_col=annot_df_divs[i][annot_df_divs[i].Presence == 'False'].Image
+            image_subset_yes_df=annot_df_divs[i][annot_df_divs[i].Presence == 'True'],
+            image_subset_no_df=annot_df_divs[i][annot_df_divs[i].Presence == 'False']
         )
         div_feature_vector_yes_centroids.append(np.asarray(centroid_vector_yes))
         div_feature_vector_no_centroids.append(np.asarray(centroid_vector_no))
