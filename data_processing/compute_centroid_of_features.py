@@ -91,7 +91,7 @@ if __name__ == '__main__':
     centroid_no_df = pd.read_csv(centroid_no_input_file, header=None, index_col=False,
                                   converters={0: ast.literal_eval})
     annot_df = pd.read_csv(annot_input_file, header=0, index_col=False, dtype=str, usecols=['Image', 'Presence'])
-    annot_df['DIVISION'] = annot_df.MAPPED_IMAGE.str.split('/').str[0]
+    annot_df['DIVISION'] = annot_df.Image.str.split('/').str[0]
     annot_df.Image = annot_df.Image.str.slice(start=-15)
     annot_df.Image = annot_df.Image.str.replace('.jpg', '')
     annot_df_divs = [
