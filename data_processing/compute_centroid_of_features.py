@@ -56,7 +56,7 @@ if __name__ == '__main__':
                         default='/projects/ncdot/2018/machine_learning/train_image_features_centroid_yes.csv',
                         help='existing training feature vector centroid positive input file')
     parser.add_argument('--centroid_no_input_file', type=str,
-                        default='/projects/ncdot/2018/machine_learning/train_image_features_centroid_no.txt',
+                        default='/projects/ncdot/2018/machine_learning/train_image_features_centroid_no.csv',
                         help='existing training feature vector centroid negative input file')
     parser.add_argument('--input_count_for_centroid_yes', type=int,
                         default=127103, help='number of positive instances used to compute centroid in '
