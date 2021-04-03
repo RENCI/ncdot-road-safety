@@ -25,7 +25,7 @@ if __name__ == '__main__':
                      converters={'FEATURES': ast.literal_eval})
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.replace('/projects/ncdot/2018/machine_learning/data_2lanes/train_features/',
                                                   '')
-    df.CLASS = df.MAPPED_IMAGE.str.split('/').str[0]
+    df['CLASS'] = df.MAPPED_IMAGE.str.split('/').str[0]
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.slice(start=-15)
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.replace('.jpg', '')
     df_yes = df[df.CLASS == 'yes']
