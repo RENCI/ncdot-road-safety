@@ -53,7 +53,7 @@ def get_feature_dataframe_from_csv(input_csv_file, compute_centroid=False, image
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--centroid_yes_input_file', type=str,
-                        default='/projects/ncdot/2018/machine_learning/train_image_features_centroid_yes.txt',
+                        default='/projects/ncdot/2018/machine_learning/train_image_features_centroid_yes.csv',
                         help='existing training feature vector centroid positive input file')
     parser.add_argument('--centroid_no_input_file', type=str,
                         default='/projects/ncdot/2018/machine_learning/train_image_features_centroid_no.txt',
