@@ -45,7 +45,7 @@ remain_image_df = pd.read_csv(remain_image_name_file, header=0, dtype=str, index
 df_list = []
 
 for div_file in div_feature_vector_files:
-    df, _ = get_feature_dataframe_from_csv(div_file)
+    df = get_feature_dataframe_from_csv(div_file)
     df_list.append(df)
 whole_df = pd.concat(df_list)
 print('before filtering: ', whole_df.shape)
