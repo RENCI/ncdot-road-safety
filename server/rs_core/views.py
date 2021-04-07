@@ -14,6 +14,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
+from django.db.models import Sum, Count
 from django.contrib import messages
 from django.conf import settings
 from django.contrib.messages import info
@@ -29,7 +30,8 @@ from django.contrib.gis.geos import Point
 from rest_framework import status
 
 from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
-from rs_core.models import UserProfile, RouteImage, AnnotationSet, AIImageAnnotation, UserImageAnnotation
+from rs_core.models import UserProfile, RouteImage, AnnotationSet, AIImageAnnotation, UserImageAnnotation, \
+    UserAnnotationSummary
 from rs_core.utils import get_image_base_names_by_annotation, get_image_annotations_queryset, \
     save_annot_data_to_db, save_annot_data_cache
 
@@ -158,6 +160,44 @@ def get_user_info(request, uid):
                       'years_of_service': up.years_of_service
                       }
     return JsonResponse(user_info_dict, status=status.HTTP_200_OK)
+
+
+@login_required
+def get_user_annot_info(request, uid):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'you are not authenticated to get user annotation info'},
+                            status=status.HTTP_401_UNAUTHORIZED)
+    try:
+        user = User.objects.get(pk=uid)
+        summary_annot_list = list(UserAnnotationSummary.objects.values_list('annotation__name', flat=True).distinct())
+        annot_total_dict = {}
+        if summary_annot_list:
+            for annot in summary_annot_list:
+                total_val = UserAnnotationSummary.objects.filter(user=user,
+                                                                 annotation__name=annot).aggregate(Sum('total'))
+                annot_total_dict[annot] = total_val['total__sum'] if total_val['total__sum'] is not None else 0
+        else:
+            annot_total_dict['guardrail'] = 0
+
+        annot_current_dict = {}
+        user_annot_list = list(UserImageAnnotation.objects.values_list('annotation__name', flat=True).distinct())
+        if user_annot_list:
+            for annot in user_annot_list:
+                total_current = UserImageAnnotation.objects.filter(user=user,
+                                                                   annotation__name=annot,
+                                                                   presence__isnull=False).aggregate(Count('image'))
+                annot_current_dict[annot] = total_current['image__count'] \
+                    if total_current['image__count'] is not None else 0
+        else:
+            annot_current_dict['guardrail'] = 0
+    except ObjectDoesNotExist as ex:
+        return JsonResponse({'error': 'requested user does not exist'}, status=status.HTTP_404_NOT_FOUND)
+
+    user_annot_info_dict = {'username': user.username,
+                      'total_annots_in_previous_rounds': annot_total_dict,
+                      'total_annots_in_current_round': annot_current_dict
+                      }
+    return JsonResponse(user_annot_info_dict, status=status.HTTP_200_OK)
 
 
 @login_required

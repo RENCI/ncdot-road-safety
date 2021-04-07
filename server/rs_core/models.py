@@ -82,3 +82,10 @@ class UserImageAnnotation(models.Model):
             models.Index(fields=['user', 'annotation', 'presence', 'image']),
         ]
         unique_together = ('user', 'image', 'annotation')
+
+
+class UserAnnotationSummary(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
+    round_number = models.PositiveSmallIntegerField()
+    total = models.PositiveIntegerField()
