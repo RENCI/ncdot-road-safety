@@ -10,7 +10,8 @@ from django.contrib.gis.db.models.functions import Distance
 from django.contrib.auth.models import User
 from django.db import transaction
 
-from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, AnnotationSet, AnnotationFlag
+from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, AnnotationSet, AnnotationFlag, \
+    UserAnnotationSummary
 
 
 def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', predict=None, feature_name='guardrail'):
@@ -173,6 +174,22 @@ def update_ai_image_annotation(image_base_name, annotation, presence, certainty)
     obj.presence = presence
     obj.certainty = certainty
     obj.save()
+
+
+def save_user_annot_summary_to_db(username, annot_name, round_no, total):
+    obj, created = UserAnnotationSummary.objects.get_or_create(
+        user=User.objects.get(username=username),
+        annotation=AnnotationSet.objects.get(name__iexact=annot_name),
+        round_number=round_no,
+        defaults={
+            'total': total
+        }
+    )
+
+    if not created:
+        # update user annotation
+        obj.total = total
+        obj.save()
 
 
 def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty):
