@@ -218,7 +218,6 @@ def save_guardrail_data_to_db_old(begin_long, begin_lat, end_long, end_lat, rout
 
     annot_obj = AnnotationSet.objects.get(name__iexact='guardrail')
 
-
     # get all images between start_image and end_image
     qs = RouteImage.objects.filter(image_base_name__gte=start_image, image_base_name__lte=end_image)
     # get total number of images being marked as guardrail
@@ -241,7 +240,6 @@ def save_guardrail_data_to_db_old(begin_long, begin_lat, end_long, end_lat, rout
                 # Make last image has the same certanty score at the first image to cover boundary conditions
                 index = intervals[4]
         interval_idx = bisect.bisect_left(intervals, index)
-        create_ai_image_annotation(q.image_base_name,
-                                    annot_obj, True, certainty_score_list[interval_idx])
+        create_ai_image_annotation(q.image_base_name, annot_obj, True, certainty_score_list[interval_idx])
         index += 1
     return
