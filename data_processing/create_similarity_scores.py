@@ -61,10 +61,6 @@ whole_df['SIMILARITY_NO'] = whole_df.apply(lambda row: get_cosine_similarity(np.
                                            axis=1)
 whole_df = whole_df.drop(columns=['FEATURES'])
 whole_df.to_csv(output_file, index=False)
-whole_df = whole_df.sort_values(by=['SIMILARITY_YES', 'SIMILARITY_NO'])
+whole_df = whole_df.sort_values(by=['SIMILARITY_YES'])
 whole_df.to_csv(output_file + '.sorted', index=False)
-whole_size = len(whole_df)
-# uncertainty reflects sorting by SCORE
-whole_df["UNCERTAINTY"] = whole_df.apply(lambda row: whole_size - whole_df.index.get_loc(row.name), axis=1)
-whole_df.to_csv(output_file + '.uncertainty', index=False)
 print('Done')
