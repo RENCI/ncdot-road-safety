@@ -40,7 +40,7 @@ output_file = args.output_file
 np.random.seed(1)
 centroid_yes_df = pd.read_csv(centroid_yes_input_file, header=None, index_col=False, converters={0: ast.literal_eval})
 centroid_no_df = pd.read_csv(centroid_no_input_file, header=None, index_col=False, converters={0: ast.literal_eval})
-remain_image_df = pd.read_csv(remain_image_name_file, header=0, index_col=['MAPPED_IMAGE'])
+remain_image_df = pd.read_csv(remain_image_name_file, header=0, dtype=str, index_col=['MAPPED_IMAGE'])
 
 df_list = []
 
