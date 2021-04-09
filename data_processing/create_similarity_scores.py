@@ -40,7 +40,7 @@ output_file = args.output_file
 np.random.seed(1)
 centroid_yes_df = pd.read_csv(centroid_yes_input_file, header=None, index_col=False, converters={0: ast.literal_eval})
 centroid_no_df = pd.read_csv(centroid_no_input_file, header=None, index_col=False, converters={0: ast.literal_eval})
-remain_image_df = pd.read_csv(remain_image_name_file, header=0, dtype=str, index_col=['MAPPED_IMAGE'], squeeze=True)
+remain_image_df = pd.read_csv(remain_image_name_file, header=0, index_col=False, dtype=str)
 
 df_list = []
 
@@ -49,7 +49,7 @@ for div_file in div_feature_vector_files:
     df_list.append(df)
 whole_df = pd.concat(df_list)
 print('before filtering: ', whole_df.shape)
-whole_df = whole_df[whole_df.MAPPED_IMAGE.isin(remain_image_df.MAPPED_IMAGE)]
+whole_df = whole_df[whole_df.index.isin(remain_image_df.MAPPED_IMAGE)]
 print('after filtering: ', whole_df.shape)
 centroid_yes_vec = np.asarray(centroid_yes_df[0][0])
 centroid_no_vec = np.asarray(centroid_no_df[0][0])
