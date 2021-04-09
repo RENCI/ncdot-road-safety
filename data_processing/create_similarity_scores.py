@@ -60,7 +60,7 @@ whole_df['SIMILARITY_NO'] = whole_df.apply(lambda row: get_cosine_similarity(np.
                                                                              centroid_no_vec),
                                            axis=1)
 whole_df = whole_df.drop(columns=['FEATURES'])
-whole_df.to_csv(output_file, index=False)
+whole_df.to_csv(output_file)
 whole_df = whole_df.sort_values(by=['SIMILARITY_YES'])
-whole_df.to_csv(output_file + '.sorted', index=False)
+whole_df.to_csv(output_file + '.sorted')
 print('Done')
