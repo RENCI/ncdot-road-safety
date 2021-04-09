@@ -15,9 +15,12 @@ def get_concat_similarity_pred_dataframe_from_csv(sim_csv, pred_d4_csv, pred_d8_
     df_d14['DIVISION'] = 'd14'
     concat_df = pd.concat([df_d4, df_d8, df_d13, df_d14])
     print(concat_df.shape)
-    sim_df = pd.read_csv(sim_csv, header=0, index_col='MAPPED_IMAGE', usecols=['MAPPED_IMAGE', 'SIMILARITY_YES',
-                                                                               'SIMILARITY_NO'])
-    sim_df = sim_df.join(concat_df)
+    sim_df = pd.read_csv(sim_csv, header=0, index_col=None,
+                         dtype={'MAPPED_IMAGE': str, 'SIMILARITY_YES': float, 'SIMILARITY_NO': float},
+                         usecols=['MAPPED_IMAGE', 'SIMILARITY_YES', 'SIMILARITY_NO'])
+    sim_df.MAPPED_IMAGE = sim_df.MAPPED_IMAGE.str.strip()
+    sim_df = sim_df.set_index('MAPPED_IMAGE')
+    sim_df = pd.concat([sim_df, concat_df], axis=1)
     sim_df['MIN_SIMILARITY'] = sim_df[['SIMILARITY_YES', 'SIMILARITY_NO']].min(axis=1)
     return sim_df
 
@@ -45,6 +48,9 @@ if __name__ == '__main__':
     parser.add_argument('--dissimilar_image_count', type=int,
                         default=10000,
                         help='number of images most dissimilar to both positive and negative class centroids to select')
+    parser.add_argument('--uncertainty_group_size', type=int,
+                        default=500,
+                        help='number of images in one uncertainty group for efficient query in annotation tool')
     parser.add_argument('--output_file', type=str,
                         default='../server/metadata/model-related/secondary_road/round3/image_uncertainty_scores.csv',
                         help='output file that contains uncertainty scores')
@@ -57,22 +63,23 @@ if __name__ == '__main__':
     input_file_d14 = args.input_file_d14
     positive_image_count = args.positive_image_count
     dissimilar_image_count = args.dissimilar_image_count
+    uncertainty_group_size = args.uncertainty_group_size
     output_file = args.output_file
 
     # whole_df is sorted by SIMILARITY_YES
     whole_df = get_concat_similarity_pred_dataframe_from_csv(similarity_input_file, input_file_d4, input_file_d8,
                                                              input_file_d13, input_file_d14)
     print(whole_df.shape)
-    # analyze the last 10K images that are most similar to the positive class centroid and the top 10K images
-    # that are most dissimilar to both centroids
-    # sort in descending order with most similar image (largest SIMILARITY_YES score) on top
-    sim_yes_sub_df = whole_df.tail(positive_image_count)[::-1]
-    plt.hist(sim_yes_sub_df['ROUND_PREDICT'], bins=10)
-    plt.show()
+    # analyze the first 10K images, sorted in descending order with most similar image (largest SIMILARITY_YES score
+    # on top, that are most similar to the positive class centroid and the top 10K images that are most dissimilar
+    # to both centroids
+    sim_yes_sub_df = whole_df.head(positive_image_count)
+    #plt.hist(sim_yes_sub_df['ROUND_PREDICT'], bins=10)
+    #plt.show()
     # sort in ascending order withmost dissimilar image (smallest similarity score) on top
     dissimilar_sub_df = whole_df.sort_values(by=['MIN_SIMILARITY']).head(dissimilar_image_count)
-    plt.hist(dissimilar_sub_df['ROUND_PREDICT'], bins=10)
-    plt.show()
+    #plt.hist(dissimilar_sub_df['ROUND_PREDICT'], bins=10)
+    #plt.show()
     partition = 4
     sub_df_list = []
     sim_len = (int)(positive_image_count / partition)
@@ -81,10 +88,16 @@ if __name__ == '__main__':
         sub_df_list.append(sim_yes_sub_df[idx*sim_len:idx*sim_len+sim_len])
         sub_df_list.append(dissimilar_sub_df[idx * dissimilar_len:idx*dissimilar_len+dissimilar_len])
     sub_df = pd.concat(sub_df_list)
+    print('sub_df before removing duplicates', len(sub_df))
+    sub_df.drop_duplicates(inplace=True)
+    print('sub_df after removing duplicates', len(sub_df))
     sub_size = len(sub_df)
     print(sub_size, ', d4:', len(sub_df[sub_df.DIVISION == 'd4']), ', d8:', len(sub_df[sub_df.DIVISION == 'd8']),
           ', d13:', len(sub_df[sub_df.DIVISION == 'd13']), ', d14:', len(sub_df[sub_df.DIVISION == 'd14']))
     # uncertainty reflects sorting by SCORE
     sub_df["UNCERTAINTY"] = sub_df.apply(lambda row: sub_size - sub_df.index.get_loc(row.name), axis=1)
-    sub_df.to_csv(output_file)
+    sub_df["UNCERTAINTY_GROUP"] = sub_df.apply(lambda row: (int)(sub_df.index.get_loc(row.name)/uncertainty_group_size),
+                                               axis=1)
+    sub_df = sub_df.reset_index()
+    sub_df.to_csv(output_file, index=False)
     print('Done')

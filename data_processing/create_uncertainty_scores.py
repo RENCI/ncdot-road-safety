@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 def get_pred_dataframe_from_csv(input_csv_file, filter_image_df=None):
     df = pd.read_csv(input_csv_file, header=0, index_col=False, usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'],
                      dtype={'MAPPED_IMAGE': str, 'ROUND_PREDICT': float})
+    df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.strip()
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.slice(start=-15)
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.replace('.jpg', '')
     if filter_image_df is not None:
