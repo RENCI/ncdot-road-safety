@@ -27,7 +27,8 @@ class Command(BaseCommand):
         input_file = options['input_file']
         annot_name = options['annot_name']
         df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=["MAPPED_IMAGE",
-                                                                                    "UNCERTAINTY"])
+                                                                                    "UNCERTAINTY",
+                                                                                    "UNCERTAINTY_GROUP"])
         count = RouteImage.objects.count()
         df_len = len(df)
         print(count, df_len, settings.USE_IRODS)
@@ -36,8 +37,10 @@ class Command(BaseCommand):
             for obj in AIImageAnnotation.objects.all():
                 # make uncertainty_measure integer in descending order
                 obj.uncertainty_measure = (0.5 - abs(obj.certainty - 0.5)) * 100
+                obj.uncertainty_group = 0
                 obj.save()
         else:
-            df.apply(lambda row: save_uncertainty_measure_to_db(row['MAPPED_IMAGE'], annot_name, row['UNCERTAINTY']),
+            df.apply(lambda row: save_uncertainty_measure_to_db(row['MAPPED_IMAGE'], annot_name, row['UNCERTAINTY'],
+                                                                uncertainty_group=row['UNCERTAINTY_GROUP']),
                      axis=1)
         print('Done')

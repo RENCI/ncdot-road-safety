@@ -192,13 +192,14 @@ def save_user_annot_summary_to_db(username, annot_name, round_no, total):
         obj.save()
 
 
-def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty):
+def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty, uncertainty_group=0):
     try:
         image = RouteImage.objects.get(image_base_name=image_base_name)
     except RouteImage.DoesNotExist:
         return
     obj = AIImageAnnotation.objects.get(image=image, annotation=annotation)
     obj.uncertainty_measure = uncertainty
+    obj.uncertainty_group = uncertainty_group
     obj.save()
 
 
