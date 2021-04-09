@@ -15,7 +15,6 @@ from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, A
 
 
 def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', predict=None, feature_name='guardrail'):
-
     route_image, created = RouteImage.objects.get_or_create(
         route_id=str(route_id),
         image_base_name=str(image),

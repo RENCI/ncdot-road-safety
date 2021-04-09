@@ -40,6 +40,7 @@ class Command(BaseCommand):
                 obj.uncertainty_group = 0
                 obj.save()
         else:
+            AIImageAnnotation.objects.all().update(uncertainty_measure=None, uncertainty_group=None)
             df.apply(lambda row: save_uncertainty_measure_to_db(row['MAPPED_IMAGE'], annot_name, row['UNCERTAINTY'],
                                                                 uncertainty_group=row['UNCERTAINTY_GROUP']),
                      axis=1)

@@ -43,11 +43,16 @@ if __name__ == '__main__':
                         default='../server/metadata/model-related/secondary_road/round3/predict_d14.csv',
                         help='input prediction file for mapped images')
     parser.add_argument('--positive_image_count', type=int,
-                        default=10000,
+                        default=20000,
                         help='number of images most similar to the positive class centroid to select')
     parser.add_argument('--dissimilar_image_count', type=int,
-                        default=10000,
+                        default=20000,
                         help='number of images most dissimilar to both positive and negative class centroids to select')
+    parser.add_argument('--partition', type=int,
+                        default=8,
+                        help='partitions to use for splitting positive_image_count and dissimilar_image_count to '
+                             'create mixed samples between the two. For example, with default values, 2500 samples '
+                             'are selected from each in alternation between 2 sets')
     parser.add_argument('--uncertainty_group_size', type=int,
                         default=500,
                         help='number of images in one uncertainty group for efficient query in annotation tool')
@@ -63,6 +68,7 @@ if __name__ == '__main__':
     input_file_d14 = args.input_file_d14
     positive_image_count = args.positive_image_count
     dissimilar_image_count = args.dissimilar_image_count
+    partition = args.partition
     uncertainty_group_size = args.uncertainty_group_size
     output_file = args.output_file
 
@@ -74,13 +80,12 @@ if __name__ == '__main__':
     # on top, that are most similar to the positive class centroid and the top 10K images that are most dissimilar
     # to both centroids
     sim_yes_sub_df = whole_df.head(positive_image_count)
-    #plt.hist(sim_yes_sub_df['ROUND_PREDICT'], bins=10)
-    #plt.show()
-    # sort in ascending order withmost dissimilar image (smallest similarity score) on top
+    plt.hist(sim_yes_sub_df['ROUND_PREDICT'], bins=10)
+    plt.show()
+    # sort in ascending order with most dissimilar image (smallest similarity score) on top
     dissimilar_sub_df = whole_df.sort_values(by=['MIN_SIMILARITY']).head(dissimilar_image_count)
-    #plt.hist(dissimilar_sub_df['ROUND_PREDICT'], bins=10)
-    #plt.show()
-    partition = 4
+    plt.hist(dissimilar_sub_df['ROUND_PREDICT'], bins=10)
+    plt.show()
     sub_df_list = []
     sim_len = (int)(positive_image_count / partition)
     dissimilar_len = (int)(dissimilar_image_count / partition)
