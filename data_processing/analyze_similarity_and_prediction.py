@@ -7,7 +7,9 @@ import matplotlib.pyplot as plt
 from utils import SECOND_ROAD_PREFIX_PATH, div_path_dict, get_image_path
 
 
-def check_trash_image(image_name_with_path, threshold=70):
+def check_trash_image(image_name_with_path, sim_yes, sim_no, threshold=70):
+    if sim_yes > 0.2 or sim_no > 0.2:
+        return 'no'
     img = Image.open(image_name_with_path).convert('L')
     extrema = img.getextrema()
     if extrema[0] < threshold and extrema[1] < threshold:
@@ -42,7 +44,8 @@ def filter_out_trash_images(df):
     df['IS_TRASH_IMAGE'] = df.apply(
         lambda row: check_trash_image(
             get_image_path('{}.jpg'.format(row.name),
-                           prefix_path=os.path.join(SECOND_ROAD_PREFIX_PATH, div_path_dict[row['DIVISION']]))), axis=1)
+                           prefix_path=os.path.join(SECOND_ROAD_PREFIX_PATH, div_path_dict[row['DIVISION']])),
+        row['SIMILARITY_YES'], row['SIMILARITY_NO']), axis=1)
     df = df[df['IS_TRASH_IMAGE'] == 'no']
     print('after filtering out trash images:', df.shape)
     return df
@@ -51,19 +54,19 @@ def filter_out_trash_images(df):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--similarity_input_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_similarity_scores.csv',
+                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/image_similarity_scores.csv',
                         help='input file to get image similarity scores')
     parser.add_argument('--input_file_d4', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/predict_d4.csv',
+                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/predict/predict_d4.csv',
                         help='input prediction file for mapped images')
     parser.add_argument('--input_file_d8', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/predict_d8.csv',
+                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/predict/predict_d8.csv',
                         help='input prediction file for mapped images')
     parser.add_argument('--input_file_d13', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/predict_d13.csv',
+                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/predict/predict_d13.csv',
                         help='input prediction file for mapped images')
     parser.add_argument('--input_file_d14', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/predict_d14.csv',
+                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/predict/predict_d14.csv',
                         help='input prediction file for mapped images')
     parser.add_argument('--positive_image_count', type=int,
                         default=20000,
@@ -80,16 +83,16 @@ if __name__ == '__main__':
                         default=500,
                         help='number of images in one uncertainty group for efficient query in annotation tool')
     parser.add_argument('--sim_yes_output_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_sim_yes_20k.csv',
+                        default='../server/metadata/round3/image_sim_yes_20k.csv',
                         help='output file that contains 20k most similar images to positive class centroid')
     parser.add_argument('--dissim_similarity_threshold', type=float, default=0.5,
                         help='threshold used when sampling dissimilar images')
     parser.add_argument('--dissim_output_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_dissim_20k.csv',
+                        default='../server/metadata/round3/image_dissim_20k.csv',
                         help='output file that contains 20k most dissimilar images to both centroid with similarity '
                              'less than the threshold set by dissim_similarity_threshold argument')
     parser.add_argument('--output_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_uncertainty_scores.csv',
+                        default='../server/metadata/round3/image_uncertainty_scores.csv',
                         help='output file that contains uncertainty scores')
 
     args = parser.parse_args()
