@@ -1,51 +1,7 @@
-import os
 import pandas as pd
-from PIL import Image
 import argparse
-from create_uncertainty_scores import get_pred_dataframe_from_csv
 import matplotlib.pyplot as plt
-from utils import SECOND_ROAD_PREFIX_PATH, div_path_dict, get_image_path
-
-
-def check_trash_image(image_name_with_path, threshold=70):
-    img = Image.open(image_name_with_path).convert('L')
-    extrema = img.getextrema()
-    if extrema[0] < threshold and extrema[1] < threshold:
-        return 'yes'
-    else:
-        return 'no'
-
-
-def get_concat_similarity_pred_dataframe_from_csv(sim_csv, pred_d4_csv, pred_d8_csv, pred_d13_csv, pred_d14_csv):
-    df_d4 = get_pred_dataframe_from_csv(pred_d4_csv)
-    df_d8 = get_pred_dataframe_from_csv(pred_d8_csv)
-    df_d13 = get_pred_dataframe_from_csv(pred_d13_csv)
-    df_d14 = get_pred_dataframe_from_csv(pred_d14_csv)
-    df_d4['DIVISION'] = 'd4'
-    df_d8['DIVISION'] = 'd8'
-    df_d13['DIVISION'] = 'd13'
-    df_d14['DIVISION'] = 'd14'
-    concat_df = pd.concat([df_d4, df_d8, df_d13, df_d14])
-    print(concat_df.shape)
-    sim_df = pd.read_csv(sim_csv, header=0, index_col=None,
-                         dtype={'MAPPED_IMAGE': str, 'SIMILARITY_YES': float, 'SIMILARITY_NO': float},
-                         usecols=['MAPPED_IMAGE', 'SIMILARITY_YES', 'SIMILARITY_NO'])
-    sim_df.MAPPED_IMAGE = sim_df.MAPPED_IMAGE.str.strip()
-    sim_df = sim_df.set_index('MAPPED_IMAGE')
-    sim_df = pd.concat([sim_df, concat_df], axis=1)
-    sim_df['MIN_SIMILARITY'] = sim_df[['SIMILARITY_YES', 'SIMILARITY_NO']].min(axis=1)
-    sim_df['MAX_SIMILARITY'] = sim_df[['SIMILARITY_YES', 'SIMILARITY_NO']].max(axis=1)
-    return sim_df
-
-
-def filter_out_trash_images(df):
-    df['IS_TRASH_IMAGE'] = df.apply(
-        lambda row: check_trash_image(
-            get_image_path('{}.jpg'.format(row.name),
-                           prefix_path=os.path.join(SECOND_ROAD_PREFIX_PATH, div_path_dict[row['DIVISION']]))), axis=1)
-    df = df[df['IS_TRASH_IMAGE'] == 'no']
-    print('after filtering out trash images:', df.shape)
-    return df
+from analyze_similarity_and_prediction import get_concat_similarity_pred_dataframe_from_csv, filter_out_trash_images
 
 
 if __name__ == '__main__':
@@ -82,14 +38,12 @@ if __name__ == '__main__':
     parser.add_argument('--sim_yes_output_file', type=str,
                         default='../server/metadata/model-related/secondary_road/round3/image_sim_yes_20k.csv',
                         help='output file that contains 20k most similar images to positive class centroid')
-    parser.add_argument('--dissim_similarity_threshold', type=float, default=0.5,
-                        help='threshold used when sampling dissimilar images')
     parser.add_argument('--dissim_output_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_dissim_20k.csv',
+                        default='../server/metadata/model-related/secondary_road/round3/image_dissim_20k_2.csv',
                         help='output file that contains 20k most dissimilar images to both centroid with similarity '
                              'less than the threshold set by dissim_similarity_threshold argument')
     parser.add_argument('--output_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_uncertainty_scores.csv',
+                        default='../server/metadata/model-related/secondary_road/round3/image_uncertainty_scores_2.csv',
                         help='output file that contains uncertainty scores')
 
     args = parser.parse_args()
@@ -100,7 +54,6 @@ if __name__ == '__main__':
     input_file_d14 = args.input_file_d14
     positive_image_count = args.positive_image_count
     dissimilar_image_count = args.dissimilar_image_count
-    dissim_similarity_threshold = args.dissim_similarity_threshold
     partition = args.partition
     uncertainty_group_size = args.uncertainty_group_size
     output_file = args.output_file
@@ -111,17 +64,16 @@ if __name__ == '__main__':
     whole_df = get_concat_similarity_pred_dataframe_from_csv(similarity_input_file, input_file_d4, input_file_d8,
                                                              input_file_d13, input_file_d14)
     print(whole_df.shape)
+
     # analyze the first 10K images, sorted in descending order with most similar image (largest SIMILARITY_YES score
     # on top, that are most similar to the positive class centroid and the top 10K images that are most dissimilar
     # to both centroids
     sim_yes_sub_df = whole_df.head(positive_image_count)
     #plt.hist(sim_yes_sub_df['ROUND_PREDICT'], bins=10)
     #plt.show()
-    sim_yes_sub_df.to_csv(sim_yes_output_file)
+    # sim_yes_sub_df.to_csv(sim_yes_output_file)
     # sort in ascending order with most dissimilar image (smallest similarity score) on top
-    dissimilar_sub_df = whole_df[(whole_df['SIMILARITY_YES']<dissim_similarity_threshold) &
-                               (whole_df['SIMILARITY_NO']<dissim_similarity_threshold)]
-    dissimilar_sub_df = dissimilar_sub_df.sort_values(by=['MIN_SIMILARITY']).head(dissimilar_image_count)
+    dissimilar_sub_df = whole_df.sort_values(by=['MAX_SIMILARITY']).head(dissimilar_image_count)
     dissimilar_sub_df = filter_out_trash_images(dissimilar_sub_df)
     # plt.hist(dissimilar_sub_df['ROUND_PREDICT'], bins=10)
     # plt.show()

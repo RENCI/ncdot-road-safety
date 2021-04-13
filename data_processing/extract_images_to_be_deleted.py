@@ -1,23 +1,5 @@
-import os
 import pandas as pd
-
-
-def get_image_path(image_name):
-    set_str = image_name[:3]
-    hour = image_name[3:5]
-    minute = image_name[5:7]
-    if hour not in ['00', '01', '02']:
-        print(f"{image_name}: hour in the image base name must be 00 or 01 or 02")
-        return image_name
-    if int(minute) > 59:
-        print(f"{image_name}: minute in the image base name must be less than 60")
-        return image_name
-    if hour == '00':
-        # strip prefix 0 from minute if any
-        minute_str = str(int(minute))
-    else:  # hour == '01'
-        minute_str = str(int(minute) + int(hour)*60)
-    return os.path.join(set_str, minute_str, image_name)
+from utils import get_image_path
 
 
 image_base_name_file = '../server/metadata/image_base_names.txt'
