@@ -88,6 +88,6 @@ class UserAnnotationSummary(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
     round_number = models.PositiveSmallIntegerField()
-    presence = models.BooleanField(default=False)
+    presence = models.BooleanField(default=False, db_index=True)
     total = models.IntegerField(default=0)
 

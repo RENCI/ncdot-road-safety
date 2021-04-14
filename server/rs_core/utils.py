@@ -180,16 +180,15 @@ def save_user_annot_summary_to_db(username, presence, annot_name, round_no, tota
         user=User.objects.get(username=username),
         annotation=AnnotationSet.objects.get(name__iexact=annot_name),
         round_number=round_no,
+        presence=presence,
         defaults={
-            'total': total,
-            'presence': presence
+            'total': total
         }
     )
 
     if not created:
         # update user annotation
         obj.total = total
-        obj.presence = presence
         obj.save()
 
 
