@@ -26,9 +26,10 @@ class Command(BaseCommand):
         input_file = options['input_file']
         annot_name = options['annot_name']
         round_no = options['round_number']
-        df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=["Image", "Username"])
+        df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=["Image", "Username", "Presence"])
         df.drop_duplicates(subset=['Image'], keep='first', inplace=True)
         print(df.shape)
-        df_group = df.groupby('Username').agg('count')
-        df_group.apply(lambda row: save_user_annot_summary_to_db(row.name, annot_name, round_no, row.Image), axis=1)
+        df_group = df.groupby(['Username', 'Presence']).agg('count')
+        df_group.apply(lambda row: save_user_annot_summary_to_db(row.name[0], row.name[1], annot_name, round_no,
+                                                                 row.Image), axis=1)
         print('Done')

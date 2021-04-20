@@ -6,24 +6,25 @@ import seaborn as sns
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
+                    # default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
                     default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
                     help='input file with path to create scatter plot from')
 parser.add_argument('--model_predict_file', type=str,
-                    default='../server/metadata/model_predict_test_round2.csv',
+                    default='../server/metadata/model_predict_test_base.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--plot_title', type=str,
-                    default='Round2 & round3 model prediction comparisons on holdout test',
+                    default='Baseline & round1 model prediction comparisons on holdout test',
                     help='plot title')
 parser.add_argument('--x_axis_label', type=str,
-                    default='Initial model predict probability',
+                    default='Baseline model predict probability',
                     help='x axis label')
 parser.add_argument('--model_predict_file2', type=str,
-                    default='../server/metadata/model_predict_test_round3.csv',
+                    default='../server/metadata/model_predict_test_round1.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--y_axis_label', type=str,
-                    default='AL round1 model predict probability',
+                    default='Round1 model predict probability',
                     help='y axis label')
-parser.add_argument('--probability_plot', type=bool, default=False,
+parser.add_argument('--probability_plot', type=bool, default=True,
                     help='If true, draw probability vs probability plot between two models for comparison; otherwise, '
                          'draw probability vs images plot for model comparison')
 parser.add_argument('--probability_plot_all', type=bool, default=False,
@@ -77,24 +78,24 @@ if probability_plot:
                            jitter=0.3, linewidth=1, hue='Presence', palette={"True": "blue",
                                                                              "False": "red"})
     else:
-        # df['WRONG'] indicates those rows where the baseline model1 predicts wrongly but updated model2 predicts correctly
         df['Different_Predictions'] = df.apply(lambda row: 'FPs to TNs'
-        if ((row[x_axis_label] >= 0.5 and row[y_axis_label] < 0.5
-        and row['Presence'] == 'False') or (row[x_axis_label] < 0.5 and
-                                            row[y_axis_label] >= 0.5 and
-                                            row['Presence'] == 'True'))
-        else 'TPs to FNs' if ((row[y_axis_label] >= 0.5 and
-                                             row[x_axis_label] < 0.5 and row['Presence'] == 'False') or
-        (row[y_axis_label] < 0.5 and row[x_axis_label] >= 0.5 and row['Presence'] == 'True'))
+        if (row[x_axis_label] >= 0.5 and row[y_axis_label] < 0.5 and row['Presence'] == 'False')
+        else 'FNs to TPs' if (row[x_axis_label] < 0.5 and row[y_axis_label] >= 0.5 and row['Presence'] == 'True')
+        else 'TNs to FPs' if (row[x_axis_label] < 0.5 and row[y_axis_label] >= 0.5 and row['Presence'] == 'False')
+        else 'TPs to FNs' if (row[x_axis_label] >= 0.5 and row[y_axis_label] < 0.5 and row['Presence'] == 'True')
         else 'none', axis=1)
-        print('Number of wrong predictions of base model: ', len(df[df['Different_Predictions'] ==
-                                                                    'FPs to TNs']))
-        print('Number of wrong predictions of updated model: ', len(df[df['Different_Predictions'] ==
-                                                                       'TPs to FNs']))
+        print('Number of wrong predictions of previous model: ',
+              len(df[(df['Different_Predictions'] == 'FPs to TNs') | (df['Different_Predictions'] == 'FNs to TPs')]))
+        print('Number of wrong predictions of updated model: ',
+              len(df[(df['Different_Predictions'] =='TNs to FPs') | (df['Different_Predictions'] == 'TPs to FNs')]))
         print(df[df['Different_Predictions'] != 'none'][y_axis_label])
         ax = sns.stripplot(x=x_axis_label, y=y_axis_label, data=df[df['Different_Predictions'] != 'none'],
-                           jitter=0.3, linewidth=1, hue='Different_Predictions', palette={"FPs to TNs": "blue",
-                                                                                           "TPs to FNs": "red"})
+                           jitter=0.3, linewidth=1, hue='Different_Predictions',
+                           palette={"FPs to TNs": "blue",
+                                    "FNs to TPs": 'blue',
+                                    "TNs to FPs": "red",
+                                    "TPs to FNs": "red"})
+        ax.set_title(plot_title)
 else:
     # df['WRONG'] indicates those rows where the baseline model1 predicts wrongly but updated model2 predicts correctly
     df['WRONG'] = df.apply(lambda row: 'Blue' if ((row[x_axis_label] >= 0.5 and row[y_axis_label] < 0.5
@@ -108,8 +109,8 @@ else:
                                                    (row[y_axis_label] < 0.5 and row[x_axis_label] >= 0.5 and
                                                     row['Presence'] == 'True')) else 'none',
                             axis=1)
-    print('Number of wrong predictions of base model: ', len(df[df['WRONG'] == 'Red']))
-    print('Number of wrong predictions of updated model: ', len(df[df['WRONG2'] == 'Blue']))
+    print('Number of wrong predictions of base model: ', len(df[df['WRONG'] == 'Blue']))
+    print('Number of wrong predictions of updated model: ', len(df[df['WRONG2'] == 'Red']))
     plt.scatter(X, Y1, s=20, marker='o', facecolors=df['WRONG'], edgecolors=df['WRONG'],
                 label=["predict_correct: ", "predict_wrong: "] + df['WRONG'].unique())
     plt.scatter(X, Y2, s=20, marker='o', facecolors=df['WRONG2'], edgecolors=df['WRONG2'],

@@ -175,11 +175,12 @@ def update_ai_image_annotation(image_base_name, annotation, presence, certainty)
     obj.save()
 
 
-def save_user_annot_summary_to_db(username, annot_name, round_no, total):
+def save_user_annot_summary_to_db(username, presence, annot_name, round_no, total):
     obj, created = UserAnnotationSummary.objects.get_or_create(
         user=User.objects.get(username=username),
         annotation=AnnotationSet.objects.get(name__iexact=annot_name),
         round_number=round_no,
+        presence=presence,
         defaults={
             'total': total
         }

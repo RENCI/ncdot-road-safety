@@ -173,23 +173,37 @@ def get_user_annot_info(request, uid):
         annot_total_dict = {}
         if summary_annot_list:
             for annot in summary_annot_list:
-                total_val = UserAnnotationSummary.objects.filter(user=user,
-                                                                 annotation__name=annot).aggregate(Sum('total'))
-                annot_total_dict[annot] = total_val['total__sum'] if total_val['total__sum'] is not None else 0
+                total_pos_val = UserAnnotationSummary.objects.filter(user=user,
+                                                                     annotation__name=annot,
+                                                                     presence=True).aggregate(Sum('total'))
+                total_neg_val = UserAnnotationSummary.objects.filter(user=user,
+                                                                     annotation__name=annot,
+                                                                     presence=False).aggregate(Sum('total'))
+                annot_total_dict[annot] = {
+                    'positive': total_pos_val['total__sum'] if total_pos_val['total__sum'] is not None else 0,
+                    'negative': total_neg_val['total__sum'] if total_pos_val['total__sum'] is not None else 0
+                }
         else:
-            annot_total_dict['guardrail'] = 0
-
+            annot_total_dict['guardrail'] = {'positive': 0,
+                                             'negative': 0}
         annot_current_dict = {}
         user_annot_list = list(UserImageAnnotation.objects.values_list('annotation__name', flat=True).distinct())
         if user_annot_list:
             for annot in user_annot_list:
-                total_current = UserImageAnnotation.objects.filter(user=user,
-                                                                   annotation__name=annot,
-                                                                   presence__isnull=False).aggregate(Count('image'))
-                annot_current_dict[annot] = total_current['image__count'] \
-                    if total_current['image__count'] is not None else 0
+                total_pos_current = UserImageAnnotation.objects.filter(user=user,
+                                                                       annotation__name=annot,
+                                                                       presence=True).aggregate(Count('image'))
+                total_neg_current = UserImageAnnotation.objects.filter(user=user,
+                                                                       annotation__name=annot,
+                                                                       presence=False).aggregate(Count('image'))
+                annot_current_dict[annot] = {
+                    'positive': total_pos_current['image__count'] if total_pos_current['image__count'] is not None else 0,
+                    'negative': total_neg_current['image__count'] if total_neg_current['image__count'] is not None else 0
+                }
         else:
-            annot_current_dict['guardrail'] = 0
+            annot_current_dict['guardrail'] = {'positive': 0,
+                                               'negative': 0}
+
     except ObjectDoesNotExist as ex:
         return JsonResponse({'error': 'requested user does not exist'}, status=status.HTTP_404_NOT_FOUND)
 

@@ -100,16 +100,18 @@ exist_train_yes_cnt_to_add = df_total_cnt - df_yes_cnt
 exist_train_no_cnt_to_add = df_total_cnt - df_no_cnt
 
 exist_train_yes_df_to_add = exist_train_yes_df.sample(n=exist_train_yes_cnt_to_add, random_state=42)
-exist_train_no_df_to_add = exist_train_no_df.sample(n=exist_train_no_cnt_to_add, random_state=42)
-
 train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence', train_frac)
 train_exist_df_yes, valid_exist_df_yes = split_to_train_valid_for_al(exist_train_yes_df_to_add, 'Presence', train_frac)
-train_exist_df_no, valid_exist_df_no = split_to_train_valid_for_al(exist_train_no_df_to_add, 'Presence', train_frac)
+if exist_train_no_cnt_to_add > 0:
+    exist_train_no_df_to_add = exist_train_no_df.sample(n=exist_train_no_cnt_to_add, random_state=42)
+    train_exist_df_no, valid_exist_df_no = split_to_train_valid_for_al(exist_train_no_df_to_add, 'Presence', train_frac)
+    train_df = pd.concat([train_df_user, train_exist_df_yes, train_exist_df_no])
+    valid_df = pd.concat([valid_df_user, valid_exist_df_yes, valid_exist_df_no])
+else:
+    train_df = pd.concat([train_df_user, train_exist_df_yes])
+    valid_df = pd.concat([valid_df_user, valid_exist_df_yes])
 
-train_df = pd.concat([train_df_user, train_exist_df_yes, train_exist_df_no])
 train_df = train_df.reset_index()
-
-valid_df = pd.concat([valid_df_user, valid_exist_df_yes, valid_exist_df_no])
 valid_df = valid_df.reset_index()
 
 
