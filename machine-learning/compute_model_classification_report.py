@@ -7,19 +7,30 @@ from sklearn.metrics import average_precision_score
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--label_file', type=str,
-                    default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
+                    default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
                     help='labelled guardrail data obtained from guardrail survey data')
 parser.add_argument('--predict_label_file', type=str,
-                    default='../server/metadata/model_predict_test_round3.csv',
+                    default='../server/metadata/model_predict_test_round4.csv',
                     help='predicted guardrail lable data')
+parser.add_argument('--division', type=str,
+                    default=None,
+                    help='division str, d04, d08, d13/14, or None to compute report for')
 
 args = parser.parse_args()
 label_file = args.label_file
 predict_label_file = args.predict_label_file
+division = args.division
 
 df_in = pd.read_csv(label_file, header=0, index_col=False, dtype={'Image': str, 'Presence': str},
                     usecols=['Image', 'Presence'])
+df_in['DIVISION'] = df_in['Image'].str.split('/').str[0]
 df_in['Image'] = df_in['Image'].str.split('/').str[-1]
+if division is not None and division in ['d04', 'd08', 'd13/14']:
+    if division == 'd13/14':
+        df_in = df_in[(df_in.DIVISION == 'd13') | (df_in.DIVISION == 'd14')]
+    else:
+        df_in = df_in[df_in.DIVISION==division]
+
 df_al = pd.read_csv(predict_label_file, header=0, index_col=False,
                     dtype={'MAPPED_IMAGE': str, 'ROUND_PREDICT': float},
                     usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'])
