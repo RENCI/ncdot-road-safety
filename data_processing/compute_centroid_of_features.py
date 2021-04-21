@@ -12,8 +12,8 @@ div_feature_vector_files = ['/projects/ncdot/NC_2018_Secondary/image_features/d4
 
 def get_feature_dataframe_from_csv(input_csv_file, compute_centroid=False, image_subset_yes_df=None,
                                    image_subset_no_df=None):
-    df = pd.read_csv(input_csv_file, header=0, index_col='MAPPED_IMAGE', dtype=str, engine='c',
-                     low_memory=False, memory_map=True,
+    df = pd.read_csv(input_csv_file, header=0, index_col='MAPPED_IMAGE', dtype={'MAPPED_IMAGE': str},
+                     engine='c', low_memory=False, memory_map=True,
                      usecols=['MAPPED_IMAGE', 'FEATURES'],
                      converters={'FEATURES': ast.literal_eval})
     df.index = df.index.str.slice(start=-15)
