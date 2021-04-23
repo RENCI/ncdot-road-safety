@@ -24,6 +24,6 @@ if __name__ == '__main__':
                                    meta=('FEATURES', 'float')).compute(scheduler='processes')
     out_series.to_csv(output_file + '.csv')
     df = df.drop(columns=['FEATURES'])
-    df['ROUND_FEATURES'] = out_series
-    df.to_csv(output_file + '.csv')
+    df['ROUND_FEATURES'] = out_series['FEATURES']
+    df.to_csv(output_file + '.csv', index=False)
     df.to_parquet(output_file, engine='pyarrow')
