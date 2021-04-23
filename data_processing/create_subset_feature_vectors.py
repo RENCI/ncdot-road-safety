@@ -15,7 +15,7 @@ parser.add_argument('--dissim_file', type=str,
                             'image_dissim_20k.csv',
                     help='file with similarities of images most dissimilar to both positive and negative centroids')
 parser.add_argument('--output_file', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/similarity'
+                    default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/similarity/'
                             'image_similarity_feature_vectors.csv',
                     help='output file that contain feature vectors for the images from sim_yes_file and dissim_file')
 

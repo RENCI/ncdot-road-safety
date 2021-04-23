@@ -19,8 +19,9 @@ if __name__ == '__main__':
 
     df = dd.read_csv(input_file, header=0, dtype={'MAPPED_IMAGE': str}, usecols=['MAPPED_IMAGE', 'FEATURES'],
                      converters={'FEATURES': ast.literal_eval})
-    out_df = df.map_partitions(lambda sdf: sdf.apply(lambda row: np.round(np.asarray(row.FEATURES), 4), axis=1),
-                               meta=('FEATURES', 'float')).compute(scheduler='processes')
-    out_df = out_df.drop(columns=['FEATURES'])
-    out_df.to_csv(output_file + '.csv')
-    out_df.to_parquet(output_file, engine='pyarrow')
+    out_series = df.map_partitions(lambda sdf: sdf.apply(lambda row: np.round(np.asarray(row.FEATURES), 3), axis=1),
+                                   meta=('FEATURES', 'float')).compute(scheduler='processes')
+    df = df.drop(columns=['FEATURES'])
+    df['FEATURES'] = out_series
+    df.to_csv(output_file + '.csv')
+    df.to_parquet(output_file, engine='pyarrow')
