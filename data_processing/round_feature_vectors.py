@@ -22,9 +22,8 @@ if __name__ == '__main__':
     out_series = df.map_partitions(lambda sdf: sdf.apply(lambda row: np.round(np.asarray(row.FEATURES), 3).tolist(),
                                                          axis=1),
                                    meta=('FEATURES', 'float')).compute(scheduler='processes')
-    out_series.to_csv(output_file + '.csv')
     df = df.drop(columns=['FEATURES'])
-    df.compute()
-    df['ROUND_FEATURES'] = out_series
+    df = df.compute(scheduler='processes')
+    df['FEATURES'] = out_series
     df.to_csv(output_file + '.csv', index=False)
     df.to_parquet(output_file, engine='pyarrow')
