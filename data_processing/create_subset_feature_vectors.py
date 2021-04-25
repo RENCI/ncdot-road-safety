@@ -2,7 +2,7 @@ import ast
 import pandas as pd
 import argparse
 import numpy as np
-from compute_centroid_of_features import div_feature_vector_files, get_feature_dataframe_from_csv
+from compute_centroid_of_features import div_feature_vector_files, get_feature_dataframe
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -39,7 +39,7 @@ sub_df.MAPPED_IMAGE=sub_df.MAPPED_IMAGE.str.strip()
 
 df_list = []
 for div_file in div_feature_vector_files:
-    df = get_feature_dataframe_from_csv(div_file)
+    df = get_feature_dataframe(div_file)
     df = df[df.index.isin(sub_df.MAPPED_IMAGE)]
     df_list.append(df)
 whole_df = pd.concat(df_list)

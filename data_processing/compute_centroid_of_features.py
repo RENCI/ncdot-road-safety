@@ -4,18 +4,23 @@ import argparse
 import numpy as np
 
 
-div_feature_vector_files = ['/projects/ncdot/NC_2018_Secondary/image_features/d4_image_features.csv',
-                            '/projects/ncdot/NC_2018_Secondary/image_features/d8_image_features.csv',
-                            '/projects/ncdot/NC_2018_Secondary/image_features/d13_image_features.csv',
-                            '/projects/ncdot/NC_2018_Secondary/image_features/d14_image_features.csv']
+div_feature_vector_files = ['/projects/ncdot/NC_2018_Secondary/image_features/d4_image_features.parquet',
+                            '/projects/ncdot/NC_2018_Secondary/image_features/d8_image_features.parquet',
+                            '/projects/ncdot/NC_2018_Secondary/image_features/d13_image_features.parquet',
+                            '/projects/ncdot/NC_2018_Secondary/image_features/d14_image_features.parquet']
 
 
-def get_feature_dataframe_from_csv(input_csv_file, compute_centroid=False, image_subset_yes_df=None,
-                                   image_subset_no_df=None):
-    df = pd.read_csv(input_csv_file, header=0, index_col='MAPPED_IMAGE', dtype={'MAPPED_IMAGE': str},
-                     engine='c', low_memory=False, memory_map=True,
-                     usecols=['MAPPED_IMAGE', 'FEATURES'],
-                     converters={'FEATURES': ast.literal_eval})
+def get_feature_dataframe(input_file, compute_centroid=False, image_subset_yes_df=None, image_subset_no_df=None):
+    if input_file.endswith('.csv'):
+        df = pd.read_csv(input_file, header=0, index_col='MAPPED_IMAGE', dtype={'MAPPED_IMAGE': str},
+                         engine='c', low_memory=False, memory_map=True,
+                         usecols=['MAPPED_IMAGE', 'FEATURES'],
+                         converters={'FEATURES': ast.literal_eval})
+    elif input_file.endswith('.parquet'):
+        df = pd.read_parquet(input_file, columns=['MAPPED_IMAGE', 'FEATURES'])
+        df = df.set_index('MAPPED_IMAGE')
+    else:
+        raise NotImplementedError(f'{input_file} is not csv or parquet file, exiting')
     df.index = df.index.str.slice(start=-15)
     df.index = df.index.str.replace('.jpg', '')
     print('total size of division:', df.shape, flush=True)
@@ -111,7 +116,7 @@ if __name__ == '__main__':
     div_feature_vector_yes_counts = []
     div_feature_vector_no_counts = []
     for i, div_file in enumerate(div_feature_vector_files):
-        div_df_yes, div_df_no, centroid_vector_yes, centroid_vector_no = get_feature_dataframe_from_csv(
+        div_df_yes, div_df_no, centroid_vector_yes, centroid_vector_no = get_feature_dataframe(
             div_file, compute_centroid=True,
             image_subset_yes_df=annot_df_divs[i][annot_df_divs[i].Presence == 'True'],
             image_subset_no_df=annot_df_divs[i][annot_df_divs[i].Presence == 'False']

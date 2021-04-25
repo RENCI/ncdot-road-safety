@@ -2,7 +2,7 @@ import ast
 import pandas as pd
 import argparse
 import numpy as np
-from compute_centroid_of_features import div_feature_vector_files, get_feature_dataframe_from_csv
+from compute_centroid_of_features import div_feature_vector_files, get_feature_dataframe
 
 
 # Get cosine similarity between feature vectors A and B using cosine similarity
@@ -45,7 +45,7 @@ remain_image_df = pd.read_csv(remain_image_name_file, header=0, index_col=False,
 df_list = []
 
 for div_file in div_feature_vector_files:
-    df = get_feature_dataframe_from_csv(div_file)
+    df = get_feature_dataframe(div_file)
     df_list.append(df)
 whole_df = pd.concat(df_list)
 print('before filtering: ', whole_df.shape)
