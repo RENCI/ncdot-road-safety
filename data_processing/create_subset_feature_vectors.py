@@ -28,10 +28,10 @@ output_file = args.output_file
 np.random.seed(1)
 sim_yes_df = pd.read_csv(sim_yes_file, header=0, index_col='MAPPED_IMAGE', dtype=str,
                          usecols=['MAPPED_IMAGE', 'DIVISION'])
-sim_yes_df.TYPE = 'YES'
+sim_yes_df['TYPE'] = 'YES'
 dissim_df = pd.read_csv(dissim_file, header=0, index_col='MAPPED_IMAGE', dtype=str,
                         usecols=['MAPPED_IMAGE', 'DIVISION'])
-dissim_df.TYPE = 'DIS'
+dissim_df['TYPE'] = 'DIS'
 sub_df = pd.concat([sim_yes_df, dissim_df])
 sub_df = sub_df.reset_index()
 sub_df['MAPPED_IMAGE'] = sub_df.MAPPED_IMAGE.astype(str)
@@ -43,7 +43,9 @@ for div_file in div_feature_vector_files:
     df = df[df.index.isin(sub_df.MAPPED_IMAGE)]
     df_list.append(df)
 whole_df = pd.concat(df_list)
-whole_df['FEATURES'] = whole_df.FEATURES.tolist()
+# important to convert each row of feature vector to list; otherwise, output file does not contain complete
+# feature vector values in each row
+whole_df['FEATURES'] = whole_df.apply(lambda row: row['FEATURES'].tolist(), axis=1)
 print('after filtering: ', whole_df.shape)
 whole_df.to_csv(output_file)
 print('Done')
