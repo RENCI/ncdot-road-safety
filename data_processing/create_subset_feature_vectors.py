@@ -43,6 +43,7 @@ for div_file in div_feature_vector_files:
     df = df[df.index.isin(sub_df.MAPPED_IMAGE)]
     df_list.append(df)
 whole_df = pd.concat(df_list)
+whole_df['FEATURES'] = whole_df.FEATURES.tolist()
 print('after filtering: ', whole_df.shape)
 whole_df.to_csv(output_file)
 print('Done')
