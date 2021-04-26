@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 def get_pred_dataframe_from_csv(input_csv_file, filter_image_df=None):
     df = pd.read_csv(input_csv_file, header=0, index_col=False, usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'],
                      dtype={'MAPPED_IMAGE': str, 'ROUND_PREDICT': float})
+    df['DIVISION'] = df.MAPPED_IMAGE.str.split('/').str[0]
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.strip()
-    df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.slice(start=-15)
+    df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.split('/').str[-1]
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.replace('.jpg', '')
     if filter_image_df is not None:
         df = df[df.MAPPED_IMAGE.isin(filter_image_df['MAPPED_IMAGE'])]
@@ -156,11 +157,6 @@ if __name__ == '__main__':
     df_d14 = get_pred_dataframe_from_csv(input_file_d14, filter_image_df=remain_image_df)
     print('d14 shape', df_d14.shape)
 
-    df_d4['DIVISION'] = 'd4'
-    df_d8['DIVISION'] = 'd8'
-    df_d13['DIVISION'] = 'd13'
-    df_d14['DIVISION'] = 'd14'
-
     df_d4['SCORE'] = df_d4.apply(lambda row: compute_score(d4_db, row['ROUND_PREDICT'], 0.16), axis=1)
     df_d8['SCORE'] = df_d8.apply(lambda row: compute_score(d8_db, row['ROUND_PREDICT'], 0.16), axis=1)
     df_d13['SCORE'] = df_d13.apply(lambda row: compute_score(d1314_db, row['ROUND_PREDICT'], 0.2), axis=1)
@@ -169,7 +165,7 @@ if __name__ == '__main__':
     whole_df = whole_df.sort_values(by=['SCORE'])
     whole_size = len(whole_df)
     df_10k = whole_df.head(10000)
-    print(whole_size, ', d4:', len(df_10k[df_10k.DIVISION=='d4']), ', d8:', len(df_10k[df_10k.DIVISION=='d8']),
+    print(whole_size, ', d4:', len(df_10k[df_10k.DIVISION=='d04']), ', d8:', len(df_10k[df_10k.DIVISION=='d08']),
           ', d13:', len(df_10k[df_10k.DIVISION=='d13']), ', d14:', len(df_10k[df_10k.DIVISION=='d14']))
     # uncertainty reflects sorting by SCORE
     whole_df["UNCERTAINTY"] = whole_df.apply(lambda row: whole_size - whole_df.index.get_loc(row.name), axis=1)

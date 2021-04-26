@@ -23,10 +23,6 @@ def get_concat_similarity_pred_dataframe_from_csv(sim_csv, pred_d4_csv, pred_d8_
     df_d8 = get_pred_dataframe_from_csv(pred_d8_csv)
     df_d13 = get_pred_dataframe_from_csv(pred_d13_csv)
     df_d14 = get_pred_dataframe_from_csv(pred_d14_csv)
-    df_d4['DIVISION'] = 'd4'
-    df_d8['DIVISION'] = 'd8'
-    df_d13['DIVISION'] = 'd13'
-    df_d14['DIVISION'] = 'd14'
     concat_df = pd.concat([df_d4, df_d8, df_d13, df_d14])
     print(concat_df.shape)
     sim_df = pd.read_csv(sim_csv, header=0, index_col=None,
@@ -140,7 +136,7 @@ if __name__ == '__main__':
     sub_df.drop_duplicates(inplace=True)
     print('sub_df after removing duplicates', len(sub_df))
     sub_size = len(sub_df)
-    print(sub_size, ', d4:', len(sub_df[sub_df.DIVISION == 'd4']), ', d8:', len(sub_df[sub_df.DIVISION == 'd8']),
+    print(sub_size, ', d4:', len(sub_df[sub_df.DIVISION == 'd04']), ', d8:', len(sub_df[sub_df.DIVISION == 'd08']),
           ', d13:', len(sub_df[sub_df.DIVISION == 'd13']), ', d14:', len(sub_df[sub_df.DIVISION == 'd14']))
     # uncertainty reflects sorting by SCORE
     sub_df["UNCERTAINTY"] = sub_df.apply(lambda row: sub_size - sub_df.index.get_loc(row.name), axis=1)
