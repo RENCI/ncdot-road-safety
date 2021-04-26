@@ -44,7 +44,9 @@ if __name__ == '__main__':
     df_annot.index = df_annot.index.str.replace('.jpg', '')
     df_annot.index = df_annot.index.str.split('/').str[-1]
 
-    df_predict_list = [get_pred_dataframe_from_csv(predict_file) for predict_file in predict_file_list]
+    df_predict_list = []
+    for predict_file in predict_file_list:
+        df_predict_list.append(get_pred_dataframe_from_csv(predict_file))
     df_predict = pd.concat[df_predict_list]
     df_predict = df_predict.reset_index()
     df_predict = df_predict[df_predict.MAPPED_IMAGE.isin(df_annot.index)]
