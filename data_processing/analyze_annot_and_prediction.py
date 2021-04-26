@@ -47,7 +47,7 @@ if __name__ == '__main__':
     df_predict_list = []
     for predict_file in predict_file_list:
         df_predict_list.append(get_pred_dataframe_from_csv(predict_file))
-    df_predict = pd.concat([df_predict_list])
+    df_predict = pd.concat(df_predict_list)
     df_predict = df_predict.reset_index()
     df_predict = df_predict[df_predict.MAPPED_IMAGE.isin(df_annot.index)]
     df_predict = df_predict.set_index('MAPPED_IMAGE')
