@@ -57,7 +57,7 @@ if __name__ == '__main__':
     print('Total annotated image df shape', df.shape)
     wrong_df = df[df['WRONG']==1]
     wrong_cnt =len(wrong_df)
-    print('caught total FPs and FNs:', wrong_cnt, '(', str(wrong_cnt/len(df)) + ')',
+    print('caught total FPs and FNs:', wrong_cnt, '(', str(wrong_cnt/len(df)), ')',
           ' (d4:', get_division_count(wrong_df, 'd04'), ', d8:', get_division_count(wrong_df, 'd08'),
           ', d13:', get_division_count(wrong_df, 'd13'), ', d14:', get_division_count(wrong_df, 'd14'), ')')
     fp_df = df[(df['WRONG']==1) & (df['Presence']=='False')]
