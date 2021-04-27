@@ -23,7 +23,6 @@ from django.core.mail import send_mail
 from django.http import HttpResponse, HttpResponseForbidden, HttpResponseRedirect, \
     HttpResponseServerError, JsonResponse
 
-from django_irods.storage import IrodsStorage
 from django_irods.icommands import SessionException
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
@@ -33,7 +32,7 @@ from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
 from rs_core.models import UserProfile, RouteImage, AnnotationSet, AIImageAnnotation, UserImageAnnotation, \
     UserAnnotationSummary
 from rs_core.utils import get_image_base_names_by_annotation, get_image_annotations_queryset, \
-    save_annot_data_to_db, save_annot_data_cache
+    save_annot_data_to_db, save_annot_data_cache, get_file_from_irods
 
 
 logger = logging.getLogger('django')
@@ -217,22 +216,10 @@ def get_user_annot_info(request, uid):
 @login_required
 def get_image_by_name(request, name):
     if settings.USE_IRODS:
-        istorage = IrodsStorage()
-        image_path = os.path.join(settings.IRODS_ROOT, 'images')
-        if not os.path.exists(image_path):
-            # os.path.exists() occasionally returns False even when the directory exists,
-            # so need to catch the exception to double make sure
-            try:
-                os.makedirs(image_path)
-            except FileExistsError:
-                pass
-        ifile = os.path.join(image_path, name)
-        if not os.path.isfile(ifile):
-            try:
-                dest_path = istorage.get_one_image_frame(name, image_path)
-                ifile = os.path.join(dest_path, name)
-            except SessionException as ex:
-                return HttpResponseServerError(ex.stderr)
+        try:
+            ifile = get_file_from_irods(name)
+        except SessionException as ex:
+            return HttpResponseServerError(ex.stderr)
     else:
         image_base_name = name[:11]
         image_path = RouteImage.objects.get(image_base_name=image_base_name).image_path

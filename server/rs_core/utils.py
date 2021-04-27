@@ -1,5 +1,7 @@
 import bisect
+import os
 
+from django_irods.storage import IrodsStorage
 from django.db.models import Min, Max
 from django.conf import settings
 from django.contrib.gis.geos import fromstr
@@ -261,3 +263,23 @@ def save_guardrail_data_to_db_old(begin_long, begin_lat, end_long, end_lat, rout
         create_ai_image_annotation(q.image_base_name, annot_obj, True, certainty_score_list[interval_idx])
         index += 1
     return
+
+
+def get_file_from_irods(name):
+    """
+    name: file name to get from iRODS
+    """
+    istorage = IrodsStorage()
+    image_path = os.path.join(settings.IRODS_ROOT, 'images')
+    if not os.path.exists(image_path):
+        # os.path.exists() occasionally returns False even when the directory exists,
+        # so need to catch the exception to double make sure
+        try:
+            os.makedirs(image_path)
+        except FileExistsError:
+            pass
+    ifile = os.path.join(image_path, name)
+    if not os.path.isfile(ifile):
+        dest_path = istorage.get_one_image_frame(name, image_path)
+        ifile = os.path.join(dest_path, name)
+    return ifile
