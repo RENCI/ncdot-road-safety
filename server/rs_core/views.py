@@ -1,8 +1,10 @@
 import os
+import io
 import json
 import random
 from datetime import timezone, datetime
 import logging
+from PIL import Image
 
 from django.db import transaction
 from django.contrib.admin.views.decorators import user_passes_test
@@ -214,6 +216,23 @@ def get_user_annot_info(request, uid):
 
 
 @login_required
+def get_original_image_by_name(request, name):
+    if settings.USE_IRODS:
+        try:
+            ifile = get_file_from_irods(name)
+        except SessionException as ex:
+            return HttpResponseServerError(ex.stderr)
+    else:
+        image_base_name = name[:11]
+        image_path = RouteImage.objects.get(image_base_name=image_base_name).image_path
+        ifile = os.path.join(settings.DATA_ROOT, image_path, name)
+        if not os.path.isfile(ifile):
+            return HttpResponseServerError(f'{ifile} cannot be found')
+
+    return HttpResponse(open(ifile, 'rb'), content_type='image/jpg')
+
+
+@login_required
 def get_image_by_name(request, name):
     if settings.USE_IRODS:
         try:
@@ -226,7 +245,12 @@ def get_image_by_name(request, name):
         ifile = os.path.join(settings.DATA_ROOT, image_path, name)
         if not os.path.isfile(ifile):
             return HttpResponseServerError(f'{ifile} cannot be found')
-    return HttpResponse(open(ifile, 'rb'), content_type='image/jpg')
+    with Image.open(ifile) as im:
+        im_resized = im.resize((100, 300))
+        buf = io.BytesIO()
+        im_resized.save(buf, format='JPEG')
+        byte_im = buf.getvalue()
+        return HttpResponse(byte_im, content_type='image/jpg')
 
 
 @login_required
@@ -293,7 +317,8 @@ def get_next_images_for_annot(request, annot_name, count):
     if not offset:
         # save the requested images to cache so they will not be sent to a different user later
         save_annot_data_cache(images, req_username, annot_name)
-    return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
+    image_list = [{'base_name': img_base_name, 'aspect_ratio': img_ar} for img_base_name, img_ar in images]
+    return JsonResponse({'image_info_list': image_list}, status=status.HTTP_200_OK)
 
 
 @login_required
@@ -387,5 +412,5 @@ def save_annotations(request):
         save_annot_data_cache(images, username, ret_annot_name)
     else:
         images = []
-
-    return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
+    image_list = [{'base_name': img_base_name, 'aspect_ratio': img_ar} for img_base_name, img_ar in images]
+    return JsonResponse({'image_info_list': image_list}, status=status.HTTP_200_OK)
