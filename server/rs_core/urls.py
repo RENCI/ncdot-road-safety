@@ -15,6 +15,7 @@ urlpatterns = [
     path('signup/', views.signup, name='signup'),
     path('accounts/update/<pk>/', views.edit_user, name='account_update'),
     path('get_image_by_name/<name>/', views.get_image_by_name, name='get_image_by_name'),
+    path('get_original_image_by_name/<name>/', views.get_original_image_by_name, name='get_original_image_by_name'),
     path('get_image_names_by_loc/<long>/<lat>/<count>/', views.get_image_names_by_loc,
          name='get_image_names_by_loc'),
     path('get_image_metadata/<image_base_name>/', views.get_image_metadata, name='get_image_metadata'),

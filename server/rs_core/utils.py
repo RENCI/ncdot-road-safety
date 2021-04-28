@@ -40,12 +40,12 @@ def get_image_base_names_by_annotation(annot_name, req_username, count=5, route_
                                                            user__username=req_username,
                                                            image__route_id=route_id,
                                                            presence__isnull=True).values_list("image__image_base_name",
-                                                                                              flat=True)
+                                                                                              'image__aspect_ratio')
     else:
         cached_images = UserImageAnnotation.objects.filter(annotation__name__iexact=annot_name,
                                                            user__username=req_username,
                                                            presence__isnull=True).values_list("image__image_base_name",
-                                                                                              flat=True)
+                                                                                              'image__aspect_ratio')
     cache_cnt = len(cached_images)
 
     if offset:
@@ -88,10 +88,11 @@ def get_image_base_names_by_annotation(annot_name, req_username, count=5, route_
 
     images = filtered_images.filter(uncertainty_group__in=group_list).order_by(
         '-uncertainty_measure', 'image__image_base_name')[:idx2-cache_cnt].values_list(
-        'image__image_base_name', flat=True)
+        'image__image_base_name', 'image__aspect_ratio')
     if not images:
         images = filtered_images.annotate(uncertainty=Abs(F('certainty')-0.5)).order_by(
-             'uncertainty', 'image__image_base_name')[:idx2-cache_cnt].values_list("image__image_base_name", flat=True)
+             'uncertainty', 'image__image_base_name')[:idx2-cache_cnt].values_list("image__image_base_name",
+                                                                                   'image__aspect_ratio')
     if cache_cnt > 0:
         ret_list = list(cached_images)
         ret_list.extend(list(images))
@@ -113,7 +114,7 @@ def save_annot_data_cache(img_base_name_list, username, annot_name):
     user_obj = User.objects.get(username=username)
     obj_list = [UserImageAnnotation(image=RouteImage.objects.get(image_base_name=img_base_name),
                                     annotation=annot_obj,
-                                    user=user_obj) for img_base_name in img_base_name_list]
+                                    user=user_obj) for img_base_name, _ in img_base_name_list]
     UserImageAnnotation.objects.bulk_create(obj_list, ignore_conflicts=True)
     return
 
