@@ -412,5 +412,5 @@ def save_annotations(request):
         save_annot_data_cache(images, username, ret_annot_name)
     else:
         images = []
-
-    return JsonResponse({'image_base_names': images}, status=status.HTTP_200_OK)
+    image_list = [{'base_name': img_base_name, 'aspect_ratio': img_ar} for img_base_name, img_ar in images]
+    return JsonResponse({'image_info_list': image_list}, status=status.HTTP_200_OK)
