@@ -72,16 +72,16 @@ if __name__ == '__main__':
                         default=127103, help='number of negative instances used to compute centroid in '
                                              'centroid_no_input_file')
     parser.add_argument('--annot_input_file', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/annot_data/'
-                                'all_user_annots.txt',
+                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round4/annot_data/'
+                                'all_user_annots_train.txt',
                         help='user annotation input file with user annotations to add to existing training data')
     parser.add_argument('--output_yes_file', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/annot_data/'
+                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round4/annot_data/'
                                 'train_data_centroid_yes.csv',
                         help='output file that has centroid vector of positive existing training feature vectors '
                              'and user annotated data')
     parser.add_argument('--output_no_file', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round3/annot_data/'
+                        default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round4/annot_data/'
                                 'train_data_centroid_no.csv',
                         help='output file that has centroid vector of negative existing training feature vectors '
                              'and user annotated data')

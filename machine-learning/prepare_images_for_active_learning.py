@@ -37,13 +37,9 @@ parser.add_argument('--exist_train_no_file', type=str,
                     help='existing train negative data to select to add to the AL')
 parser.add_argument('--exist_train_percent', type=float, default=0.06,
                     help='existing train percentage to add to the AL round annotation data for the larger class count')
-parser.add_argument('--output_annot_train_yes_file', type=str,
+parser.add_argument('--output_annot_train_file', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round4/'
-                            'annot_data/train_guardrail_yes_annot.csv',
-                    help='annotated data used for AL training which is used for computing centroid of training data')
-parser.add_argument('--output_annot_train_no_file', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round4/'
-                            'annot_data/train_guardrail_no_annot.csv',
+                            'annot_data/all_user_annots_train.csv',
                     help='annotated data used for AL training which is used for computing centroid of training data')
 parser.add_argument('--cur_round_annot_only', action='store_true', default=False,
                     help='if set, only current round annotation is used while prior round annotations are treated as '
@@ -62,8 +58,7 @@ root_dir = args.root_dir
 exist_train_yes_file = args.exist_train_yes_file
 exist_train_no_file = args.exist_train_no_file
 exist_train_percent = args.exist_train_percent
-output_annot_train_yes_file = args.output_annot_train_yes_file
-output_annot_train_no_file = args.output_annot_train_no_file
+output_annot_train_file = args.output_annot_train_file
 cur_round_annot_only = args.cur_round_annot_only
 
 df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=['Image', 'Presence'])
@@ -111,10 +106,7 @@ exist_train_no_cnt_to_add = df_total_cnt - df_no_cnt
 
 exist_train_yes_df_to_add = exist_train_yes_df.sample(n=exist_train_yes_cnt_to_add, random_state=42)
 train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence', train_frac)
-train_df_user_yes = train_df_user[train_df_user.Presence == 'True']
-train_df_user_no = train_df_user[train_df_user.Presence == 'False']
-train_df_user_yes.to_csv(output_annot_train_yes_file)
-train_df_user_no.to_csv(output_annot_train_no_file)
+train_df_user.drop(columns=['Full_Path_Image']).to_csv(output_annot_train_file)
 train_exist_df_yes, valid_exist_df_yes = split_to_train_valid_for_al(exist_train_yes_df_to_add, 'Presence', train_frac)
 if exist_train_no_cnt_to_add > 0:
     exist_train_no_df_to_add = exist_train_no_df.sample(n=exist_train_no_cnt_to_add, random_state=42)
