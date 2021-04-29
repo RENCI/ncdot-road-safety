@@ -73,7 +73,7 @@ if __name__ == '__main__':
                                              'centroid_no_input_file')
     parser.add_argument('--annot_input_file', type=str,
                         default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round4/annot_data/'
-                                'all_user_annots_train.txt',
+                                'all_user_annots_train.csv',
                         help='user annotation input file with user annotations to add to existing training data')
     parser.add_argument('--output_yes_file', type=str,
                         default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round4/annot_data/'
