@@ -4,19 +4,42 @@
 
 {% block content %}
   <div class="container">
-    <div class="row">
-        <div class="col-sm-12">
-            {% if user.is_anonymous %}
-                <h2 class="page-title">Sign Up</h2>
-                <div class="col-sm-6">
-                    <!-- signup -->
-                    {% include "registration/signup_form.html" %}
-                    <!-- signup -->
-                </div>
-            {% else %}
-                <p>You're already logged in. If you'd like to create a new account, you'll need to log out first.</p>
-            {% endif %}
+    <div class="col-xs-12 col-md-8 offset-md-2">
+      <h2>Register</h2>
+      
+      <p>
+        Complete the <em>Registration Form</em> below to... Lorem ipsum dolor sit amet consectetur adipisicing elit. Ut, voluptas!
+        Illo impedit incidunt totam dolor omnis quibusdam dolorem placeat rem quis eos.
+        Fugit, sequi ipsa. Id perspiciatis sit quia soluta odio excepturi,
+        impedit ipsa magni, mollitia, ab nobis quidem.
+      </p>
+
+      <p>
+        If you have questions, ... lorem, ipsum dolor sit amet consectetur <a href="mailto:email@ddr.ess">get in touch</a>.
+      </p>
+
+      <div class="card form-card">
+        <div class="card-header">Registration Form</div>
+        <div class="card-body">
+          {% if user.is_anonymous %}
+            <!-- signup -->
+            {% include "registration/signup_form.html" %}
+            <!-- signup -->
+            <br>
+          {% else %}
+            <p>You're already logged in. If you'd like to create a new account, you'll need to log out first.</p>
+          {% endif %}
         </div>
+        <div class="card-footer d-flex justify-content-start">
+          <span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0b5ed7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <a href="/">Return home</a>
+          </span>
+          <span>
+          </span>
+        </div>
+      </div>
+      <br>
     </div>
   </div>
 {% endblock %}

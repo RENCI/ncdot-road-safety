@@ -1,19 +1,77 @@
 {% extends 'base.html' %}
 
-{% block title %}Login{% endblock %}
+{% block title %}Home{% endblock %}
 
 {% block content %}
-<div class="container">
-  <h2>Login</h2>
-  <form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Login</button>
-    <a href="/" class="btn btn-default" type=button">Go back to home page</a>
-  </form>
+  <div class="container">
+    {% if messages %}
+      <ul>
+        {% for message in messages %}
+        <li {% if message.tags %} class="{{ message.tags }}"{% endif %}>
+          {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
+          {{ message }}
+        </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
 
-  <p class="home-page-block">If you have forgotten your password, you can
-      <a href="{% url 'password_reset' %}">reset your password</a>.
-  </p>
-</div>
+    {% if not user.is_authenticated %}
+      <div class="row">
+        <div class="col-xs-12 col-md-8 offset-md-2">
+          <p>
+            Lorem, ipsum dolor sit amet consectetur adipisicing elit. Ab deserunt, totam. Nulla voluptate,
+            veritatis nostrum laudantium fugiat expedita quo veniam impedit obcaecati atque corporis eius
+            deserunt libero, ex autem, hic corrupti repellat odio aperiam nemo nesciunt. Error reprehenderit
+            nesciunt repudiandae debitis totam fugit ex, voluptates perferendis ratione facilis dolorum, tenetur!
+          </p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-sm-12 col-md-10 offset-md-1 col-lg-6 offset-lg-3">
+          <div class="card">
+
+            <div class="card-header">Login</div>
+            
+            <div class="card-body">
+              <form method="post">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button type="submit" class="btn btn-primary">Login</button>
+              </form>
+            </div>
+
+            <div class="card-footer d-flex justify-content-between" style="font-size: 75%; padding: 0.5rem;">
+              <span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0b5ed7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                <a href="/">Return home</a>
+              </span>
+              <span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0b5ed7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                <a href="{% url 'password_reset' %}">Forgot your password?</a>
+              </span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-xs-12 col-md-8 offset-md-2">
+          <p>
+            Lorem ipsum dolor sit amet consectetur adipisicing, elit. Tenetur, eveniet nemo laboriosam quidem,
+            animi facilis. Illo sed necessitatibus quam veritatis autem quidem, asperiores, id, voluptas maxime
+            facilis commodi aspernatur impedit.
+          </p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if user.is_authenticated %}
+    <input type="hidden" name="user_id" id="user_id" value="{{ user.id }}"/>
+  {% endif %}
+  
+  <div id="app"></div>
+
 {% endblock %}
