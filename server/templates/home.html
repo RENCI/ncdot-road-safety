@@ -17,21 +17,9 @@
 
     {% if not user.is_authenticated %}
       <div class="row">
-        <div class="col-xs-12 col-md-8 offset-md-2">
-          <p>
-            Lorem, ipsum dolor sit amet consectetur adipisicing elit. Ab deserunt, totam. Nulla voluptate, veritatis nostrum laudantium fugiat expedita quo veniam impedit obcaecati atque corporis eius deserunt libero, ex autem, hic corrupti repellat odio aperiam nemo nesciunt. Error reprehenderit nesciunt repudiandae debitis totam fugit ex, voluptates perferendis ratione facilis dolorum, tenetur!
-          </p>
-        </div>
-
         <div class="actions">
           <a href="{% url 'login' %}" class="btn btn-outline-primary btn-lg btn-action">Log In</a>
           <a href="{% url 'signup' %}" class="btn btn-outline-primary btn-lg btn-action">Register</a>
-        </div>
-
-        <div class="col-xs-12 col-md-8 offset-md-2">
-          <p>
-            Lorem ipsum dolor sit amet consectetur adipisicing, elit. Tenetur, eveniet nemo laboriosam quidem, animi facilis. Illo sed necessitatibus quam veritatis autem quidem, asperiores, id, voluptas maxime facilis commodi aspernatur impedit.
-          </p>
         </div>
       </div>
     {% endif %}
