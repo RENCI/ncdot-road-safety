@@ -1,49 +1,33 @@
 import pandas as pd
 import argparse
-import matplotlib.pyplot as plt
 from analyze_similarity_and_prediction import get_concat_similarity_pred_dataframe_from_csv, filter_out_trash_images
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--similarity_input_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_similarity_scores.csv',
+                        default='../server/metadata/model-related/secondary_road/round4/image_similarity_scores.csv',
                         help='input file to get image similarity scores')
     parser.add_argument('--input_file_d4', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/predict_d4.csv',
+                        default='../server/metadata/model-related/secondary_road/round4/predict_d4.csv',
                         help='input prediction file for mapped images')
     parser.add_argument('--input_file_d8', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/predict_d8.csv',
+                        default='../server/metadata/model-related/secondary_road/round4/predict_d8.csv',
                         help='input prediction file for mapped images')
     parser.add_argument('--input_file_d13', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/predict_d13.csv',
+                        default='../server/metadata/model-related/secondary_road/round4/predict_d13.csv',
                         help='input prediction file for mapped images')
     parser.add_argument('--input_file_d14', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/predict_d14.csv',
+                        default='../server/metadata/model-related/secondary_road/round4/predict_d14.csv',
                         help='input prediction file for mapped images')
-    parser.add_argument('--positive_image_count', type=int,
-                        default=20000,
-                        help='number of images most similar to the positive class centroid to select')
-    parser.add_argument('--dissimilar_image_count', type=int,
-                        default=20000,
-                        help='number of images most dissimilar to both positive and negative class centroids to select')
-    parser.add_argument('--partition', type=int,
-                        default=8,
-                        help='partitions to use for splitting positive_image_count and dissimilar_image_count to '
-                             'create mixed samples between the two. For example, with default values, 2500 samples '
-                             'are selected from each in alternation between 2 sets')
+    parser.add_argument('--total_image_count', type=int,
+                        default=30000,
+                        help='total number of images to sample from unlabeled pool')
     parser.add_argument('--uncertainty_group_size', type=int,
                         default=500,
                         help='number of images in one uncertainty group for efficient query in annotation tool')
-    parser.add_argument('--sim_yes_output_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_sim_yes_20k.csv',
-                        help='output file that contains 20k most similar images to positive class centroid')
-    parser.add_argument('--dissim_output_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_dissim_20k_2.csv',
-                        help='output file that contains 20k most dissimilar images to both centroid with similarity '
-                             'less than the threshold set by dissim_similarity_threshold argument')
     parser.add_argument('--output_file', type=str,
-                        default='../server/metadata/model-related/secondary_road/round3/image_uncertainty_scores_2.csv',
+                        default='../server/metadata/model-related/secondary_road/round4/image_uncertainty_scores.csv',
                         help='output file that contains uncertainty scores')
 
     args = parser.parse_args()
@@ -52,49 +36,58 @@ if __name__ == '__main__':
     input_file_d8 = args.input_file_d8
     input_file_d13 = args.input_file_d13
     input_file_d14 = args.input_file_d14
-    positive_image_count = args.positive_image_count
-    dissimilar_image_count = args.dissimilar_image_count
-    partition = args.partition
+    total_image_count = args.total_image_count
     uncertainty_group_size = args.uncertainty_group_size
     output_file = args.output_file
-    sim_yes_output_file = args.sim_yes_output_file
-    dissim_output_file = args.dissim_output_file
 
     # whole_df is sorted by SIMILARITY_YES
     whole_df = get_concat_similarity_pred_dataframe_from_csv(similarity_input_file, input_file_d4, input_file_d8,
                                                              input_file_d13, input_file_d14)
     print(whole_df.shape)
 
-    # analyze the first 10K images, sorted in descending order with most similar image (largest SIMILARITY_YES score
-    # on top, that are most similar to the positive class centroid and the top 10K images that are most dissimilar
-    # to both centroids
-    sim_yes_sub_df = whole_df.head(positive_image_count)
-    #plt.hist(sim_yes_sub_df['ROUND_PREDICT'], bins=10)
-    #plt.show()
-    # sim_yes_sub_df.to_csv(sim_yes_output_file)
+    # sample_df1 tries to capture positive images with more entropy and likely to capture FPs
+    sample_df1 = whole_df[(whole_df.SIMILARITY_YES < whole_df.SIMILARITY_NO) & (whole_df.ROUND_PREDICT >= 0.5)]
+    print('sample_df1:', sample_df1.shape)
+
+    # sample_df2 tries to capture FNs with more entropy
+    sample_df2 = whole_df[(whole_df.SIMILARITY_YES < 0.3) &
+                          (whole_df.SIMILARITY_YES > whole_df.SIMILARITY_NO) &
+                          (whole_df.ROUND_PREDICT >= 0.1)]
+    print('sample_df2:', sample_df2.shape)
+
+    # sample_df3 tries to capture FPs and FNs along decision boundary
+    sample_df3 = whole_df[(whole_df.ROUND_PREDICT < 0.6) & (whole_df.ROUND_PREDICT > 0.4)]
+    print('sample_df3:', sample_df3.shape)
+
+    # sample_df4 tries to capture FPs and FNs along decision boundary by taking into account similarities
+    sample_df4 = whole_df[(whole_df.SIMILARITY_YES < 0.5) & (whole_df.SIMILARITY_NO < 0.5) &
+                          (whole_df.ROUND_PREDICT >= 0.5)]
+    print('sample_df4:', sample_df4.shape)
+
+    sample_df = pd.concat([sample_df1, sample_df2, sample_df3, sample_df4])
+    print('connected sample_df before dropping duplicates:', sample_df.shape)
+    sample_df.drop_duplicates(inplace=True)
+    print('connected sample_df after dropping duplicates:', sample_df.shape)
     # sort in ascending order with most dissimilar image (smallest similarity score) on top
-    dissimilar_sub_df = whole_df.sort_values(by=['MAX_SIMILARITY']).head(dissimilar_image_count)
-    dissimilar_sub_df = filter_out_trash_images(dissimilar_sub_df)
-    # plt.hist(dissimilar_sub_df['ROUND_PREDICT'], bins=10)
-    # plt.show()
-    dissimilar_sub_df.to_csv(dissim_output_file)
-    sub_df_list = []
-    sim_len = (int)(positive_image_count / partition)
-    dissimilar_len = (int)(dissimilar_image_count / partition)
-    for idx in range(partition):
-        sub_df_list.append(sim_yes_sub_df[idx*sim_len:idx*sim_len+sim_len])
-        sub_df_list.append(dissimilar_sub_df[idx * dissimilar_len:idx*dissimilar_len+dissimilar_len])
-    sub_df = pd.concat(sub_df_list)
-    print('sub_df before removing duplicates', len(sub_df))
-    sub_df.drop_duplicates(inplace=True)
-    print('sub_df after removing duplicates', len(sub_df))
-    sub_size = len(sub_df)
-    print(sub_size, ', d4:', len(sub_df[sub_df.DIVISION == 'd4']), ', d8:', len(sub_df[sub_df.DIVISION == 'd8']),
-          ', d13:', len(sub_df[sub_df.DIVISION == 'd13']), ', d14:', len(sub_df[sub_df.DIVISION == 'd14']))
+    dissimilar_df = whole_df[(whole_df['SIMILARITY_YES'] < 0.5) & (whole_df['SIMILARITY_NO'] < 0.5) &
+                             (whole_df.SIMILARITY_YES > 0.3)]
+    dissimilar_df = dissimilar_df.sort_values(by=['MIN_SIMILARITY']).head(30000-len(sample_df))
+    total_sample_df = pd.concat([sample_df, dissimilar_df])
+    print('total_sample_df before removing duplicates:', len(total_sample_df))
+    total_sample_df.drop_duplicates(inplace=True)
+    sub_size = len(total_sample_df)
+    print('total_sample_df after removing duplicates:', sub_size)
+    print('d4:', len(total_sample_df[total_sample_df.DIVISION == 'd4']),
+          ', d8:', len(total_sample_df[total_sample_df.DIVISION == 'd8']),
+          ', d13:', len(total_sample_df[total_sample_df.DIVISION == 'd13']),
+          ', d14:', len(total_sample_df[total_sample_df.DIVISION == 'd14']))
     # uncertainty reflects sorting by SCORE
-    sub_df["UNCERTAINTY"] = sub_df.apply(lambda row: sub_size - sub_df.index.get_loc(row.name), axis=1)
-    sub_df["UNCERTAINTY_GROUP"] = sub_df.apply(lambda row: (int)(sub_df.index.get_loc(row.name)/uncertainty_group_size),
-                                               axis=1)
-    sub_df = sub_df.reset_index()
-    sub_df.to_csv(output_file, index=False)
+    total_sample_df["UNCERTAINTY"] = total_sample_df.apply(
+        lambda row: sub_size - total_sample_df.index.get_loc(row.name),
+        axis=1)
+    total_sample_df["UNCERTAINTY_GROUP"] = total_sample_df.apply(
+        lambda row: (int)(total_sample_df.index.get_loc(row.name)/uncertainty_group_size),
+        axis=1)
+    total_sample_df = total_sample_df.reset_index()
+    total_sample_df.to_csv(output_file, index=False)
     print('Done')

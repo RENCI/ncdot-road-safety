@@ -32,9 +32,9 @@ html_str_tail = """
 
 img_str = """
 <div style='display: flex;'>
-    <img src='/get_image_by_name/{image_base_name}5.jpg' style="float:left;width:33.33%;"/>
-    <img src='/get_image_by_name/{image_base_name}1.jpg' style="float:left;width:33.33%;"/>
-    <img src='/get_image_by_name/{image_base_name}2.jpg' style="float:left;width:33.33%;"/>        
+    <img src='/get_original_image_by_name/{image_base_name}5.jpg' style="float:left;width:33.33%;"/>
+    <img src='/get_original_image_by_name/{image_base_name}1.jpg' style="float:left;width:33.33%;"/>
+    <img src='/get_original_image_by_name/{image_base_name}2.jpg' style="float:left;width:33.33%;"/>        
 </div>
 <p>Image base name: {image_base_name}, annotation: {annotation}, base model prediction: {prob} {WRONG}, 
 round1 model prediction: {prob2} {WRONG2}, round2 model prediction: {prob3} {WRONG3}</p>
