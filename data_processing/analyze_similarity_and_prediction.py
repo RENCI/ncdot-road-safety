@@ -29,8 +29,12 @@ def get_concat_similarity_pred_dataframe_from_csv(sim_csv, pred_d4_csv, pred_d8_
                          dtype={'MAPPED_IMAGE': str, 'SIMILARITY_YES': float, 'SIMILARITY_NO': float},
                          usecols=['MAPPED_IMAGE', 'SIMILARITY_YES', 'SIMILARITY_NO'])
     sim_df.MAPPED_IMAGE = sim_df.MAPPED_IMAGE.str.strip()
+    concat_df = concat_df.reset_index()
+    concat_df = concat_df[concat_df.MAPPED_IMAGE.isin(sim_df.MAPPED_IMAGE)]
+    concat_df = concat_df.set_index('MAPPED_IMAGE')
     sim_df = sim_df.set_index('MAPPED_IMAGE')
     sim_df = pd.concat([sim_df, concat_df], axis=1)
+    print(sim_df.shape)
     sim_df['MIN_SIMILARITY'] = sim_df[['SIMILARITY_YES', 'SIMILARITY_NO']].min(axis=1)
     sim_df['MAX_SIMILARITY'] = sim_df[['SIMILARITY_YES', 'SIMILARITY_NO']].max(axis=1)
     return sim_df
