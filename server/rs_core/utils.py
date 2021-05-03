@@ -16,13 +16,15 @@ from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, A
     UserAnnotationSummary
 
 
-def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', predict=None, feature_name='guardrail'):
+def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', aspect_ratio=None, predict=None,
+                        feature_name='guardrail'):
     route_image, created = RouteImage.objects.get_or_create(
         route_id=str(route_id),
         image_base_name=str(image),
         defaults={'location': fromstr(f'POINT({long} {lat})', srid=4326),
                   'mile_post': milepost,
-                  'image_path': path}
+                  'image_path': path,
+                  'aspect_ratio': aspect_ratio}
     )
 
     if predict is not None:
