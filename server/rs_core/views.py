@@ -329,7 +329,8 @@ def get_all_routes(request):
 
 @login_required
 def get_route_info(request, route_id):
-    route_images = list(RouteImage.objects.filter(route_id=route_id).values_list("image_base_name", flat=True))
+    route_images = list(RouteImage.objects.filter(route_id=route_id).order_by('mile_post').values_list("image_base_name",
+                                                                                                       flat=True))
     return JsonResponse({'route_image_base_names': route_images}, status=status.HTTP_200_OK)
 
 
