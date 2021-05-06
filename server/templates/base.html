@@ -5,33 +5,39 @@
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RHF</title>
-  <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" rel="stylesheet"/>
+  <title>RHF</title> 
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
   <link rel="stylesheet" type="text/css" href="{% static "rs_core/css/rs_core.css" %}"/>
+  <link rel="stylesheet" type="text/css" href="{% static "rs_core/css/home.css" %}"/>
   {% block extra_css %}{% endblock %}
-  <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
   {% block extra_js %}{% endblock %}
-{% block extra_head %}{% endblock %}
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
   <div class="container-fluid">
-    <div class="row border bg-light mb-3 py-3">
+    <div class="row border bg-light py-3">
       <div class="col-sm-3 text-center">
         <div class="vertical-spacing">
           <a href="https://www.ncdot.gov/Pages/default.aspx">
-            <img src="/static/rs_core/images/ncdot.png" style="height: 70px;" />
+            <img src="/static/rs_core/images/ncdot.png" style="height: 50px;" />
           </a>
         </div>
         <div>
           <a href="https://www.volpe.dot.gov/">
-            <img src="/static/rs_core/images/volpe.png" style="height: 30px;" />
+            <img src="/static/rs_core/images/volpe.png" style="width: 180px;" />
           </a>
         </div>
       </div>
       <div class="col-sm-6 text-center">
-        <h2>Roadway Hazard Finder (RHF)</h2>
+        <h2>Roadway Hazard Finder (RHF)</h2> 
         <p>Accelerating rural road safety using AI to unlock predictive insights from videolog data</p>
+        {% if user.is_authenticated and initial_login %}
+          <div class="card p-3">
+            <h5>Signed in as {{ user.username }} ({{ user.email }}}).</h5>
+            <div><a href="{% url 'logout' %}">logout</a></div>
+          </div>
+        {% endif %}
       </div>
       <div class="col-sm-3 text-center">
         <div class="vertical-spacing">
@@ -41,7 +47,7 @@
         </div>
         <div>
           <a href="http://renci.org/">
-            <img src="/static/rs_core/images/renci.png" style="height: 45px;" />
+            <img src="/static/rs_core/images/renci.png" style="width: 60px;" />
           </a>
         </div>
       </div>

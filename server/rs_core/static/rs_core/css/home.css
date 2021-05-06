@@ -1,0 +1,100 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+}
+
+.container {
+  margin-top: 4rem;
+}
+
+.card {
+  background-color: #fff;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.2));
+  transition: filter 250ms;
+  margin: 4rem;
+}
+
+.card:hover, .card:focus-within {
+  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.2));
+}
+
+.card form p {
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.card form p label {
+  margin-right: 1rem;
+}
+
+@media (min-width: 768px) {
+  .card form p {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+.card form p input {
+  flex: 1;
+}
+
+.card form .btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: 61.8%;
+  margin: auto;
+}
+
+.card form .d-flex input {
+  flex: 1;
+}
+
+.card-footer > * {
+  font-size: 75%;
+  padding: 0.5rem;
+}
+
+.help-block {
+  color: #333;
+  font-style: italic;
+  filter: opacity(0.25);
+  transition: filter 250ms;
+}
+
+fieldset:hover .help-block, fieldset:focus-within .help-block {
+  filter: opacity(0.75);
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2rem;
+  margin: 2rem 0;
+}
+
+@media (min-width: 768px) {
+  .actions {
+    flex-direction: row;
+  }
+}
+
+.actions .btn-action {
+  display: block;
+  padding: 2rem 4rem;
+}
+
+.btn, .card {
+  border-radius: 2px;
+}

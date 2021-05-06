@@ -3,26 +3,32 @@
 {% block title %}Home{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+  <div class="container">
     {% if messages %}
-    <ul>
+      <ul>
         {% for message in messages %}
         <li {% if message.tags %} class="{{ message.tags }}"{% endif %}>
-            {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
-            {{ message }}
+          {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
+          {{ message }}
         </li>
         {% endfor %}
-    </ul>
+      </ul>
     {% endif %}
+
     {% if not user.is_authenticated %}
-    <div>
-      <a href="{% url 'signup' %}" style="margin-right: 5px">Sign up</a> or <a href="{% url 'login' %}" style="margin-left: 5px">Log In</a>
-    </div>
+      <div class="row">
+        <div class="actions">
+          <a href="{% url 'login' %}" class="btn btn-outline-primary btn-lg btn-action">Log In</a>
+          <a href="{% url 'signup' %}" class="btn btn-outline-primary btn-lg btn-action">Register</a>
+        </div>
+      </div>
     {% endif %}
   </div>
-</div>
-{% if user.is_authenticated %}
-<input type="hidden" name="user_id" id="user_id" value="{{ user.id }}"/>
-{% endif %}
-<div id="app"></div>
+
+  {% if user.is_authenticated %}
+    <input type="hidden" name="user_id" id="user_id" value="{{ user.id }}"/>
+  {% endif %}
+  
+  <div id="app"></div>
+
 {% endblock %}
