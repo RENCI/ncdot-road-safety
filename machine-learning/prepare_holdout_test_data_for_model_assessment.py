@@ -51,5 +51,5 @@ def prepare_image(src, dst):
 
 df.apply(lambda row: prepare_image(os.path.join(input_prefix_dir, row['Image']),
                                    os.path.join(output_root_dir, 'yes' if row['Presence'] == 'True' else 'no',
-                                                     row['Image'])), axis=1)
+                                                row['Image'])), axis=1)
 print('Done')

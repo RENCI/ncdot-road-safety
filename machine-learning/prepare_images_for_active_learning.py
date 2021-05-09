@@ -69,13 +69,15 @@ df = df.set_index('Image')
 exist_train_yes_df = pd.read_csv(exist_train_yes_file, header=None, index_col=False, dtype=str,
                                  names=['Full_Path_Image'])
 exist_train_yes_df['Presence'] = 'True'
-exist_train_yes_df['Image'] = exist_train_yes_df.Full_Path_Image.str.split('/').str[-1]
+exist_train_yes_df['Image'] = exist_train_yes_df.Full_Path_Image.str.replace('/projects/ncdot/2018/machine_learning'
+                                                                             '/data_2lanes/train/', '')
 exist_train_yes_df = exist_train_yes_df.set_index('Image')
 
 exist_train_no_df = pd.read_csv(exist_train_no_file, header=None, index_col=False, dtype=str,
                                 names=['Full_Path_Image'])
 exist_train_no_df['Presence'] = 'False'
-exist_train_no_df['Image'] = exist_train_no_df.Full_Path_Image.str.split('/').str[-1]
+exist_train_no_df['Image'] = exist_train_no_df.Full_Path_Image.str.replace('/projects/ncdot/2018/machine_learning/'
+                                                                           'data_2lanes/train/', '')
 exist_train_no_df = exist_train_no_df.set_index('Image')
 if prior_input_file:
     # combine prior_input_file and input_file to create output_annot_file which is used to prepare images
