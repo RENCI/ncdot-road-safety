@@ -62,6 +62,6 @@ if __name__ == '__main__':
     setup_gpu_memory()
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
-        model = tf.keras.models.load_model(model_file)
+        model = tf.keras.models.load_model(model_file, compile=False)
     make_inference(model, batch_size*2)
     print('Done')
