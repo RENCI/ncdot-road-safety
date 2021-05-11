@@ -30,10 +30,11 @@ def make_inference(feature_model, bat_size, threshold=0.5):
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.replace(os.path.join(test_dir, 'no') + '/', '')
     df.to_csv(output_file, index=False)
     y_pred = [1 if y[0] >= threshold else 0 for y in predictions]
-    labels = []
-    for image_batch, labl_batch in test_ds:
-        for lbl in labl_batch:
-            labels.append(lbl.numpy()[0])
+    # labels = []
+    # for image_batch, labl_batch in test_ds:
+    #     for lbl in labl_batch:
+    #         labels.append(lbl.numpy()[0])
+    labels = test_ds.labels
     print('Confusion Matrix')
     print(confusion_matrix(labels, y_pred))
     print('Classification Report')
