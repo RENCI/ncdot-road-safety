@@ -41,10 +41,8 @@ parser.add_argument('--output_annot_train_file', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round4/'
                             'annot_data/all_user_annots_train.csv',
                     help='annotated data used for AL training which is used for computing centroid of training data')
-parser.add_argument('--cur_round_annot_only', action='store_true', default=False,
-                    help='if set, only current round annotation is used while prior round annotations are treated as '
-                         'existing training data; if false, all previous round annotations up to the current round are '
-                         'used as training data')
+parser.add_argument('--original_image_without_join', action='store_true', default=False,
+                    help='if set, original image rather than joined images are prepared for AL')
 
 args = parser.parse_args()
 input_file = args.input_file
@@ -59,7 +57,7 @@ exist_train_yes_file = args.exist_train_yes_file
 exist_train_no_file = args.exist_train_no_file
 exist_train_percent = args.exist_train_percent
 output_annot_train_file = args.output_annot_train_file
-cur_round_annot_only = args.cur_round_annot_only
+original_image_without_join = args.original_image_without_join
 
 df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=['Image', 'Presence'])
 df = df.drop_duplicates(subset=['Image'])
@@ -87,12 +85,8 @@ if prior_input_file:
     df_prior = df_prior.set_index('Image')
     df_all = pd.concat([df, df_prior])
     df_all.to_csv(all_annot_file)
-    if cur_round_annot_only:
-        exist_train_yes_df = pd.concat([exist_train_yes_df, df_prior[df_prior.Presence=='True']])
-        exist_train_no_df = pd.concat([exist_train_no_df, df_prior[df_prior.Presence=='False']])
-    else:
-        # concatenate prior user annotation data with current round annotation data
-        df = df_all
+    # concatenate prior user annotation data with current round annotation data
+    df = df_all
 root_al_dir = os.path.join(root_dir, feature_name, f'round{cur_round}', 'data')
 
 df_yes_cnt = len(df[df.Presence == 'True'])
@@ -126,7 +120,13 @@ valid_df = valid_df.reset_index()
 def prepare_image(src, dst):
     dst_path = os.path.dirname(dst)
     os.makedirs(dst_path, exist_ok=True)
-    os.symlink(src, dst)
+    if original_image_without_join:
+        src_path, src_ext = os.path.splitext(src)
+        dst_path, dst_ext = os.path.splitext(dst)
+        for direction in (5, 1, 2):
+            os.symlink(f'{src_path}{direction}{src_ext}', f'{dst_path}{direction}{dst_ext}')
+    else:
+        os.symlink(src, dst)
     return
 
 
