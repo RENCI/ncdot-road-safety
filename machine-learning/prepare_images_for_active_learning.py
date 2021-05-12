@@ -2,7 +2,30 @@ import pandas as pd
 import argparse
 import os
 
-from utils import split_to_train_valid_for_al, create_yes_no_sub_dirs
+from utils import split_to_train_valid_for_al, create_yes_no_sub_dirs, get_image_names_with_path
+
+
+def prepare_image(src, dst):
+    dst_path = os.path.dirname(dst)
+    os.makedirs(dst_path, exist_ok=True)
+    if original_image_without_join:
+        dst_path, dst_ext = os.path.splitext(dst)
+        if src.endswith('.jpg'):
+            src_path, src_ext = os.path.splitext(src)
+        else:
+            src_path = os.path.join(src, dst_path.split('/')[-1])
+            src_ext = '.jpg'
+
+        for direction in (5, 1, 2):
+            os.symlink(f'{src_path}{direction}{src_ext}', f'{dst_path}{direction}{dst_ext}')
+    else:
+        os.symlink(src, dst)
+    return
+
+
+def get_image_full_path(prefix_path, image_base_name):
+    path, _, _, _ = get_image_names_with_path(prefix_path, image_base_name)
+    return path
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -24,6 +47,9 @@ parser.add_argument('--feature_name', type=str, default='guardrail',
 parser.add_argument('--input_prefix_dir', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/images/',
                     help='root directory to create active learning data in - make sure it ends with slash')
+parser.add_argument('--input_train_prefix_dir', type=str,
+                    default='/projects/ncdot/2018/NC_2018_Images/',
+                    help='root directory to create existing training data to symlink to for AL')
 parser.add_argument('--root_dir', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning',
                     help='root directory to create active learning data in')
@@ -52,6 +78,7 @@ cur_round = args.cur_round
 feature_name = args.feature_name
 train_frac = args.train_frac
 input_prefix_dir = args.input_prefix_dir
+input_train_prefix_dir = args.input_train_prefix_dir
 root_dir = args.root_dir
 exist_train_yes_file = args.exist_train_yes_file
 exist_train_no_file = args.exist_train_no_file
@@ -69,6 +96,10 @@ exist_train_yes_df = pd.read_csv(exist_train_yes_file, header=None, index_col=Fa
 exist_train_yes_df['Presence'] = 'True'
 exist_train_yes_df['Image'] = exist_train_yes_df.Full_Path_Image.str.replace('/projects/ncdot/2018/machine_learning'
                                                                              '/data_2lanes/train/', '')
+exist_train_yes_df['BaseImageName'] = exist_train_yes_df.Image.str.split('/').str[-1]
+exist_train_yes_df['Full_Path_Image'] = exist_train_yes_df.apply(lambda row: get_image_full_path(input_train_prefix_dir,
+                                                                                                 row.BaseImageName),
+                                                                 axis=1)
 exist_train_yes_df = exist_train_yes_df.set_index('Image')
 
 exist_train_no_df = pd.read_csv(exist_train_no_file, header=None, index_col=False, dtype=str,
@@ -76,6 +107,10 @@ exist_train_no_df = pd.read_csv(exist_train_no_file, header=None, index_col=Fals
 exist_train_no_df['Presence'] = 'False'
 exist_train_no_df['Image'] = exist_train_no_df.Full_Path_Image.str.replace('/projects/ncdot/2018/machine_learning/'
                                                                            'data_2lanes/train/', '')
+exist_train_no_df['BaseImageName'] = exist_train_no_df.Image.str.split('/').str[-1]
+exist_train_no_df['Full_Path_Image'] = exist_train_no_df.apply(lambda row: get_image_full_path(input_train_prefix_dir,
+                                                                                               row.BaseImageName),
+                                                               axis=1)
 exist_train_no_df = exist_train_no_df.set_index('Image')
 if prior_input_file:
     # combine prior_input_file and input_file to create output_annot_file which is used to prepare images
@@ -115,19 +150,6 @@ else:
 
 train_df = train_df.reset_index()
 valid_df = valid_df.reset_index()
-
-
-def prepare_image(src, dst):
-    dst_path = os.path.dirname(dst)
-    os.makedirs(dst_path, exist_ok=True)
-    if original_image_without_join:
-        src_path, src_ext = os.path.splitext(src)
-        dst_path, dst_ext = os.path.splitext(dst)
-        for direction in (5, 1, 2):
-            os.symlink(f'{src_path}{direction}{src_ext}', f'{dst_path}{direction}{dst_ext}')
-    else:
-        os.symlink(src, dst)
-    return
 
 
 train_path = f'{root_al_dir}/train/'
