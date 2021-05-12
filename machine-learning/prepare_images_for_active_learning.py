@@ -109,7 +109,7 @@ exist_train_no_df['Presence'] = 'False'
 exist_train_no_df['Image'] = exist_train_no_df.Full_Path_Image.str.replace('/projects/ncdot/2018/machine_learning/'
                                                                            'data_2lanes/train/', '')
 exist_train_no_df['BaseImageName'] = exist_train_no_df.Image.str.split('/').str[-1]
-exist_train_yes_df['BaseImageName'] = exist_train_yes_df.BaseImageName.str.replace('.jpg', '')
+exist_train_no_df['BaseImageName'] = exist_train_no_df.BaseImageName.str.replace('.jpg', '')
 exist_train_no_df['Full_Path_Image'] = exist_train_no_df.apply(lambda row: get_image_full_path(input_train_prefix_dir,
                                                                                                row.BaseImageName),
                                                                axis=1)
