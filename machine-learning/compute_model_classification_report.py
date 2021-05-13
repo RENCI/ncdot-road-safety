@@ -2,15 +2,18 @@ import pandas as pd
 import argparse
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import average_precision_score
+import matplotlib.pyplot as plt
+import seaborn as sns
 # from utils import draw_plots
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--label_file', type=str,
-                    default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
+                    # default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
+                    default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
                     help='labelled guardrail data obtained from guardrail survey data')
 parser.add_argument('--predict_label_file', type=str,
-                    default='../server/metadata/model_predict_test_round4.csv',
+                    default='../server/metadata/round5/predict_annot.csv',
                     help='predicted guardrail lable data')
 parser.add_argument('--division', type=str,
                     default=None,
@@ -43,9 +46,18 @@ df = df.reset_index()
 df['Presence'] = df.Presence.apply(lambda row: 0 if row == 'False' else 1)
 df['ROUND_PREDICT'] = df.ROUND_PREDICT.apply(lambda row: 0 if row < 0.5 else 1)
 print(df.shape)
-print('Confusion Matrix')
-print(confusion_matrix(df['Presence'], df['ROUND_PREDICT']))
 print('Classification Report')
 print(classification_report(df['Presence'], df['ROUND_PREDICT']))
 print('average precision score', average_precision_score(df['Presence'], df['ROUND_PREDICT']))
 #draw_plots(df_result['GUARDRAIL_YN'], df_result['PREDICTION_YN'])
+print('Confusion Matrix')
+cm = confusion_matrix(df['Presence'], df['ROUND_PREDICT'])
+print(cm)
+ax = plt.subplot()
+sns.heatmap(cm, annot=True, ax=ax, cmap='Blues', fmt="d")
+ax.set_title('Confusion Matrix')
+ax.set_xlabel('Predicted Labels')
+ax.set_ylabel('True Labels')
+ax.xaxis.set_ticklabels(['Not Guardrail', 'Guardrail'])
+ax.yaxis.set_ticklabels(['Not Guardrail', 'guardrail'])
+plt.show()

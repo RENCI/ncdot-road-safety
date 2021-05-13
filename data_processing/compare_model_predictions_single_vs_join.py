@@ -2,7 +2,8 @@ import argparse
 import pandas as pd
 from create_balanced_random_subset_html_for_inspection import create_html_file_for_inspection
 from sklearn.metrics import classification_report, confusion_matrix
-
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--predict_join_file', type=str,
@@ -56,10 +57,19 @@ concat_df['ROUND_PREDICT_SINGLE'] = concat_df.apply(lambda row: 1 if (row.ROUND_
 print(confusion_matrix(concat_df['Presence'], concat_df['ROUND_PREDICT']))
 print('Classification Report for joined images')
 print(classification_report(concat_df['Presence'], concat_df['ROUND_PREDICT']))
-print('Confusion Matrix for single images')
-print(confusion_matrix(concat_df['Presence'], concat_df['ROUND_PREDICT_SINGLE']))
 print('Classification Report for single images')
 print(classification_report(concat_df['Presence'], concat_df['ROUND_PREDICT_SINGLE']))
+print('Confusion Matrix for single images')
+cm = confusion_matrix(concat_df['Presence'], concat_df['ROUND_PREDICT_SINGLE'])
+print(cm)
+ax = plt.subplot()
+sns.heatmap(cm, annot=True, ax=ax, cmap='Blues', fmt="d")
+ax.set_title('Confusion Matrix')
+ax.set_xlabel('Predicted Labels')
+ax.set_ylabel('True Labels')
+ax.xaxis.set_ticklabels(['Not Guardrail', 'Guardrail'])
+ax.yaxis.set_ticklabels(['Not Guardrail', 'guardrail'])
+plt.show()
 same_df = concat_df[((concat_df.ROUND_PREDICT >= 0.5) & (concat_df.ROUND_PREDICT_GROUP > 0)) |
                      ((concat_df.ROUND_PREDICT < 0.5) & (concat_df.ROUND_PREDICT_GROUP == 0))]
 same = len(same_df)
