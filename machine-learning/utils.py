@@ -145,28 +145,34 @@ def sym_link_single_view_image(src, dst, left, front, right, presence):
         if left == 'p':
             os.symlink(f'{src_path}5{src_ext}', f'{dst_path}5{dst_ext}')
         else:
+            os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}5{src_ext}', f'{opposite_dst_path}5{dst_ext}')
         if front == 'p':
             os.symlink(f'{src_path}1{src_ext}', f'{dst_path}1{dst_ext}')
         else:
+            os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}1{src_ext}', f'{opposite_dst_path}1{dst_ext}')
         if right == 'p':
             os.symlink(f'{src_path}2{src_ext}', f'{dst_path}2{dst_ext}')
         else:
+            os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}2{src_ext}', f'{opposite_dst_path}2{dst_ext}')
     else:
         opposite_dst_path = dst_path.replace('/no/', '/yes/')
         if left == 'a' or left == 'i':
             os.symlink(f'{src_path}5{src_ext}', f'{dst_path}5{dst_ext}')
         else:
+            os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}5{src_ext}', f'{opposite_dst_path}5{dst_ext}')
         if front == 'a' or front == 'i':
             os.symlink(f'{src_path}1{src_ext}', f'{dst_path}1{dst_ext}')
         else:
+            os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}1{src_ext}', f'{opposite_dst_path}1{dst_ext}')
         if right == 'a' or right == 'i':
             os.symlink(f'{src_path}2{src_ext}', f'{dst_path}2{dst_ext}')
         else:
+            os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}2{src_ext}', f'{opposite_dst_path}2{dst_ext}')
     return
 
