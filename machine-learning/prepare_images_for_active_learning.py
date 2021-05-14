@@ -2,7 +2,7 @@ import pandas as pd
 import argparse
 import os
 
-from utils import split_to_train_valid_for_al, create_yes_no_sub_dirs
+from utils import split_to_train_valid_for_al, create_yes_no_sub_dirs, sym_link_single_view_image
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -123,18 +123,7 @@ def prepare_image(src, dst, left, front, right, presence):
     dst_path = os.path.dirname(dst)
     os.makedirs(dst_path, exist_ok=True)
     if original_image_without_join and src.startswith(input_prefix_dir):
-        dst_path, dst_ext = os.path.splitext(dst)
-        if src.endswith('.jpg'):
-            src_path, src_ext = os.path.splitext(src)
-        else:
-            src_path = os.path.join(src, dst_path.split('/')[-1])
-            src_ext = '.jpg'
-        if (presence == 'True' and left == 'p') or (presence == 'False' and (left == 'a' or left == 'i')):
-            os.symlink(f'{src_path}5{src_ext}', f'{dst_path}5{dst_ext}')
-        if (presence == 'True' and front == 'p') or (presence == 'False' and (front == 'a' or front == 'i')):
-            os.symlink(f'{src_path}1{src_ext}', f'{dst_path}1{dst_ext}')
-        if (presence == 'True' and right == 'p') or (presence == 'False' and (right == 'a' or right == 'i')):
-            os.symlink(f'{src_path}2{src_ext}', f'{dst_path}2{dst_ext}')
+        sym_link_single_view_image(src, dst, left, front, right, presence)
     else:
         os.symlink(src, dst)
     return

@@ -133,6 +133,22 @@ def create_yes_no_sub_dirs(root_path):
     os.makedirs(os.path.join(root_path, 'no'), exist_ok=True)
 
 
+def sym_link_single_view_image(src, dst, left, front, right, presence):
+    dst_path, dst_ext = os.path.splitext(dst)
+    if src.endswith('.jpg'):
+        src_path, src_ext = os.path.splitext(src)
+    else:
+        src_path = os.path.join(src, dst_path.split('/')[-1])
+        src_ext = '.jpg'
+    if (presence == 'True' and left == 'p') or (presence == 'False' and (left == 'a' or left == 'i')):
+        os.symlink(f'{src_path}5{src_ext}', f'{dst_path}5{dst_ext}')
+    if (presence == 'True' and front == 'p') or (presence == 'False' and (front == 'a' or front == 'i')):
+        os.symlink(f'{src_path}1{src_ext}', f'{dst_path}1{dst_ext}')
+    if (presence == 'True' and right == 'p') or (presence == 'False' and (right == 'a' or right == 'i')):
+        os.symlink(f'{src_path}2{src_ext}', f'{dst_path}2{dst_ext}')
+    return
+
+
 def draw_plots(y_true, y_predict):
     precision, recall, threshold = precision_recall_curve(y_true, y_predict)
     plt.plot(threshold, precision[:-1], "b--", label='Precision')
