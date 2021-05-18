@@ -88,20 +88,25 @@ if no_exist_train:
     # under-sample common negative class to make a balanced training set
     df_yes = df[(df.LeftView == 'p') | (df.LeftView == 'i') | (df.FrontView == 'p') |
                 (df.FrontView == 'i') | (df.RightView == 'p') | (df.RightView == 'i')]
-    df_yes_cnt = len(df_yes[df_yes.LeftView == 'p']) + len(df_yes[df_yes.FrontView == 'p']) + \
-                 len(df_yes[df_yes.RightView == 'p']) + len(df_yes[df_yes.LeftView == 'i']) + \
-                 len(df_yes[df_yes.FrontView == 'i']) + len(df_yes[df_yes.RightView == 'i'])
+    df_yes_single_yes_cnt = len(df_yes[df_yes.LeftView == 'p']) + len(df_yes[df_yes.FrontView == 'p']) + \
+                            len(df_yes[df_yes.RightView == 'p']) + len(df_yes[df_yes.LeftView == 'i']) + \
+                            len(df_yes[df_yes.FrontView == 'i']) + len(df_yes[df_yes.RightView == 'i'])
+    df_yes_single_no_cnt = len(df_yes[df_yes.LeftView == 'a']) + len(df_yes[df_yes.FrontView == 'a']) + \
+                           len(df_yes[df_yes.RightView == 'a'])
+    df_yes_single_cnt = df_yes_single_yes_cnt - df_yes_single_no_cnt
+    df_yes['Presence_single'] = 'True'
     df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
-    df_no = df_no.sample(n=df_yes_cnt // 3, random_state=42)
+    df_no = df_no.sample(n=df_yes_single_cnt // 3, random_state=42)
+    df_no['Presence_single'] = 'False'
     df = pd.concat([df_yes, df_no])
-
-train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence', train_frac)
-train_df_user.drop(columns=['Full_Path_Image']).to_csv(output_annot_train_file)
-
-if no_exist_train:
+    train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence_single', train_frac)
     train_df = train_df_user
     valid_df = valid_df_user
 else:
+    train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence', train_frac)
+    train_df_user.drop(columns=['Full_Path_Image']).to_csv(output_annot_train_file)
+
+if not no_exist_train:
     exist_train_yes_df = pd.read_csv(exist_train_yes_file, header=None, index_col=False, dtype=str,
                                      names=['Full_Path_Image'])
     exist_train_yes_df['Presence'] = 'True'
