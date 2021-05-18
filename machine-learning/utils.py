@@ -133,7 +133,7 @@ def create_yes_no_sub_dirs(root_path):
     os.makedirs(os.path.join(root_path, 'no'), exist_ok=True)
 
 
-def sym_link_single_view_image(src, dst, left, front, right, presence):
+def sym_link_single_view_image(src, dst, left, front, right, presence, irelevant_as_false=True):
     dst_path, dst_ext = os.path.splitext(dst)
     if src.endswith('.jpg'):
         src_path, src_ext = os.path.splitext(src)
@@ -159,17 +159,17 @@ def sym_link_single_view_image(src, dst, left, front, right, presence):
             os.symlink(f'{src_path}2{src_ext}', f'{opposite_dst_path}2{dst_ext}')
     else:
         opposite_dst_path = dst_path.replace('/no/', '/yes/')
-        if left == 'a' or left == 'i':
+        if left == 'a' or (irelevant_as_false and left == 'i'):
             os.symlink(f'{src_path}5{src_ext}', f'{dst_path}5{dst_ext}')
         else:
             os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}5{src_ext}', f'{opposite_dst_path}5{dst_ext}')
-        if front == 'a' or front == 'i':
+        if front == 'a' or (irelevant_as_false and front == 'i'):
             os.symlink(f'{src_path}1{src_ext}', f'{dst_path}1{dst_ext}')
         else:
             os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}1{src_ext}', f'{opposite_dst_path}1{dst_ext}')
-        if right == 'a' or right == 'i':
+        if right == 'a' or (irelevant_as_false and right == 'i'):
             os.symlink(f'{src_path}2{src_ext}', f'{dst_path}2{dst_ext}')
         else:
             os.makedirs(opposite_dst_path, exist_ok=True)
