@@ -142,17 +142,17 @@ def sym_link_single_view_image(src, dst, left, front, right, presence, irelevant
         src_ext = '.jpg'
     if presence == 'True':
         opposite_dst_path = dst_path.replace('/yes/', '/no/')
-        if left == 'p':
+        if left == 'p' or (not irelevant_as_false and left == 'i'):
             os.symlink(f'{src_path}5{src_ext}', f'{dst_path}5{dst_ext}')
         else:
             os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}5{src_ext}', f'{opposite_dst_path}5{dst_ext}')
-        if front == 'p':
+        if front == 'p' or (not irelevant_as_false and front == 'i'):
             os.symlink(f'{src_path}1{src_ext}', f'{dst_path}1{dst_ext}')
         else:
             os.makedirs(opposite_dst_path, exist_ok=True)
             os.symlink(f'{src_path}1{src_ext}', f'{opposite_dst_path}1{dst_ext}')
-        if right == 'p':
+        if right == 'p' or (not irelevant_as_false and right == 'i'):
             os.symlink(f'{src_path}2{src_ext}', f'{dst_path}2{dst_ext}')
         else:
             os.makedirs(opposite_dst_path, exist_ok=True)

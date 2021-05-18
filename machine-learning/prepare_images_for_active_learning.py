@@ -88,8 +88,11 @@ if no_exist_train:
     # under-sample common negative class to make a balanced training set
     df_yes = df[(df.LeftView == 'p') | (df.LeftView == 'i') | (df.FrontView == 'p') |
                 (df.FrontView == 'i') | (df.RightView == 'p') | (df.RightView == 'i')]
+    df_yes_cnt = len(df_yes[df_yes.LeftView == 'p']) + len(df_yes[df_yes.FrontView == 'p']) + \
+                 len(df_yes[df_yes.RightView == 'p']) + len(df_yes[df_yes.LeftView == 'i']) + \
+                 len(df_yes[df_yes.FrontView == 'i']) + len(df_yes[df_yes.RightView == 'i'])
     df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
-    df_no = df_no.sample(n=len(df_yes), random_state=42)
+    df_no = df_no.sample(n=df_yes_cnt // 3, random_state=42)
     df = pd.concat([df_yes, df_no])
 
 train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence', train_frac)
