@@ -159,14 +159,17 @@ def save_annot_data_to_db(img_base_name, username, annot_name, annot_views, anno
     return
 
 
-def create_ai_image_annotation(image_base_name, annotation, presence, certainty):
+def create_ai_image_annotation(image_base_name, annotation, presence, certainty,
+                               uncertainty_measure=None, uncertainty_group=None):
     try:
         image = RouteImage.objects.get(image_base_name=image_base_name)
     except RouteImage.DoesNotExist:
         return
     AIImageAnnotation.objects.get_or_create(image=image,
                                             annotation=annotation,
-                                            defaults={'presence': presence, 'certainty': certainty})
+                                            defaults={'presence': presence, 'certainty': certainty,
+                                                      'uncertainty_measure': uncertainty_measure,
+                                                      'uncertainty_group': uncertainty_group})
 
 
 def update_ai_image_annotation(image_base_name, annotation, presence, certainty):
