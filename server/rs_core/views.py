@@ -337,7 +337,8 @@ def get_route_info(request, route_id):
 @login_required
 def get_annotation_set(request):
     annot_list = []
-    for obj in AnnotationSet.objects.all():
+    # for obj in AnnotationSet.objects.all():
+    for obj in AnnotationSet.objects.order_by('-name'):
         obj_dict = {}
         obj_dict['name'] = obj.name
         obj_dict['flags'] = list(obj.flags.all().values_list("title", flat=True))
