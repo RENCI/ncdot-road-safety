@@ -4,16 +4,15 @@ from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import average_precision_score
 import matplotlib.pyplot as plt
 import seaborn as sns
-# from utils import draw_plots
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--label_file', type=str,
-                    # default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
+                    #default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
                     default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
                     help='labelled guardrail data obtained from guardrail survey data')
 parser.add_argument('--predict_label_file', type=str,
-                    default='../server/metadata/round5/predict_annot.csv',
+                    default='../server/metadata/round5/model_predict_test.csv',
                     help='predicted guardrail lable data')
 parser.add_argument('--division', type=str,
                     default=None,

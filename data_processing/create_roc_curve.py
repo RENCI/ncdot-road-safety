@@ -8,7 +8,9 @@ model_predict_file_list = [
     '../server/metadata/model_predict_test_base.csv',
     '../server/metadata/model_predict_test_round1.csv',
     '../server/metadata/model_predict_test_round2.csv',
-    '../server/metadata/model_predict_test_round3.csv'
+    '../server/metadata/model_predict_test_round3.csv',
+    '../server/metadata/model_predict_test_round4.csv',
+    '../server/metadata/model_predict_test_round5.csv'
 ]
 
 def read_predict_file(filename, rename_cols=None):
@@ -31,7 +33,8 @@ def draw_roc_curve(y_true, y_score):
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
+                    #default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
+                    default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
                     help='input file with path to create roc curve from')
 parser.add_argument('--curve_title', type=str,
                     default='ROC Curve',
