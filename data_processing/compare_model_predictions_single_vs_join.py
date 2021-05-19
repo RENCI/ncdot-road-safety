@@ -5,6 +5,14 @@ from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
+def create_view_predict(image_name, last_digit_str, prob):
+    if image_name.endswith(last_digit_str):
+        return 1 if prob >= 0.5 else 0
+    else:
+        return 0
+
+
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--predict_join_file', type=str,
                     default='../server/metadata/round5/joined/model_predict_test.csv',
@@ -42,7 +50,9 @@ join_df.MAPPED_IMAGE = join_df.MAPPED_IMAGE.str.split('/').str[-1]
 join_df.MAPPED_IMAGE = join_df.MAPPED_IMAGE.str.replace('.jpg', '')
 single_df.index = single_df.index.str.split('/').str[-1]
 single_df.index = single_df.index.str.replace('.jpg', '')
-
+single_df['LeftView'] = single_df.apply(lambda row: create_view_predict(row.name, '5', row.ROUND_PREDICT), axis=1)
+single_df['FrontView'] = single_df.apply(lambda row: create_view_predict(row.name, '1', row.ROUND_PREDICT), axis=1)
+single_df['RightView'] = single_df.apply(lambda row: create_view_predict(row.name, '2', row.ROUND_PREDICT), axis=1)
 single_df['GROUP'] = single_df.index.str[:-1]
 single_df['ROUND_PREDICT_GROUP'] = single_df.apply(lambda row: 1 if row.ROUND_PREDICT>=0.5 else 0, axis=1)
 single_df.drop(columns=['ROUND_PREDICT'], inplace=True)
