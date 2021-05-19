@@ -99,7 +99,8 @@ if no_exist_train:
     else:
         df_yes = df[df.Presence == 'True']
         df_no = df[(df.Presence == 'False') & (df.LeftView != 'i') & (df.FrontView != 'i') & (df.RightView != 'i')]
-        df_no = df_no.sample(n=df_yes, random_state=42)
+        df_yes_cnt = len(df_yes)
+        df_no = df_no.sample(n=df_yes_cnt, random_state=42)
         
     df = pd.concat([df_yes, df_no])
     if original_image_without_join:
