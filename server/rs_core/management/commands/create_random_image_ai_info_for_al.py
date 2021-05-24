@@ -49,7 +49,7 @@ class Command(BaseCommand):
         df = pd.concat(df_list)
         df = df.reset_index(drop=True)
         print(df.shape)
-        annot_obj = AnnotationSet.objects.get(name__iexact='pole')
+        annot_obj = AnnotationSet.objects.get(name__iexact=annot_name)
         df.apply(lambda row: create_ai_image_annotation(row['image_base_name'], annot_obj, False,
                                                         round(random.uniform(0, 0.5), 2), row.name, 0),
                  axis=1)
