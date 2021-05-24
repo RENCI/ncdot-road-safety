@@ -92,3 +92,18 @@ class UserAnnotationSummary(models.Model):
     presence = models.BooleanField(default=False, db_index=True)
     total = models.IntegerField(default=0)
 
+
+class HoldoutTestInfo(models.Model):
+    CATEGORY_CHOICES = (
+        ('tp', 'TruePositive'),
+        ('tn', 'TrueNegative'),
+        ('fp', 'FalsePositive'),
+        ('fn', 'FalseNegative')
+    )
+    image = models.ForeignKey(RouteImage, on_delete=models.CASCADE)
+    annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
+    round_number = models.PositiveSmallIntegerField(db_index=True)
+    presence = models.BooleanField(default=False, db_index=True)
+    in_balance_set = models.BooleanField(default=True, db_index=True)
+    certainty = models.FloatField()
+    category = models.CharField(max_length=10, choices=CATEGORY_CHOICES)
