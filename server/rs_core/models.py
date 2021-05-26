@@ -106,4 +106,7 @@ class HoldoutTestInfo(models.Model):
     presence = models.BooleanField(default=False, db_index=True)
     in_balance_set = models.BooleanField(default=True, db_index=True)
     certainty = models.FloatField()
+    left_certainty = models.FloatField()
+    front_certainty = models.FloatField()
+    right_certainty = models.FloatField()
     category = models.CharField(max_length=10, choices=CATEGORY_CHOICES)

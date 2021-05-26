@@ -13,7 +13,7 @@ from django.contrib.auth.models import User
 from django.db import transaction
 
 from rs_core.models import RouteImage, AIImageAnnotation, UserImageAnnotation, AnnotationSet, AnnotationFlag, \
-    UserAnnotationSummary
+    UserAnnotationSummary, HoldoutTestInfo
 
 
 def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', aspect_ratio=None, predict=None,
@@ -181,6 +181,45 @@ def update_ai_image_annotation(image_base_name, annotation, presence, certainty)
     obj.presence = presence
     obj.certainty = certainty
     obj.save()
+
+
+def save_holdout_test_info_to_db(image_base_name, annot_name, round_no, presence, in_balance_set, certainty,
+                                 left_certainty, front_certainty, right_certainty):
+    if certainty >= 0.5:
+        if presence:
+            category = 'tp'
+        else:
+            category = 'fp'
+    else:
+        if presence:
+            category = 'fn'
+        else:
+            category = 'tn'
+    obj, created = HoldoutTestInfo.objects.get_or_create(
+        image=RouteImage.objects.get(image_base_name=image_base_name),
+        annotation=AnnotationSet.objects.get(name__iexact=annot_name),
+        round_number=round_no,
+        defaults={
+            'presence': presence,
+            'in_balance_set': in_balance_set,
+            'certainty': certainty,
+            'left_certainty': left_certainty,
+            'front_certainty': front_certainty,
+            'right_certainty': right_certainty,
+            'category': category
+        }
+    )
+
+    if not created:
+        # update user annotation
+        obj.presence = presence
+        obj.in_balance_set = in_balance_set
+        obj.certainty = certainty
+        obj.left_certainty = left_certainty
+        obj.front_certainty = front_certainty
+        obj.right_certainty = right_certainty
+        obj.category = category
+        obj.save()
 
 
 def save_user_annot_summary_to_db(username, presence, annot_name, round_no, total):

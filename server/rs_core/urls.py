@@ -19,6 +19,8 @@ urlpatterns = [
     path('get_image_names_by_loc/<long>/<lat>/<count>/', views.get_image_names_by_loc,
          name='get_image_names_by_loc'),
     path('get_image_metadata/<image_base_name>/', views.get_image_metadata, name='get_image_metadata'),
+    path('get_image_prediction/<image_base_name>/<feature_name>', views.get_image_prediction,
+         name='get_image_prediction'),
     path('get_next_images_for_annot/<annot_name>/<count>/', views.get_next_images_for_annot,
          name='get_next_images_for_annot'),
     path('get_all_routes/', views.get_all_routes, name='get_all_routes'),
@@ -26,5 +28,6 @@ urlpatterns = [
     path('get_annotation_set/', views.get_annotation_set, name='get_annotation_set'),
     path('save_annotations/', views.save_annotations, name='save_annotations'),
     path('get_image_annotations/<image_base_name>/', views.get_image_annotations, name='get_image_annotations'),
-
+    path('get_holdout_test_info/<annot_name>/<round_no>/<category>', views.get_holdout_test_info,
+         name='get_holdout_test_info'),
 ]

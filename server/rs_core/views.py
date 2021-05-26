@@ -32,7 +32,7 @@ from rest_framework import status
 
 from rs_core.forms import SignupForm, UserProfileForm, UserPasswordResetForm
 from rs_core.models import UserProfile, RouteImage, AnnotationSet, AIImageAnnotation, UserImageAnnotation, \
-    UserAnnotationSummary
+    UserAnnotationSummary, HoldoutTestInfo
 from rs_core.utils import get_image_base_names_by_annotation, get_image_annotations_queryset, \
     save_annot_data_to_db, save_annot_data_cache, get_file_from_irods
 
@@ -287,6 +287,24 @@ def get_image_metadata(request, image_base_name):
 
 
 @login_required
+def get_image_prediction(request, image_base_name, feature_name):
+    ret = {}
+    obj = AIImageAnnotation.objects.filter(image__image_base_name=image_base_name,
+                                           annotation__name__iexact=feature_name).first()
+    if not obj:
+        return JsonResponse({'error': 'the requested image does not exist or does not have a prediction'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+    ret['prediction'] = {
+        'image_base_name': image_base_name,
+        'feature_name': feature_name,
+        'probability': obj.certainty,
+        'presence': obj.presence
+    }
+    return JsonResponse(ret, status=status.HTTP_200_OK)
+
+
+@login_required
 @user_passes_test(lambda u: False if u.is_superuser else True)
 def get_next_images_for_annot(request, annot_name, count):
     # return requested <count> number of images sorted by needs for human annotation
@@ -416,3 +434,22 @@ def save_annotations(request):
         images = []
     image_list = [{'base_name': img_base_name, 'aspect_ratio': img_ar} for img_base_name, img_ar in images]
     return JsonResponse({'image_info_list': image_list}, status=status.HTTP_200_OK)
+
+
+@login_required
+def get_holdout_test_info(request, annot_name, round_no, category):
+    ret_info = {'holdout_test_info': []}
+    info_qs = HoldoutTestInfo.objects.filter(annotation__name__iexact=annot_name, round_number=int(round_no),
+                                             category=category)
+    for info in info_qs:
+        info_dict = {
+            'image_base_name': info.image.image_base_name,
+            'presence': info.presence,
+            'in_balance_set': info.in_balance_set,
+            'certainty': info.certainty,
+            'left_view_certainty': info.left_certainty,
+            'front_view_certainty': info.front_certainty,
+            'right_view_certainty': info.right_certainty
+        }
+        ret_info['holdout_test_info'].append(info_dict)
+    return JsonResponse(ret_info, status=status.HTTP_200_OK)
