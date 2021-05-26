@@ -12,7 +12,7 @@ class Command(BaseCommand):
     docker exec -ti dot-server python manage.py load_pole_model_annot <input_annot_file>
     For example:
     docker exec -ti dot-server python manage.py load_pole_model_annot
-    /projects/ncdot/NC_2018_Secondary/active_learning/pole/round0/ncdot_pole_annotations.csv
+    metadata/ncdot_pole_annotations.csv
     """
     help = "load the AI info from input model annotation file"
 
@@ -26,7 +26,8 @@ class Command(BaseCommand):
                          dtype={'MAPPED_IMAGE': str, 'POLES_ALL': bool})
         print(df.shape)
         annot_obj = AnnotationSet.objects.get(name__iexact='pole')
-        df.apply(lambda row: create_ai_image_annotation(row.MAPPED_IMAGE, annot_obj, row.POLES_ALL,
-                                                        round(random.uniform(0, 0.5), 2), row.name, 0),
+        df.apply(lambda row: create_ai_image_annotation(
+            row.MAPPED_IMAGE, annot_obj, row.POLES_ALL,
+            round(random.uniform(0.5, 1), 2) if row.POLES_ALL else round(random.uniform(0, 0.5), 2), row.name, 0),
                  axis=1)
         print('Done')

@@ -13,6 +13,7 @@ model_predict_file_list = [
     '../server/metadata/model_predict_test_round5.csv'
 ]
 
+
 def read_predict_file(filename, rename_cols=None):
     pred_df = pd.read_csv(filename, header=0, index_col=False,
                           dtype={'MAPPED_IMAGE': str, 'ROUND_PREDICT': float},
