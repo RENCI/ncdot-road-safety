@@ -355,10 +355,10 @@ def get_route_info(request, route_id):
                             status=status.HTTP_400_BAD_REQUEST)
     image_base_filter = RouteImage.objects.filter(route_id=route_id).order_by('mile_post')
     if not feature_name:
-        route_images = list(image_base_filter.values_list("image_base_name", flat=True))
+        route_images = list(image_base_filter.values("image_base_name", "mile_post"))
     else:
-        route_images = list(image_base_filter.filter(aiimageannotation__annotation__name=feature_name).values_list(
-            "image_base_name", "aiimageannotation__certainty"))
+        route_images = list(image_base_filter.filter(aiimageannotation__annotation__name=feature_name).values(
+            "image_base_name", "mile_post", "aiimageannotation__certainty"))
     if start_image_index >= 0 and end_image_index >= 0:
         return JsonResponse({'route_image_info': route_images[start_image_index:end_image_index]},
                             status=status.HTTP_200_OK)
@@ -369,10 +369,7 @@ def get_route_info(request, route_id):
         return JsonResponse({'route_image_info': route_images[:end_image_index]},
                             status=status.HTTP_200_OK)
     else:
-        if not feature_name:
-            return JsonResponse({'route_image_base_names': route_images}, status=status.HTTP_200_OK)
-        else:
-            return JsonResponse({'route_image_info': route_images}, status=status.HTTP_200_OK)
+        return JsonResponse({'route_image_info': route_images}, status=status.HTTP_200_OK)
 
 
 @login_required
