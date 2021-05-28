@@ -347,9 +347,32 @@ def get_all_routes(request):
 
 @login_required
 def get_route_info(request, route_id):
-    route_images = list(RouteImage.objects.filter(route_id=route_id).order_by('mile_post').values_list("image_base_name",
-                                                                                                       flat=True))
-    return JsonResponse({'route_image_base_names': route_images}, status=status.HTTP_200_OK)
+    feature_name = request.GET.get('feature_name', None)
+    start_image_index = int(request.GET.get('start_image_index', -1))
+    end_image_index = int(request.GET.get('end_image_index', -1))
+    if start_image_index >= 0 and end_image_index >= 0 and start_image_index >= end_image_index:
+        return JsonResponse({"error": "start_image_index parameter must be smaller than end_image_index parameter"},
+                            status=status.HTTP_400_BAD_REQUEST)
+    image_base_filter = RouteImage.objects.filter(route_id=route_id).order_by('mile_post')
+    if not feature_name:
+        route_images = list(image_base_filter.values_list("image_base_name", flat=True))
+    else:
+        route_images = list(image_base_filter.filter(aiimageannotation__annotation__name=feature_name).values_list(
+            "image_base_name", "aiimageannotation__certainty"))
+    if start_image_index >= 0 and end_image_index >= 0:
+        return JsonResponse({'route_image_info': route_images[start_image_index:end_image_index]},
+                            status=status.HTTP_200_OK)
+    elif start_image_index >= 0:
+        return JsonResponse({'route_image_info': route_images[start_image_index:]},
+                            status=status.HTTP_200_OK)
+    elif end_image_index >= 0:
+        return JsonResponse({'route_image_info': route_images[:end_image_index]},
+                            status=status.HTTP_200_OK)
+    else:
+        if not feature_name:
+            return JsonResponse({'route_image_base_names': route_images}, status=status.HTTP_200_OK)
+        else:
+            return JsonResponse({'route_image_info': route_images}, status=status.HTTP_200_OK)
 
 
 @login_required
