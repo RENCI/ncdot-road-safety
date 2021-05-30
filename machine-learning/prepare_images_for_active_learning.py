@@ -63,7 +63,7 @@ original_image_without_join = args.original_image_without_join
 no_exist_train = args.no_exist_train
 
 df = pd.read_csv(input_file, header=0, index_col=False, dtype=str,
-                 usecols=['Image', 'Presence', 'LeftView', 'FrontView', 'RightView'])
+                 usecols=['Image', 'Presence', 'LeftView', 'FrontView', 'RightView', 'Flags'])
 df = df.drop_duplicates(subset=['Image'])
 df['Full_Path_Image'] = input_prefix_dir + df.Image
 df = df.set_index('Image')
@@ -71,7 +71,7 @@ df = df.set_index('Image')
 if prior_input_file:
     # combine prior_input_file and input_file to create output_annot_file which is used to prepare images
     df_prior = pd.read_csv(prior_input_file, header=0, index_col=False, dtype=str,
-                           usecols=['Image', 'Presence', 'LeftView', 'FrontView', 'RightView'])
+                           usecols=['Image', 'Presence', 'LeftView', 'FrontView', 'RightView', 'Flags'])
     df_prior = df_prior.drop_duplicates(subset=['Image'])
     df_prior['Full_Path_Image'] = input_prefix_dir + df_prior.Image
     df_prior = df_prior.set_index('Image')
@@ -94,7 +94,14 @@ if no_exist_train:
         df_yes_single_cnt = df_yes_single_yes_cnt - df_yes_single_no_cnt
         df_yes['Presence_single'] = 'True'
         df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
-        df_no = df_no.sample(n=df_yes_single_cnt // 3, random_state=42)
+        df_no_fence = df_no[df_no.Flags == 'Fence']
+        df_no_fence_cnt = len(df_no_fence)
+        df_yes_joined_cnt = df_yes_single_cnt // 3 + 1
+        if df_no_fence_cnt > df_yes_joined_cnt:
+            df_no = df_no_fence.sample(n=df_yes_joined_cnt, random_state=42)
+        else:
+            df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_yes_joined_cnt-df_no_fence_cnt, random_state=42)
+            df_no = pd.concat([df_no_fence, df_no_other])
         df_no['Presence_single'] = 'False'
     else:
         df_yes = df[df.Presence == 'True']
