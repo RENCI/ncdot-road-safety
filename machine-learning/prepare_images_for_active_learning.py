@@ -96,12 +96,16 @@ if no_exist_train:
         df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
         df_no_fence = df_no[df_no.Flags == 'Fence']
         df_no_fence_cnt = len(df_no_fence)
+        # use fence images toward one half of total negative samples
+        fence_prop = 0.5
         df_yes_joined_cnt = df_yes_single_cnt // 3 + 1
-        if df_no_fence_cnt > df_yes_joined_cnt:
-            df_no = df_no_fence.sample(n=df_yes_joined_cnt, random_state=42)
+        fence_cnt = int(df_yes_joined_cnt * fence_prop)
+        if df_no_fence_cnt < fence_cnt:
+            fence_cnt = df_no_fence_cnt
         else:
-            df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_yes_joined_cnt-df_no_fence_cnt, random_state=42)
-            df_no = pd.concat([df_no_fence, df_no_other])
+            df_no_fence = df_no_fence.sample(n=fence_cnt, random_state=42)
+        df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_yes_joined_cnt-fence_cnt, random_state=42)
+        df_no = pd.concat([df_no_fence, df_no_other])
         df_no['Presence_single'] = 'False'
     else:
         df_yes = df[df.Presence == 'True']
