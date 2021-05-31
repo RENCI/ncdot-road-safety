@@ -20,7 +20,7 @@ def make_inference(feature_model, bat_size, threshold=0.5):
     normalized_test_ds = test_ds.map(lambda x, y: (normalization_layer(x), y))
     normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
     ts = time.time()
-    predictions = feature_model.predict(normalized_test_ds)
+    predictions = feature_model.predict(normalized_test_ds, verbose=True)
     te = time.time()
     print('time taken for model inference on test set:', te - ts)
     pred_rounded = np.round(predictions, decimals=2)
