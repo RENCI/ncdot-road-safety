@@ -45,6 +45,8 @@ parser.add_argument('--original_image_without_join', action='store_true', defaul
                     help='if set, original image rather than joined images are prepared for AL')
 parser.add_argument('--no_exist_train', action='store_true', default=False,
                     help='if set, no existing training data is added for AL')
+parser.add_argument('--neg_fence_percent', type=float, default=-1,
+                    help='percentage of fence in the negative set - only valid when it is between 0 and 1')
 
 args = parser.parse_args()
 input_file = args.input_file
@@ -61,20 +63,23 @@ exist_train_percent = args.exist_train_percent
 output_annot_train_file = args.output_annot_train_file
 original_image_without_join = args.original_image_without_join
 no_exist_train = args.no_exist_train
+neg_fence_percent = args.neg_fence_percent
 
-df = pd.read_csv(input_file, header=0, index_col=False, dtype=str,
-                 usecols=['Image', 'Presence', 'LeftView', 'FrontView', 'RightView', 'Flags'])
-df = df.drop_duplicates(subset=['Image'])
-df['Full_Path_Image'] = input_prefix_dir + df.Image
-df = df.set_index('Image')
+
+def read_annotation_df(df_file):
+    annot_df = pd.read_csv(df_file, header=0, index_col=False, dtype=str,
+                           usecols=['Image', 'Presence', 'LeftView', 'FrontView', 'RightView', 'Flags'])
+    annot_df = annot_df.drop_duplicates(subset=['Image'])
+    annot_df['Full_Path_Image'] = input_prefix_dir + annot_df.Image
+    annot_df = annot_df.set_index('Image')
+    return annot_df
+
+
+df = read_annotation_df(input_file)
 
 if prior_input_file:
     # combine prior_input_file and input_file to create output_annot_file which is used to prepare images
-    df_prior = pd.read_csv(prior_input_file, header=0, index_col=False, dtype=str,
-                           usecols=['Image', 'Presence', 'LeftView', 'FrontView', 'RightView', 'Flags'])
-    df_prior = df_prior.drop_duplicates(subset=['Image'])
-    df_prior['Full_Path_Image'] = input_prefix_dir + df_prior.Image
-    df_prior = df_prior.set_index('Image')
+    df_prior = read_annotation_df(prior_input_file)
     df_all = pd.concat([df, df_prior])
     df_all.to_csv(all_annot_file)
     # concatenate prior user annotation data with current round annotation data
@@ -94,18 +99,19 @@ if no_exist_train:
         df_yes_single_cnt = df_yes_single_yes_cnt - df_yes_single_no_cnt
         df_yes['Presence_single'] = 'True'
         df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
-        df_no_fence = df_no[df_no.Flags == 'Fence']
-        df_no_fence_cnt = len(df_no_fence)
-        # use fence images toward one half of total negative samples
-        fence_prop = 0.5
         df_yes_joined_cnt = df_yes_single_cnt // 3 + 1
-        fence_cnt = int(df_yes_joined_cnt * fence_prop)
-        if df_no_fence_cnt < fence_cnt:
-            fence_cnt = df_no_fence_cnt
+        if 0 < neg_fence_percent < 1:
+            df_no_fence = df_no[df_no.Flags == 'Fence']
+            df_no_fence_cnt = len(df_no_fence)
+            fence_cnt = int(df_yes_joined_cnt * neg_fence_percent)
+            if df_no_fence_cnt < fence_cnt:
+                fence_cnt = df_no_fence_cnt
+            else:
+                df_no_fence = df_no_fence.sample(n=fence_cnt, random_state=42)
+            df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_yes_joined_cnt-fence_cnt, random_state=42)
+            df_no = pd.concat([df_no_fence, df_no_other])
         else:
-            df_no_fence = df_no_fence.sample(n=fence_cnt, random_state=42)
-        df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_yes_joined_cnt-fence_cnt, random_state=42)
-        df_no = pd.concat([df_no_fence, df_no_other])
+            df_no = df_no.sample(n=df_yes_joined_cnt, random_state=42)
         df_no['Presence_single'] = 'False'
     else:
         df_yes = df[df.Presence == 'True']
