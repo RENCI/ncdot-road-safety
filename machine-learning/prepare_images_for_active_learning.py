@@ -112,7 +112,7 @@ if no_exist_train:
             df_no_other = df_no[~df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
             df_no_other = df_no_other.sample(n=df_yes_joined_cnt-len(df_no_fps), random_state=42)
             df_no = pd.concat([df_no_fps, df_no_other])
-            print('df_no_fps: ', len(df_no_fps, ', df_no_other:', len(df_no_other), 'df_no:', len(df_no)))
+            print('df_no_fps: ', len(df_no_fps), ', df_no_other:', len(df_no_other), 'df_no:', len(df_no))
         elif 0 < neg_fence_percent < 1:
             df_no_fence = df_no[df_no.Flags == 'Fence']
             df_no_fence_cnt = len(df_no_fence)
