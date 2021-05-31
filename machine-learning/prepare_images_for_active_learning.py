@@ -45,6 +45,10 @@ parser.add_argument('--original_image_without_join', action='store_true', defaul
                     help='if set, original image rather than joined images are prepared for AL')
 parser.add_argument('--no_exist_train', action='store_true', default=False,
                     help='if set, no existing training data is added for AL')
+parser.add_argument('--neg_fps_file', type=str,
+                    default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round5/annot_data/'
+                            'annot_fps_from_round4_model.csv',
+                    help='the fps file that contains FPs images to be included in the negative samples')
 parser.add_argument('--neg_fence_percent', type=float, default=-1,
                     help='percentage of fence in the negative set - only valid when it is between 0 and 1')
 
@@ -64,6 +68,7 @@ output_annot_train_file = args.output_annot_train_file
 original_image_without_join = args.original_image_without_join
 no_exist_train = args.no_exist_train
 neg_fence_percent = args.neg_fence_percent
+neg_fps_file = args.neg_fps_file
 
 
 def read_annotation_df(df_file):
@@ -100,7 +105,15 @@ if no_exist_train:
         df_yes['Presence_single'] = 'True'
         df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
         df_yes_joined_cnt = df_yes_single_cnt // 3 + 1
-        if 0 < neg_fence_percent < 1:
+        if neg_fps_file:
+            neg_fps = pd.read_csv(neg_fps_file, index_col=False, dtype=str)
+            df_no['MAPPED_IMAGE'] = df_no.index.str.split('/').str[-1].str.split('.').str[0]
+            df_no_fps = df_no[df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
+            df_no_other = df_no[~df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
+            df_no_other = df_no_other.sample(n=df_yes_joined_cnt-len(df_no_fps), random_state=42)
+            df_no = pd.concat([df_no_fps, df_no_other])
+            print('df_no_fps: ', len(df_no_fps, ', df_no_other:', len(df_no_other), 'df_no:', len(df_no)))
+        elif 0 < neg_fence_percent < 1:
             df_no_fence = df_no[df_no.Flags == 'Fence']
             df_no_fence_cnt = len(df_no_fence)
             fence_cnt = int(df_yes_joined_cnt * neg_fence_percent)
