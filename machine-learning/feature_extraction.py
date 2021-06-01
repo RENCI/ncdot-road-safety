@@ -10,13 +10,13 @@ from utils import setup_gpu_memory
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--data_dir', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/images/d13',
+                    default='/projects/ncdot/NC_2018_Secondary/single_images/d13',
                     help='input dir of data to apply model prediction for')
 parser.add_argument('--model_file', type=str,
                     default='/projects/ncdot/2018/machine_learning/model/guardrail_xception_feature_extraction_model.h5',
                     help='model file with path to be load for feature extraction')
 parser.add_argument('--output_file', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/image_features/d13_image_features.csv',
+                    default='/projects/ncdot/secondary_road/single_image_features/d13_single_image_features.parquet',
                     help='prediction output csv file')
 parser.add_argument('--batch_size', type=int, default=512,
                     help='prediction batch size')
@@ -63,7 +63,7 @@ for div_dir in divisions:
         res_df_list.append(pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
                                          "FEATURES": pred.tolist()}))
         res_df_list[-1].MAPPED_IMAGE = res_df_list[-1].MAPPED_IMAGE.str.replace(
-            '/projects/ncdot/NC_2018_Secondary/images/', '')
+            '/projects/ncdot/NC_2018_Secondary/single_images/', '')
         # release memory
         del test_ds
         del normalized_test_ds
@@ -71,7 +71,10 @@ for div_dir in divisions:
 
 print('Total time taken for prediction: ', sum(time_list))
 # combine multiple results into one
-combined_results = pd.concat(res_df_list)
-combined_results.to_csv(output_file, index=False)
+if is_one_division:
+    combined_results = res_df_list[0]
+else:
+    combined_results = pd.concat(res_df_list)
+combined_results.to_parquet(output_file, index=False)
 count = gc.collect()
 print('Done - count from return of gc.collect()', count)
