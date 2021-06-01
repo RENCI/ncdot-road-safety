@@ -295,11 +295,13 @@ def get_image_prediction(request, image_base_name, feature_name):
         return JsonResponse({'error': 'the requested image does not exist or does not have a prediction'},
                             status=status.HTTP_400_BAD_REQUEST)
 
+    annot_obj = UserImageAnnotation.objects.filter(image__image_base_name=image_base_name,
+                                                   annotation__name__iexact=feature_name).first()
     ret['prediction'] = {
         'image_base_name': image_base_name,
         'feature_name': feature_name,
         'probability': obj.certainty,
-        'presence': obj.presence
+        'presence': obj.presence if not annot_obj else annot_obj.presence
     }
     return JsonResponse(ret, status=status.HTTP_200_OK)
 
@@ -355,22 +357,26 @@ def get_route_info(request, route_id):
                             status=status.HTTP_400_BAD_REQUEST)
     image_base_filter = RouteImage.objects.filter(route_id=route_id).order_by('mile_post')
     if not feature_name:
-        route_images = list(image_base_filter.values("image_base_name", "mile_post"))
+        route_images = list(image_base_filter.values("image_base_name", "mile_post", 'location'))
     else:
         route_images = list(image_base_filter.filter(aiimageannotation__annotation__name=feature_name).values(
-            "image_base_name", "mile_post", "aiimageannotation__certainty"))
+            "image_base_name", "mile_post", "location", "aiimageannotation__certainty"))
     if start_image_index >= 0 and end_image_index >= 0:
-        return JsonResponse({'route_image_info': route_images[start_image_index:end_image_index]},
-                            status=status.HTTP_200_OK)
+        updated_route_images = route_images[start_image_index:end_image_index]
     elif start_image_index >= 0:
-        return JsonResponse({'route_image_info': route_images[start_image_index:]},
-                            status=status.HTTP_200_OK)
+        updated_route_images = route_images[start_image_index:]
     elif end_image_index >= 0:
-        return JsonResponse({'route_image_info': route_images[:end_image_index]},
-                            status=status.HTTP_200_OK)
+        updated_route_images = route_images[:end_image_index]
     else:
-        return JsonResponse({'route_image_info': route_images}, status=status.HTTP_200_OK)
+        updated_route_images = route_images
 
+    for image_dict in route_images:
+        image_dict['location'] = {
+            'lat': image_dict['location'].y,
+            'long': image_dict['location'].x
+        }
+
+    return JsonResponse({'route_image_info': updated_route_images}, status=status.HTTP_200_OK)
 
 @login_required
 def get_annotation_set(request):
