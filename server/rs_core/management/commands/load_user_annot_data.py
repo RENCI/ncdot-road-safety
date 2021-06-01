@@ -26,7 +26,7 @@ class Command(BaseCommand):
         annot_name = options['annot_name']
         df = pd.read_csv(input_file, header=0, index_col=False, usecols=['Image', 'Username', 'LeftView',
                                                                          'FrontView', 'RightView'])
-        df.Image = df.Image.str.split('/').str[-1].str.split('.')[0]
+        df.Image = df.Image.str.split('/').str[-1].str.split('.').str[0]
         df.apply(lambda row: save_annot_data_to_db(row['Image'], row['Username'], annot_name,
                                                    {'left': row['LeftView'],
                                                     'front': row['FrontView'],
