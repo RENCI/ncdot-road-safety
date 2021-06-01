@@ -1,6 +1,6 @@
 import pandas as pd
 import argparse
-import os
+from utils import sym_link_image
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -25,11 +25,5 @@ df['PATH'] = df['PATH'] + '/' + df['MAPPED_IMAGE']
 print(df.shape)
 
 
-def prepare_image(src, dst):
-    dst_path = os.path.dirname(dst)
-    os.makedirs(dst_path, exist_ok=True)
-    os.symlink(src, dst)
-    return
-
-df.apply(lambda row: prepare_image(row['PATH'], target_dir + row['MAPPED_IMAGE']), axis=1)
+df.apply(lambda row: sym_link_image(row['PATH'], target_dir + row['MAPPED_IMAGE']), axis=1)
 print('Done')

@@ -177,6 +177,31 @@ def sym_link_single_view_image(src, dst, left, front, right, presence, irelevant
     return
 
 
+def sym_link_image(src, dst):
+    dst_path = os.path.dirname(dst)
+    os.makedirs(dst_path, exist_ok=True)
+    os.symlink(src, dst)
+    return
+
+
+def sym_link_single_image(src, dst):
+    dst_path = os.path.dirname(dst)
+    os.makedirs(dst_path, exist_ok=True)
+
+    src_path = os.path.dirname(src)
+    base_name = os.path.basename(src)
+    base_name_strs = base_name.split('.')
+    base_name = base_name_strs[0]
+    ext_name = base_name_strs[1]
+    single_names = (f'{base_name}5.{ext_name}',
+                    f'{base_name}1.{ext_name}',
+                    f'{base_name}2.{ext_name}'
+                    )
+    for name in single_names:
+        os.symlink(os.path.join(src_path, name), os.path.join(dst_path, name))
+    return
+
+
 def draw_plots(y_true, y_predict):
     precision, recall, threshold = precision_recall_curve(y_true, y_predict)
     plt.plot(threshold, precision[:-1], "b--", label='Precision')

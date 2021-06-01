@@ -3,7 +3,6 @@ import os
 import gc
 import argparse
 import pandas as pd
-import numpy as np
 import tensorflow as tf
 from image_dataset import image_dataset_from_directory
 from utils import setup_gpu_memory
@@ -58,7 +57,7 @@ for div_dir in divisions:
         normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
         normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
         ts = time.time()
-        pred = model.predict(normalized_test_ds)
+        pred = model.predict(normalized_test_ds, verbose=True)
         te = time.time()
         time_list.append(te-ts)
         res_df_list.append(pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
