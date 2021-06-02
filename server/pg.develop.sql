@@ -1241,7 +1241,7 @@ COPY public.auth_permission (id, name, content_type_id, codename) FROM stdin;
 --
 
 COPY public.auth_user (id, password, last_login, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined) FROM stdin;
-1	pbkdf2_sha256$216000$VxU2TdJOvJ2N$PH/qimirElGmCGYgR4gzOp8jEH+JmakdRSGBHKmoLOM=	2021-05-18 17:19:35.218364+00	t	admin			hongyi@renci.org	t	t	2020-10-18 19:38:21.120339+00
+1	pbkdf2_sha256$216000$VxU2TdJOvJ2N$PH/qimirElGmCGYgR4gzOp8jEH+JmakdRSGBHKmoLOM=	2021-06-02 19:34:34.092341+00	t	admin			hongyi@renci.org	t	t	2020-10-18 19:38:21.120339+00
 \.
 
 
@@ -1291,6 +1291,9 @@ COPY public.django_admin_log (id, action_time, object_id, object_repr, action_fl
 23	2021-02-18 19:20:26.29828+00	guardrail	AnnotationSet object (guardrail)	2	[{"changed": {"fields": ["Flags"]}}]	6	1
 24	2021-02-18 19:21:25.71108+00	12	hongyi	3		12	1
 25	2021-05-18 17:19:51.31494+00	pole	AnnotationSet object (pole)	1	[{"added": {}}]	6	1
+26	2021-06-02 19:35:08.120981+00	2	dotdsi.renci.org	3		4	1
+27	2021-06-02 19:35:15.922336+00	1	dotdsidev.renci.org	3		4	1
+28	2021-06-02 19:35:34.892382+00	3	localhost:8000	1	[{"added": {}}]	4	1
 \.
 
 
@@ -1437,6 +1440,8 @@ jgzv608702ejfgdkw1rtx9hjhll4edcr	.eJxVjMsOwiAQRf-FtSGAPAaX7vsNZHiMVA0kpV0Z_12bdK
 br57jp3awvmaqrx2bhlhjeirp5dtozj7	.eJxVjMsOwiAQRf-FtSGAPAaX7vsNZHiMVA0kpV0Z_12bdKHbe865LxZwW2vYRlnCnNmFSctOv2PE9ChtJ_mO7dZ56m1d5sh3hR908Knn8rwe7t9BxVG_NUbSLqkCHqxB5XQGRQjekBDFC0nCk5LGU7LxDJApRZOIwDpCqb1i7w8RGzhc:1lj6d3:i_UvvSMPD5pzZzKIyTI8LiPAgfiYMP4oDVe1IV0Jp2E	2021-06-01 20:47:49.506418+00
 e912rkfb3dzhvm5qgijre9m8gnpwg47x	.eJxVjMsOwiAQRf-FtSGAPAaX7vsNZHiMVA0kpV0Z_12bdKHbe865LxZwW2vYRlnCnNmFSctOv2PE9ChtJ_mO7dZ56m1d5sh3hR908Knn8rwe7t9BxVG_NUbSLqkCHqxB5XQGRQjekBDFC0nCk5LGU7LxDJApRZOIwDpCqb1i7w8RGzhc:1llHub:orWPDMFWnrIYLKlzO4QSQW4wzQ7wiTV5BlV0PYg16XM	2021-06-07 21:14:57.284248+00
 eq0680ial4ye5ucvop6x735x33irro3f	.eJxVjMsOwiAQRf-FtSGAPAaX7vsNZHiMVA0kpV0Z_12bdKHbe865LxZwW2vYRlnCnNmFSctOv2PE9ChtJ_mO7dZ56m1d5sh3hR908Knn8rwe7t9BxVG_NUbSLqkCHqxB5XQGRQjekBDFC0nCk5LGU7LxDJApRZOIwDpCqb1i7w8RGzhc:1llZDx:jPGDU6l52oPh0eakwvElt_n2ku4iJLQ51FN6BTewbuQ	2021-06-08 15:44:05.157182+00
+pm3t9o9ec8fnlamiuq39ipfxvq9n3t6s	.eJxVjMsOwiAQRf-FtSFQXqNL935Dw8yAVA0kpV0Z_92QdKHbe865bzHHfSvz3tM6LywuQgdx-h0x0jPVQfgR671JanVbF5RDkQft8tY4va6H-3dQYi-jTgY8TVp5ZAOQswZGrdXZUciY_ORUZgdKUTY2RgZNhmwAqxx6h1l8vg7VODI:1lmcUO:IGzYj6bT_G_QUEzj5yUJKzONWfpOGCP5cO-FErJyG6U	2021-06-11 13:25:24.372263+00
+0jmlv2dqjlvap4n3rjvmw0tltkwc0cvz	.eJxVjMsOwiAQRf-FtSFQXqNL935Dw8yAVA0kpV0Z_92QdKHbe865bzHHfSvz3tM6LywuQgdx-h0x0jPVQfgR671JanVbF5RDkQft8tY4va6H-3dQYi-jTgY8TVp5ZAOQswZGrdXZUciY_ORUZgdKUTY2RgZNhmwAqxx6h1l8vg7VODI:1lo7tA:22e82ifUiKgG2nsYn1Y450fT7kfZ42NZuLAlBzhYHzE	2021-06-15 17:09:12.890699+00
 \.
 
 
@@ -1445,8 +1450,7 @@ eq0680ial4ye5ucvop6x735x33irro3f	.eJxVjMsOwiAQRf-FtSGAPAaX7vsNZHiMVA0kpV0Z_12bdK
 --
 
 COPY public.django_site (id, domain, name) FROM stdin;
-1	dotdsidev.renci.org	dotdsidev
-2	dotdsi.renci.org	dotdsi
+1	localhost:8000	localhost:8000
 \.
 
 
@@ -4803,7 +4807,7 @@ SELECT pg_catalog.setval('public.auth_user_groups_id_seq', 1, false);
 -- Name: auth_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.auth_user_id_seq', 16, true);
+SELECT pg_catalog.setval('public.auth_user_id_seq', 17, true);
 
 
 --
@@ -4817,7 +4821,7 @@ SELECT pg_catalog.setval('public.auth_user_user_permissions_id_seq', 1, false);
 -- Name: django_admin_log_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.django_admin_log_id_seq', 25, true);
+SELECT pg_catalog.setval('public.django_admin_log_id_seq', 28, true);
 
 
 --
@@ -4845,7 +4849,7 @@ SELECT pg_catalog.setval('public.django_redirect_id_seq', 1, false);
 -- Name: django_site_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.django_site_id_seq', 2, true);
+SELECT pg_catalog.setval('public.django_site_id_seq', 3, true);
 
 
 --
@@ -4887,14 +4891,14 @@ SELECT pg_catalog.setval('public.rs_core_userimageannotation_flags_id_seq', 24, 
 -- Name: rs_core_userimageannotation_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_userimageannotation_id_seq', 1335, true);
+SELECT pg_catalog.setval('public.rs_core_userimageannotation_id_seq', 2460, true);
 
 
 --
 -- Name: rs_core_userprofile_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.rs_core_userprofile_id_seq', 15, true);
+SELECT pg_catalog.setval('public.rs_core_userprofile_id_seq', 16, true);
 
 
 --
