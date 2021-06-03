@@ -360,7 +360,7 @@ def get_route_info(request, route_id):
         route_images = list(image_base_filter.values("image_base_name", "mile_post", 'location'))
     else:
         route_images = list(image_base_filter.filter(aiimageannotation__annotation__name=feature_name).values(
-            "image_base_name", "mile_post", "location", "aiimageannotation__certainty"))
+            "image_base_name", "mile_post", "location", "aiimageannotation__certainty", "userimageannotation__presence"))
     if start_image_index >= 0 and end_image_index >= 0:
         updated_route_images = route_images[start_image_index:end_image_index]
     elif start_image_index >= 0:
@@ -375,6 +375,10 @@ def get_route_info(request, route_id):
             'lat': image_dict['location'].y,
             'long': image_dict['location'].x
         }
+        image_dict['probability'] = image_dict.pop('aiimageannotation__certainty')
+        image_dict['presence'] = image_dict.pop('userimageannotation__presence')
+        if not image_dict['presence']:
+            image_dict['presence'] = True if image_dict['probability'] >= 0.5 else False
 
     return JsonResponse({'route_image_info': updated_route_images}, status=status.HTTP_200_OK)
 
