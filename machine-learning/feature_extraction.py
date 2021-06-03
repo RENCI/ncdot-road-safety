@@ -71,10 +71,7 @@ for div_dir in divisions:
 
 print('Total time taken for prediction: ', sum(time_list))
 # combine multiple results into one
-if is_one_division:
-    combined_results = res_df_list[0]
-else:
-    combined_results = pd.concat(res_df_list)
+combined_results = pd.concat(res_df_list)
 combined_results.to_parquet(output_file, index=False)
 count = gc.collect()
 print('Done - count from return of gc.collect()', count)
