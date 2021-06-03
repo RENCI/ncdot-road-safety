@@ -51,8 +51,9 @@ else:
 
 for div_dir in divisions:
     for subdir in os.listdir(div_dir):
+        sub_path = os.path.join(div_dir, subdir)
         test_ds = image_dataset_from_directory(
-            os.path.join(div_dir, subdir), validation_split=None, subset=None, label_mode=None,
+            sub_path, validation_split=None, subset=None, label_mode=None,
             shuffle=False, image_size=(299, 299), batch_size=batch_size)
         normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
         normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
