@@ -92,47 +92,53 @@ if prior_input_file:
 root_al_dir = os.path.join(root_dir, feature_name, f'round{cur_round}', 'data')
 
 if no_exist_train:
-    # under-sample common negative class to make a balanced training set
+    # under-sample majority class to make a balanced training set
     if original_image_without_join:
         df_yes = df[(df.LeftView == 'p') | (df.LeftView == 'i') | (df.FrontView == 'p') |
                     (df.FrontView == 'i') | (df.RightView == 'p') | (df.RightView == 'i')]
-        df_yes_single_yes_cnt = len(df_yes[df_yes.LeftView == 'p']) + len(df_yes[df_yes.FrontView == 'p']) + \
-                                len(df_yes[df_yes.RightView == 'p']) + len(df_yes[df_yes.LeftView == 'i']) + \
-                                len(df_yes[df_yes.FrontView == 'i']) + len(df_yes[df_yes.RightView == 'i'])
-        df_yes_single_no_cnt = len(df_yes[df_yes.LeftView == 'a']) + len(df_yes[df_yes.FrontView == 'a']) + \
-                               len(df_yes[df_yes.RightView == 'a'])
-        df_yes_single_cnt = df_yes_single_yes_cnt - df_yes_single_no_cnt
         df_yes['Presence_single'] = 'True'
-        df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
-        df_yes_joined_cnt = df_yes_single_cnt // 3 + 1
-        if neg_fps_file:
-            neg_fps = pd.read_csv(neg_fps_file, index_col=False, dtype=str)
-            df_no['MAPPED_IMAGE'] = df_no.index.str.split('/').str[-1].str.split('.').str[0]
-            df_no_fps = df_no[df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
-            df_no_other = df_no[~df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
-            df_no_other = df_no_other.sample(n=df_yes_joined_cnt-len(df_no_fps), random_state=42)
-            df_no = pd.concat([df_no_fps, df_no_other])
-            print('df_no_fps: ', len(df_no_fps), ', df_no_other:', len(df_no_other), 'df_no:', len(df_no))
-        elif 0 < neg_fence_percent < 1:
-            df_no_fence = df_no[df_no.Flags == 'Fence']
-            df_no_fence_cnt = len(df_no_fence)
-            fence_cnt = int(df_yes_joined_cnt * neg_fence_percent)
-            if df_no_fence_cnt < fence_cnt:
-                fence_cnt = df_no_fence_cnt
+        df_yes_single_yes_cnt = len(df_yes[df_yes.LeftView == 'p']) + len(df_yes[df_yes.FrontView == 'p']) + \
+            len(df_yes[df_yes.RightView == 'p']) + len(df_yes[df_yes.LeftView == 'i']) + \
+            len(df_yes[df_yes.FrontView == 'i']) + len(df_yes[df_yes.RightView == 'i'])
+        df_yes_single_no_cnt = len(df_yes[df_yes.LeftView == 'a']) + len(df_yes[df_yes.FrontView == 'a']) + \
+            len(df_yes[df_yes.RightView == 'a'])
+        if df_yes_single_yes_cnt > df_yes_single_no_cnt:
+            df_yes_single_cnt = df_yes_single_yes_cnt - df_yes_single_no_cnt
+
+            df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
+            df_yes_joined_cnt = df_yes_single_cnt // 3 + 1
+            if neg_fps_file:
+                neg_fps = pd.read_csv(neg_fps_file, index_col=False, dtype=str)
+                df_no['MAPPED_IMAGE'] = df_no.index.str.split('/').str[-1].str.split('.').str[0]
+                df_no_fps = df_no[df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
+                df_no_other = df_no[~df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
+                df_no_other = df_no_other.sample(n=df_yes_joined_cnt-len(df_no_fps), random_state=42)
+                df_no = pd.concat([df_no_fps, df_no_other])
+                print('df_no_fps: ', len(df_no_fps), ', df_no_other:', len(df_no_other), 'df_no:', len(df_no))
+            elif 0 < neg_fence_percent < 1:
+                df_no_fence = df_no[df_no.Flags == 'Fence']
+                df_no_fence_cnt = len(df_no_fence)
+                fence_cnt = int(df_yes_joined_cnt * neg_fence_percent)
+                if df_no_fence_cnt < fence_cnt:
+                    fence_cnt = df_no_fence_cnt
+                else:
+                    df_no_fence = df_no_fence.sample(n=fence_cnt, random_state=42)
+                df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_yes_joined_cnt-fence_cnt, random_state=42)
+                df_no = pd.concat([df_no_fence, df_no_other])
             else:
-                df_no_fence = df_no_fence.sample(n=fence_cnt, random_state=42)
-            df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_yes_joined_cnt-fence_cnt, random_state=42)
-            df_no = pd.concat([df_no_fence, df_no_other])
-        else:
-            df_no = df_no.sample(n=df_yes_joined_cnt, random_state=42)
-        df_no['Presence_single'] = 'False'
+                df_no = df_no.sample(n=df_yes_joined_cnt, random_state=42)
+            df_no['Presence_single'] = 'False'
     else:
         df_yes = df[df.Presence == 'True']
         df_no = df[(df.Presence == 'False') & (df.LeftView != 'i') & (df.FrontView != 'i') & (df.RightView != 'i')]
         df_yes_cnt = len(df_yes)
         df_no = df_no.sample(n=df_yes_cnt, random_state=42)
-        
-    df = pd.concat([df_yes, df_no])
+
+    if df_yes_single_yes_cnt > df_yes_single_no_cnt:
+        df = pd.concat([df_yes, df_no])
+    else:
+        df = df_yes
+
     if original_image_without_join:
         train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence_single', train_frac)
     else:
