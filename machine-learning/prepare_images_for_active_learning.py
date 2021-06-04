@@ -137,10 +137,11 @@ if no_exist_train:
             # put negative images from the positive joined images into the total negative image sample pool
             df_yes_no = df_yes[(df_yes.LeftView == 'a') | (df_yes.FrontView == 'a') | (df_yes.RightView == 'a')]
             df_yes_no.Presence = 'False'
+
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
             df_no.Presence = 'False'
             df_no = pd.concat([df_yes_no, df_no])
-            df_no = df_no.sample(n=df_yes_single_yes_cnt, random_state=42)
+            df_no = df_no.sample(n=df_yes_single_yes_cnt // 3 + 1, random_state=42)
     else:
         df_yes = df[df.Presence == 'True']
         df_no = df[(df.Presence == 'False') & (df.LeftView != 'i') & (df.FrontView != 'i') & (df.RightView != 'i')]
