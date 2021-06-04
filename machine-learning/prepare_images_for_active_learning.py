@@ -103,30 +103,30 @@ if no_exist_train:
         df_yes_single_no_cnt = len(df_yes[df_yes.LeftView == 'a']) + len(df_yes[df_yes.FrontView == 'a']) + \
             len(df_yes[df_yes.RightView == 'a'])
         if df_yes_single_yes_cnt > df_yes_single_no_cnt:
-            df_yes_single_cnt = df_yes_single_yes_cnt - df_yes_single_no_cnt
+            df_yes_single_diff_cnt = df_yes_single_yes_cnt - df_yes_single_no_cnt
 
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
-            df_yes_joined_cnt = df_yes_single_cnt // 3 + 1
+            df_no_joined_cnt = df_yes_single_diff_cnt // 3 + 1
             if neg_fps_file:
                 neg_fps = pd.read_csv(neg_fps_file, index_col=False, dtype=str)
                 df_no['MAPPED_IMAGE'] = df_no.index.str.split('/').str[-1].str.split('.').str[0]
                 df_no_fps = df_no[df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
                 df_no_other = df_no[~df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
-                df_no_other = df_no_other.sample(n=df_yes_joined_cnt-len(df_no_fps), random_state=42)
+                df_no_other = df_no_other.sample(n=df_no_joined_cnt-len(df_no_fps), random_state=42)
                 df_no = pd.concat([df_no_fps, df_no_other])
                 print('df_no_fps: ', len(df_no_fps), ', df_no_other:', len(df_no_other), 'df_no:', len(df_no))
             elif 0 < neg_fence_percent < 1:
                 df_no_fence = df_no[df_no.Flags == 'Fence']
                 df_no_fence_cnt = len(df_no_fence)
-                fence_cnt = int(df_yes_joined_cnt * neg_fence_percent)
+                fence_cnt = int(df_no_joined_cnt * neg_fence_percent)
                 if df_no_fence_cnt < fence_cnt:
                     fence_cnt = df_no_fence_cnt
                 else:
                     df_no_fence = df_no_fence.sample(n=fence_cnt, random_state=42)
-                df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_yes_joined_cnt-fence_cnt, random_state=42)
+                df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_no_joined_cnt-fence_cnt, random_state=42)
                 df_no = pd.concat([df_no_fence, df_no_other])
             else:
-                df_no = df_no.sample(n=df_yes_joined_cnt, random_state=42)
+                df_no = df_no.sample(n=df_no_joined_cnt, random_state=42)
             df_no['Presence_single'] = 'False'
     else:
         df_yes = df[df.Presence == 'True']
