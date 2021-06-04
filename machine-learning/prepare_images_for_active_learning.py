@@ -100,7 +100,7 @@ if no_exist_train:
     if original_image_without_join:
         df_yes = df[(df.LeftView == 'p') | (df.LeftView == 'i') | (df.FrontView == 'p') |
                     (df.FrontView == 'i') | (df.RightView == 'p') | (df.RightView == 'i')]
-        df_yes['Presence_single'] = 'True'
+        df_yes.Presence = 'True'
         df_yes_single_yes_cnt = len(df_yes[df_yes.LeftView == 'p']) + len(df_yes[df_yes.FrontView == 'p']) + \
             len(df_yes[df_yes.RightView == 'p']) + len(df_yes[df_yes.LeftView == 'i']) + \
             len(df_yes[df_yes.FrontView == 'i']) + len(df_yes[df_yes.RightView == 'i'])
@@ -132,13 +132,13 @@ if no_exist_train:
                     df_no = pd.concat([df_no_fence, df_no_other])
                 else:
                     df_no = df_no.sample(n=df_no_joined_cnt, random_state=42)
-                df_no['Presence_single'] = 'False'
+                df_no.Presence = 'False'
         else:
             # put negative images from the positive joined images into the total negative image sample pool
             df_yes_no = df_yes[(df_yes.LeftView == 'a') | (df_yes.FrontView == 'a') | (df_yes.RightView == 'a')]
-            df_yes_no['Presence_single'] = 'False'
+            df_yes_no.Presence = 'False'
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
-            df_no['Presence_single'] = 'False'
+            df_no.Presence = 'False'
             df_no = pd.concat([df_yes_no, df_no])
     else:
         df_yes = df[df.Presence == 'True']
@@ -151,10 +151,7 @@ if no_exist_train:
     else:
         df = pd.concat([df_yes, df_no])
 
-    if original_image_without_join:
-        train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence_single', train_frac)
-    else:
-        train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence', train_frac)
+    train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence', train_frac)
     train_df = train_df_user
     valid_df = valid_df_user
 else:
