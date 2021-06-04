@@ -138,6 +138,7 @@ if no_exist_train:
             df_yes_no = df_yes[(df_yes.LeftView == 'a') | (df_yes.FrontView == 'a') | (df_yes.RightView == 'a')]
             df_yes_no['Presence_single'] = 'False'
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
+            df_no['Presence_single'] = 'False'
             df_no = pd.concat([df_yes_no, df_no])
     else:
         df_yes = df[df.Presence == 'True']
