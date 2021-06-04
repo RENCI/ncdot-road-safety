@@ -140,6 +140,7 @@ if no_exist_train:
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
             df_no.Presence = 'False'
             df_no = pd.concat([df_yes_no, df_no])
+            df_no = df_no.sample(n=df_yes_single_yes_cnt, random_state=42)
     else:
         df_yes = df[df.Presence == 'True']
         df_no = df[(df.Presence == 'False') & (df.LeftView != 'i') & (df.FrontView != 'i') & (df.RightView != 'i')]
