@@ -137,11 +137,13 @@ if no_exist_train:
             # put negative images from the positive joined images into the total negative image sample pool
             df_yes_no = df_yes[(df_yes.LeftView == 'a') | (df_yes.FrontView == 'a') | (df_yes.RightView == 'a')]
             df_yes_no.Presence = 'False'
-
+            # half sample from df_yes_no and the other half sample from df_no
+            sample_cnt = df_yes_single_yes_cnt // 2
+            df_yes_no = df_yes_no.sample(n=sample_cnt // 1.5 + 1, random_state=42)
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
             df_no.Presence = 'False'
+            df_no = df_no.sample(n=sample_cnt // 3 + 1, random_state=42)
             df_no = pd.concat([df_yes_no, df_no])
-            df_no = df_no.sample(n=df_yes_single_yes_cnt // 3 + 1, random_state=42)
     else:
         df_yes = df[df.Presence == 'True']
         df_no = df[(df.Presence == 'False') & (df.LeftView != 'i') & (df.FrontView != 'i') & (df.RightView != 'i')]
@@ -202,9 +204,8 @@ if not no_exist_train:
         train_df = pd.concat([train_df_user, train_exist_df_yes])
         valid_df = pd.concat([valid_df_user, valid_exist_df_yes])
 
-if include_all_neg_in_joined_pos:
-    train_df = train_df.reset_index()
-    valid_df = valid_df.reset_index()
+train_df = train_df.reset_index()
+valid_df = valid_df.reset_index()
 
 
 def prepare_image(src, dst, left, front, right, presence, prepare_opposite=True):
