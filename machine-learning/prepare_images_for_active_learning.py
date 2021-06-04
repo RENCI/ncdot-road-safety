@@ -147,6 +147,11 @@ if no_exist_train:
         df_yes_cnt = len(df_yes)
         df_no = df_no.sample(n=df_yes_cnt, random_state=42)
 
+    if not include_all_neg_in_joined_pos:
+        # have to reset index since negative single images from the joined positive images could have the same
+        # image names as the positive single images, which would be lost without reset_index call
+        df.reset_index(inplace=True)
+
     if include_all_neg_in_joined_pos and df_yes_single_yes_cnt <= df_yes_single_no_cnt:
         df = df_yes
     else:
@@ -196,8 +201,9 @@ if not no_exist_train:
         train_df = pd.concat([train_df_user, train_exist_df_yes])
         valid_df = pd.concat([valid_df_user, valid_exist_df_yes])
 
-train_df = train_df.reset_index()
-valid_df = valid_df.reset_index()
+if include_all_neg_in_joined_pos:
+    train_df = train_df.reset_index()
+    valid_df = valid_df.reset_index()
 
 
 def prepare_image(src, dst, left, front, right, presence, prepare_opposite=True):
