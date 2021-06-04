@@ -140,7 +140,7 @@ if no_exist_train:
             # half sample from df_yes_no and the other half sample from df_no
             sample_cnt = df_yes_single_yes_cnt // 2
             no_ratio = df_yes_single_no_cnt / (df_yes_single_yes_cnt + df_yes_single_no_cnt)
-            df_yes_no = df_yes_no.sample(n=int(sample_cnt / no_ratio) + 1, random_state=42)
+            df_yes_no = df_yes_no.sample(n=int(sample_cnt * no_ratio) + 1, random_state=42)
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
             df_no.Presence = 'False'
             df_no = df_no.sample(n=sample_cnt // 3 + 1, random_state=42)
