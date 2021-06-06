@@ -51,9 +51,12 @@ parser.add_argument('--no_exist_train', action='store_true', default=False,
 parser.add_argument('--neg_fps_file', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/active_learning/guardrail/round5/annot_data/'
                             'annot_fps_from_round4_model.csv',
-                    help='the fps file that contains FPs images to be included in the negative samples')
+                    help='the fps file that contaeins FPs images to be included in the negative samples')
 parser.add_argument('--neg_fence_percent', type=float, default=-1,
                     help='percentage of fence in the negative set - only valid when it is between 0 and 1')
+parser.add_argument('--is_balanced', action='store_false', default=True,
+                    help='If set, the data created must be balanced; otherwise, prepare all annotation data '
+                         'without balancing')
 
 args = parser.parse_args()
 input_file = args.input_file
@@ -73,6 +76,7 @@ include_all_neg_in_joined_pos = args.include_all_neg_in_joined_pos
 no_exist_train = args.no_exist_train
 neg_fence_percent = args.neg_fence_percent
 neg_fps_file = args.neg_fps_file
+is_balanced = args.is_balanced
 
 
 def read_annotation_df(df_file):
@@ -117,7 +121,8 @@ if no_exist_train:
                     df_no['MAPPED_IMAGE'] = df_no.index.str.split('/').str[-1].str.split('.').str[0]
                     df_no_fps = df_no[df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
                     df_no_other = df_no[~df_no.MAPPED_IMAGE.isin(neg_fps.MAPPED_IMAGE)]
-                    df_no_other = df_no_other.sample(n=df_no_joined_cnt-len(df_no_fps), random_state=42)
+                    if is_balanced:
+                        df_no_other = df_no_other.sample(n=df_no_joined_cnt-len(df_no_fps), random_state=42)
                     df_no = pd.concat([df_no_fps, df_no_other])
                     print('df_no_fps: ', len(df_no_fps), ', df_no_other:', len(df_no_other), 'df_no:', len(df_no))
                 elif 0 < neg_fence_percent < 1:
@@ -126,13 +131,18 @@ if no_exist_train:
                     fence_cnt = int(df_no_joined_cnt * neg_fence_percent)
                     if df_no_fence_cnt < fence_cnt:
                         fence_cnt = df_no_fence_cnt
-                    else:
+                    elif is_balanced:
                         df_no_fence = df_no_fence.sample(n=fence_cnt, random_state=42)
-                    df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_no_joined_cnt-fence_cnt, random_state=42)
+                    if is_balanced:
+                        df_no_other = df_no[df_no.Flags != 'Fence'].sample(n=df_no_joined_cnt-fence_cnt,
+                                                                           random_state=42)
                     df_no = pd.concat([df_no_fence, df_no_other])
-                else:
+                elif is_balanced:
                     df_no = df_no.sample(n=df_no_joined_cnt, random_state=42)
                 df_no.Presence = 'False'
+                df = pd.concat([df_yes, df_no])
+            else:
+                df = df_yes
         else:
             # put negative images from the positive joined images into the total negative image sample pool
             df_yes_no = df_yes[(df_yes.LeftView == 'a') | (df_yes.FrontView == 'a') | (df_yes.RightView == 'a')]
@@ -140,25 +150,23 @@ if no_exist_train:
             # half sample from df_yes_no and the other half sample from df_no
             sample_cnt = df_yes_single_yes_cnt // 2
             no_ratio = df_yes_single_no_cnt / (df_yes_single_yes_cnt + df_yes_single_no_cnt)
-            df_yes_no = df_yes_no.sample(n=int(sample_cnt * no_ratio) + 1, random_state=42)
+            if is_balanced:
+                df_yes_no = df_yes_no.sample(n=int(sample_cnt * no_ratio) + 1, random_state=42)
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
             df_no.Presence = 'False'
-            df_no = df_no.sample(n=sample_cnt // 3 + 1, random_state=42)
+            if is_balanced:
+                df_no = df_no.sample(n=sample_cnt // 3 + 1, random_state=42)
             df_no = pd.concat([df_yes_no, df_no])
-    else:
+            # have to reset index since negative single images from the joined positive images could have the same
+            # image names as the positive single images, which would be lost without reset_index call
+            df.reset_index(inplace=True)
+            df = pd.concat([df_yes, df_no])
+    elif is_balanced:
         df_yes = df[df.Presence == 'True']
         df_no = df[(df.Presence == 'False') & (df.LeftView != 'i') & (df.FrontView != 'i') & (df.RightView != 'i')]
+        df_no = df[df.Presence == 'False']
         df_yes_cnt = len(df_yes)
         df_no = df_no.sample(n=df_yes_cnt, random_state=42)
-
-    if not include_all_neg_in_joined_pos:
-        # have to reset index since negative single images from the joined positive images could have the same
-        # image names as the positive single images, which would be lost without reset_index call
-        df.reset_index(inplace=True)
-
-    if include_all_neg_in_joined_pos and df_yes_single_yes_cnt <= df_yes_single_no_cnt:
-        df = df_yes
-    else:
         df = pd.concat([df_yes, df_no])
 
     train_df_user, valid_df_user = split_to_train_valid_for_al(df, 'Presence', train_frac)
