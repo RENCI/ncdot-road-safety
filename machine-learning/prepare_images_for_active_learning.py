@@ -147,14 +147,13 @@ if no_exist_train:
             # put negative images from the positive joined images into the total negative image sample pool
             df_yes_no = df_yes[(df_yes.LeftView == 'a') | (df_yes.FrontView == 'a') | (df_yes.RightView == 'a')]
             df_yes_no.Presence = 'False'
-            # half sample from df_yes_no and the other half sample from df_no
-            sample_cnt = df_yes_single_yes_cnt // 2
-            no_ratio = df_yes_single_no_cnt / (df_yes_single_yes_cnt + df_yes_single_no_cnt)
-            if not is_unbalanced:
-                df_yes_no = df_yes_no.sample(n=int(sample_cnt * no_ratio) + 1, random_state=42)
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
             df_no.Presence = 'False'
             if not is_unbalanced:
+                # half sample from df_yes_no and the other half sample from df_no
+                sample_cnt = df_yes_single_yes_cnt // 2
+                no_ratio = df_yes_single_no_cnt / (df_yes_single_yes_cnt + df_yes_single_no_cnt)
+                df_yes_no = df_yes_no.sample(n=int(sample_cnt * no_ratio) + 1, random_state=42)
                 df_no = df_no.sample(n=sample_cnt // 3 + 1, random_state=42)
             df_no = pd.concat([df_yes_no, df_no])
             # have to reset index since negative single images from the joined positive images could have the same
