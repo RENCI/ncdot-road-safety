@@ -152,6 +152,9 @@ if __name__ == '__main__':
                         help='model file with path output by training')
     parser.add_argument('--make_inference_only', action='store_true', default=False,
                         help='if set, will make inference only')
+    parser.add_argument('--class_weights', type=dict,
+                        default={0: 0.5996278377372535, 1: 3.0093388121031004},
+                        help='class weights to pass in fit() for unbalanced training data')
 
     args = parser.parse_args()
     # e.g., '/projects/ncdot/2018/machine_learning/data/train'
@@ -165,6 +168,7 @@ if __name__ == '__main__':
     num_of_epoch = args.num_of_epoch
     batch_size = args.batch_size
     make_inference_only = args.make_inference_only
+    class_weights = args.class_weights
 
     setup_gpu_memory()
     strategy = tf.distribute.MirroredStrategy()
@@ -177,8 +181,13 @@ if __name__ == '__main__':
             model = get_model(model_file)
 
         ts = time.time()
-        history = model.fit(norm_train_ds, epochs=num_of_epoch, callbacks=callbacks_list,
-                            validation_data=norm_val_ds)
+        if class_weights:
+            history = model.fit(norm_train_ds, epochs=num_of_epoch, callbacks=callbacks_list,
+                                class_weight=class_weights,
+                                validation_data=norm_val_ds)
+        else:
+            history = model.fit(norm_train_ds, epochs=num_of_epoch, callbacks=callbacks_list,
+                                validation_data=norm_val_ds)
         te = time.time()
         print('time taken for model fine tuning:', te - ts)
         print(history.history)
