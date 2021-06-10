@@ -378,10 +378,11 @@ def get_route_info(request, route_id):
         if feature_name:
             image_dict['probability'] = image_dict.pop('aiimageannotation__certainty')
             image_dict['presence'] = image_dict.pop('userimageannotation__presence')
-            if not image_dict['presence']:
-                image_dict['presence'] = True if image_dict['probability'] >= 0.5 else False
+            if image_dict['presence'] is None:
+                image_dict['presence'] = 'N/A'
 
     return JsonResponse({'route_image_info': updated_route_images}, status=status.HTTP_200_OK)
+
 
 @login_required
 def get_annotation_set(request):
