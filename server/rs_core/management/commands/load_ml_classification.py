@@ -30,15 +30,17 @@ class Command(BaseCommand):
         feature_name = options['feature_name']
         if not feature_name:
             feature_name = 'guardrail'
-        df = pd.read_csv(input_file, header=0, dtype={'MAPPED_IMAGE': 'str', 'Probability': 'float'})
+        df = pd.read_csv(input_file, header=0, dtype={'MAPPED_IMAGE': 'str', 'ROUND_PREDICT': 'float'})
         print(df.shape)
+        df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.split('/').str[-1]
+        df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.split('.').str[0]
         image_list = list(RouteImage.objects.values_list("image_base_name", flat=True))
         df = df[df.MAPPED_IMAGE.isin(image_list)]
         print(df.shape)
         df.set_index("MAPPED_IMAGE", inplace=True)
         annot_obj = AnnotationSet.objects.get(name__iexact=feature_name)
         for image_name in df.index:
-            certainty = df.loc[image_name].at['Probability']
+            certainty = df.loc[image_name].at['ROUND_PREDICT']
             if pd.isna(certainty):
                 certainty = -1
             presence = True if certainty >= 0.5 else False
