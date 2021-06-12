@@ -28,7 +28,7 @@ df = pd.read_csv(input_file, header=0, index_col=False, dtype=str, usecols=['MAP
 df.PATH = df.PATH.str[:-5] + '.jpg'
 print('original input df:', df.shape)
 df_filter = pd.read_csv(filter_file, header=0, index_col=False, dtype=str, usecols=['MAPPED_IMAGE'])
-print('filter df:', df.shape)
+print('filter df:', df_filter.shape)
 df = df[df.MAPPED_IMAGE.isin(df_filter.MAPPED_IMAGE)]
 print('original file after filtering', df.shape)
 
