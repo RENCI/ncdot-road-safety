@@ -16,10 +16,9 @@ args = parser.parse_args()
 input_dir = args.input_dir
 output_file = args.output_file
 
-combined_results = pd.concat([])
-
 res_df_list = [pd.read_parquet(os.path.join(input_dir, f)) for f in os.listdir(input_dir)]
 print('total number of files read: ', len(res_df_list))
+
 combined_df = pd.concat(res_df_list)
 combined_df.to_parquet(output_file, index=False)
 print('done')
