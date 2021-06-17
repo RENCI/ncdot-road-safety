@@ -1,4 +1,5 @@
 import os
+import numpy as np
 
 
 SECOND_ROAD_PREFIX_PATH = '/projects/ncdot/NC_2018_Secondary/images'
@@ -30,3 +31,13 @@ def get_image_path(image_name, prefix_path=None):
     else:
         ret_path = os.path.join(set_str, minute_str, image_name)
     return ret_path
+
+
+def round_feature(df):
+    out_series = df.map_partitions(lambda sdf: sdf.apply(lambda row: np.round(np.asarray(row.FEATURES), 3).tolist(),
+                                                         axis=1),
+                                   meta=('FEATURES', 'float')).compute(scheduler='processes')
+    df = df.drop(columns=['FEATURES'])
+    df = df.compute(scheduler='processes')
+    df['FEATURES'] = out_series
+    return df

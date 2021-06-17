@@ -1,7 +1,7 @@
 import argparse
 import ast
-import numpy as np
 import dask.dataframe as dd
+from utils import round_feature
 
 
 if __name__ == '__main__':
@@ -16,14 +16,8 @@ if __name__ == '__main__':
     input_file = args.input_file
     output_file = args.output_file
 
-
     df = dd.read_csv(input_file, header=0, dtype={'MAPPED_IMAGE': str}, usecols=['MAPPED_IMAGE', 'FEATURES'],
                      converters={'FEATURES': ast.literal_eval})
-    out_series = df.map_partitions(lambda sdf: sdf.apply(lambda row: np.round(np.asarray(row.FEATURES), 3).tolist(),
-                                                         axis=1),
-                                   meta=('FEATURES', 'float')).compute(scheduler='processes')
-    df = df.drop(columns=['FEATURES'])
-    df = df.compute(scheduler='processes')
-    df['FEATURES'] = out_series
+    df = round_feature(df)
     df.to_csv(output_file + '.csv', index=False)
     df.to_parquet(output_file, engine='pyarrow')
