@@ -120,7 +120,7 @@ if no_exist_train:
             df = pd.concat([df_yes, df_no])
             print('df.shape after concatenation: ', df.shape)
         else:
-            df = create_single_data_frame(df)
+            df = create_single_data_frame(df, full_path=True)
             df.set_index('Image', inplace=True)
             if not is_unbalanced:
                 df_yes = df[df.Presence == 'True']
