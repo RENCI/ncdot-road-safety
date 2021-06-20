@@ -208,9 +208,13 @@ def sym_link_single_image(src, dst):
 def _create_single_image_data(base_image_name, left_view, front_view, right_view, single_data_list, full_path=None):
     if full_path:
         base_path, ext = os.path.splitext(full_path)
-        single_data_list.append([f'{base_image_name}5', 'True' if left_view == 'p' else 'False', f'{base_path}5{ext}'])
-        single_data_list.append([f'{base_image_name}1', 'True' if front_view == 'p' else 'False', f'{base_path}1{ext}'])
-        single_data_list.append([f'{base_image_name}2', 'True' if right_view == 'p' else 'False', f'{base_path}2{ext}'])
+        base_path_img, ext_img = os.path.splitext(base_image_name)
+        single_data_list.append([f'{base_path_img}5{ext_img}', 'True' if left_view == 'p' else 'False',
+                                 f'{base_path}5{ext}'])
+        single_data_list.append([f'{base_path_img}1{ext_img}', 'True' if front_view == 'p' else 'False',
+                                 f'{base_path}1{ext}'])
+        single_data_list.append([f'{base_path_img}2{ext_img}', 'True' if right_view == 'p' else 'False',
+                                 f'{base_path}2{ext}'])
     else:
         single_data_list.append([f'{base_image_name}5', 'True' if left_view == 'p' else 'False'])
         single_data_list.append([f'{base_image_name}1', 'True' if front_view == 'p' else 'False'])
