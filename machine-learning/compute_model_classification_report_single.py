@@ -15,7 +15,8 @@ if __name__ == '__main__':
                         default='../server/metadata/pole/holdout_test_user_annots_edited.csv',
                         help='labelled guardrail data obtained from guardrail survey data')
     parser.add_argument('--predict_label_file', type=str,
-                        default='../server/metadata/pole/round2/model_predict_test_unbalanced.csv',
+                        default='../server/metadata/pole/round3/model_predict_test.csv',
+                        #default='../server/metadata/round5/model_predict_test_single_unbalanced.csv',
                         help='Model prediction on the single images')
     parser.add_argument('--threshold', type=float, default=0.64, help='threshold to separate two classes')
     parser.add_argument('--single_metrics', type=bool, default=False,

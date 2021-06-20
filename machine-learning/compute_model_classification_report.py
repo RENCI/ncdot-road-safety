@@ -8,20 +8,22 @@ import seaborn as sns
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--label_file', type=str,
-                    #default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
-                    default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
+                    default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
+                    #default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
                     help='labelled guardrail data obtained from guardrail survey data')
 parser.add_argument('--predict_label_file', type=str,
-                    default='../server/metadata/round5/model_predict_test.csv',
+                    default='../server/metadata/round5/model_predict_test_joined_unbalanced.csv',
                     help='predicted guardrail lable data')
 parser.add_argument('--division', type=str,
                     default=None,
                     help='division str, d04, d08, d13/14, or None to compute report for')
+parser.add_argument('--threshold', type=float, default=0.43, help='threshold to separate two classes')
 
 args = parser.parse_args()
 label_file = args.label_file
 predict_label_file = args.predict_label_file
 division = args.division
+threshold = args.threshold
 
 df_in = pd.read_csv(label_file, header=0, index_col=False, dtype={'Image': str, 'Presence': str},
                     usecols=['Image', 'Presence'])
@@ -43,7 +45,7 @@ df_al = df_al.set_index('MAPPED_IMAGE')
 df = pd.concat([df_in, df_al], axis=1)
 df = df.reset_index()
 df['Presence'] = df.Presence.apply(lambda row: 0 if row == 'False' else 1)
-df['ROUND_PREDICT'] = df.ROUND_PREDICT.apply(lambda row: 0 if row < 0.5 else 1)
+df['ROUND_PREDICT'] = df.ROUND_PREDICT.apply(lambda row: 0 if row < threshold else 1)
 print(df.shape)
 print('Classification Report')
 print(classification_report(df['Presence'], df['ROUND_PREDICT']))

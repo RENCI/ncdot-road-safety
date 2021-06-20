@@ -30,13 +30,14 @@ output_file = args.output_file
 if input_file.endswith('.csv'):
     in_df = pd.read_csv(input_file, header=0, index_col=False, dtype={'MAPPED_IMAGE': str, 'FEATURES': object},
                         memory_map=True)
+    in_df['FEATURES'] = in_df['FEATURES'].apply(lambda row: np.array(json.loads(row)))
 elif input_file.endswith('.parquet'):
     in_df = pd.read_parquet(input_file, engine='fastparquet')
+    in_df['FEATURES'] = in_df['FEATURES'].apply(lambda row: np.array(row))
 else:
     print('input feature vector file has to be a csv file or a parquet file')
     exit(1)
 
-in_df['FEATURES'] = in_df['FEATURES'].apply(lambda row: np.array(json.loads(row)))
 # use np.stack to convert array of array into 2 dimentional np array for converting to tensors
 test_ds = tf.data.Dataset.from_tensors(np.stack(in_df['FEATURES'].values))
 

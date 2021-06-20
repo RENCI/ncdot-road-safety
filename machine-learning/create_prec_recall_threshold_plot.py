@@ -7,16 +7,17 @@ from utils import create_single_data_frame
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    #default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout_d13_d14.txt',
+                    #default='../server/metadata/holdout_test/holdout_test_user_annots.csv',
+                    #default='../server/metadata/holdout_test/holdout_test_user_annots_balanced.csv',
                     #default='../server/metadata/pole/holdout_test_user_annots_balanced_edited.csv',
                     default='../server/metadata/pole/holdout_test_user_annots_edited.csv',
                     help='input file with path to create roc curve from')
 parser.add_argument('--model_predict_file', type=str,
-                    #default='../server/metadata/model_predict_test_round3.csv',
-                    default='../server/metadata/pole/round2/model_predict_test_unbalanced.csv',
+                    default='../server/metadata/pole/round3/model_predict_test.csv',
+                    #default='../server/metadata/round5/model_predict_test_joined_unbalanced.csv',
                     help='the active learning model prediction file')
 parser.add_argument('--single_image', type=bool, default=True,
-                    help='if True, create roc curve for single imagge rather than for joined image')
+                    help='if True, create prec_recall_threshold curve for single imagge rather than for joined image')
 
 args = parser.parse_args()
 input_file = args.input_file

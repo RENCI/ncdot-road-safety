@@ -16,8 +16,8 @@ from utils import create_single_data_frame
 
 model_predict_file_list = [
     '../server/metadata/pole/round1/model_predict_test.csv',
-    '../server/metadata/pole/round2/model_predict_test_unbalanced.csv',
-    '../server/metadata/pole/round3/model_predict_test_i_as_a.csv'
+    '../server/metadata/pole/round2/model_predict_test.csv',
+    '../server/metadata/pole/round3/model_predict_test.csv'
 ]
 
 
