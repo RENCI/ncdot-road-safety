@@ -190,11 +190,11 @@ train_df = train_df.reset_index()
 valid_df = valid_df.reset_index()
 
 
-def prepare_image(src, dst, left, front, right, presence, prepare_opposite=True):
+def prepare_image(src, dst, left, front, right, presence, prepare_opposite=True, irelevant_as_false=False):
     dst_path = os.path.dirname(dst)
     os.makedirs(dst_path, exist_ok=True)
     if original_image_without_join and src.startswith(input_prefix_dir):
-        sym_link_single_view_image(src, dst, left, front, right, presence, irelevant_as_false=False,
+        sym_link_single_view_image(src, dst, left, front, right, presence, irelevant_as_false=irelevant_as_false,
                                    prepare_opposite=prepare_opposite)
     else:
         os.symlink(src, dst)
@@ -207,12 +207,12 @@ train_df.apply(lambda row: prepare_image(row['Full_Path_Image'],
                                          os.path.join(train_path, 'yes' if row['Presence'] == 'True' else 'no',
                                                       row['Image']),
                                          row['LeftView'], row['FrontView'], row['RightView'], row['Presence'],
-                                         prepare_opposite=False), axis=1)
+                                         prepare_opposite=False, irelevant_as_false=(not i_as_p)), axis=1)
 valid_path = f'{root_al_dir}/validation/'
 create_yes_no_sub_dirs(valid_path)
 valid_df.apply(lambda row: prepare_image(row['Full_Path_Image'],
                                          os.path.join(valid_path, 'yes' if row['Presence'] == 'True' else 'no',
                                                       row['Image']),
                                          row['LeftView'], row['FrontView'], row['RightView'], row['Presence'],
-                                         prepare_opposite=False), axis=1)
+                                         prepare_opposite=False, irelevant_as_false=(not i_as_p)), axis=1)
 print('Done')
