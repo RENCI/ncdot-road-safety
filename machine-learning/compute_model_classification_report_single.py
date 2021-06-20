@@ -3,21 +3,7 @@ import argparse
 from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-
-def create_single_data(base_image_name, left_view, front_view, right_view, single_data_list):
-    single_data_list.append([f'{base_image_name}5', 'True' if left_view == 'p' else 'False'])
-    single_data_list.append([f'{base_image_name}1', 'True' if front_view == 'p' else 'False'])
-    single_data_list.append([f'{base_image_name}2', 'True' if right_view == 'p' else 'False'])
-    return
-
-
-def create_single_data_frame(joined_df):
-    single_image_data_list = []
-    joined_df.apply(lambda row: create_single_data(row.name, row.LeftView, row.FrontView,
-                                                   row.RightView, single_image_data_list),
-                    axis=1)
-    return pd.DataFrame(single_image_data_list, columns=['Image', 'Presence'])
+from utils import create_single_data_frame
 
 
 if __name__ == '__main__':

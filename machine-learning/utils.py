@@ -205,6 +205,34 @@ def sym_link_single_image(src, dst):
     return
 
 
+def _create_single_image_data(base_image_name, left_view, front_view, right_view, single_data_list, full_path=None):
+    if full_path:
+        base_path, ext = os.path.splitext(full_path)
+        single_data_list.append([f'{base_image_name}5', 'True' if left_view == 'p' else 'False', f'{base_path}5{ext}'])
+        single_data_list.append([f'{base_image_name}1', 'True' if front_view == 'p' else 'False', f'{base_path}1{ext}'])
+        single_data_list.append([f'{base_image_name}2', 'True' if right_view == 'p' else 'False', f'{base_path}2{ext}'])
+    else:
+        single_data_list.append([f'{base_image_name}5', 'True' if left_view == 'p' else 'False'])
+        single_data_list.append([f'{base_image_name}1', 'True' if front_view == 'p' else 'False'])
+        single_data_list.append([f'{base_image_name}2', 'True' if right_view == 'p' else 'False'])
+    return
+
+
+def create_single_data_frame(joined_df, full_path=False):
+    single_image_data_list = []
+    if full_path is True:
+        joined_df.apply(lambda row: _create_single_image_data(row.name, row.LeftView, row.FrontView,
+                                                              row.RightView, single_image_data_list,
+                                                              row.Full_Path_Image),
+                        axis=1)
+        return pd.DataFrame(single_image_data_list, columns=['Image', 'Presence', 'Full_Path_Image'])
+    else:
+        joined_df.apply(lambda row: _create_single_image_data(row.name, row.LeftView, row.FrontView,
+                                                       row.RightView, single_image_data_list),
+                        axis=1)
+        return pd.DataFrame(single_image_data_list, columns=['Image', 'Presence'])
+
+
 def draw_plots(y_true, y_predict):
     precision, recall, threshold = precision_recall_curve(y_true, y_predict)
     plt.plot(threshold, precision[:-1], "b--", label='Precision')

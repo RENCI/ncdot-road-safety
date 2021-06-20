@@ -2,7 +2,7 @@ import pandas as pd
 import argparse
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, roc_auc_score
-from compute_model_classification_report_single import create_single_data_frame
+from utils import create_single_data_frame
 
 
 # model_predict_file_list = [

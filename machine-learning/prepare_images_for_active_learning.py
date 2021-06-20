@@ -2,7 +2,8 @@ import pandas as pd
 import argparse
 import os
 
-from utils import split_to_train_valid_for_al, create_yes_no_sub_dirs, sym_link_single_view_image
+from utils import split_to_train_valid_for_al, create_yes_no_sub_dirs, sym_link_single_view_image, \
+    create_single_data_frame
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -97,45 +98,43 @@ if no_exist_train:
             df_yes_single_no_cnt = len(df_yes[df_yes.LeftView == 'a']) + len(df_yes[df_yes.FrontView == 'a']) + \
                                    len(df_yes[df_yes.RightView == 'a'])
             df_yes.Presence = 'True'
-        else:
-            df_yes = df[(df.LeftView == 'p') | (df.FrontView == 'p') | (df.RightView == 'p')]
-            df_yes_single_yes_cnt = len(df_yes[df_yes.LeftView == 'p']) + len(df_yes[df_yes.FrontView == 'p']) + \
-                                    len(df_yes[df_yes.RightView == 'p'])
-            df_yes_single_no_cnt = len(df_yes[df_yes.LeftView == 'a']) + len(df_yes[df_yes.FrontView == 'a']) + \
-                                   len(df_yes[df_yes.RightView == 'a']) + len(df_yes[df_yes.LeftView == 'i']) + \
-                                    len(df_yes[df_yes.FrontView == 'i']) + len(df_yes[df_yes.RightView == 'i'])
-            print('df_yes_single_yes_cnt: ', df_yes_single_yes_cnt, ', df_yes_single_no_cnt: ', df_yes_single_no_cnt)
-
-        # put negative images from the positive joined images into the total negative image sample pool
-        if i_as_p:
+            # put negative images from the positive joined images into the total negative image sample pool
             df_yes_no = df_yes[(df_yes.LeftView == 'a') | (df_yes.FrontView == 'a') | (df_yes.RightView == 'a')]
             df_no = df[(df.LeftView == 'a') & (df.FrontView == 'a') & (df.RightView == 'a')]
+            df_yes_no.Presence = 'False'
+            if not is_unbalanced:
+                # half sample from df_yes_no and the other half sample from df_no
+                sample_cnt = df_yes_single_yes_cnt // 2
+                no_ratio = df_yes_single_no_cnt / (df_yes_single_yes_cnt + df_yes_single_no_cnt)
+                df_yes_no = df_yes_no.sample(n=int(sample_cnt * no_ratio) + 1, random_state=42)
+                df_yes_no_single_yes_cnt = len(df_yes_no[df_yes_no.LeftView == 'p']) + \
+                                           len(df_yes_no[df_yes_no.FrontView == 'p']) + \
+                                           len(df_yes_no[df_yes_no.RightView == 'p'])
+                df_yes_no_single_no_cnt = len(df_yes_no) * 3 - df_yes_no_single_yes_cnt
+                sample_cnt = df_yes_single_yes_cnt - df_yes_no_single_no_cnt
+                df_no = df_no.sample(n=sample_cnt // 3 + 1, random_state=42)
+            df_no = pd.concat([df_yes_no, df_no])
+            # have to reset index since negative single images from the joined positive images could have the same
+            # image names as the positive single images, which would be lost without reset_index call
+            df.reset_index(inplace=True)
+            df = pd.concat([df_yes, df_no])
+            print('df.shape after concatenation: ', df.shape)
         else:
-            df_yes_no = df_yes[(df_yes.LeftView == 'a') | (df_yes.FrontView == 'a') | (df_yes.RightView == 'a') |
-                               (df_yes.LeftView == 'i') | (df_yes.FrontView == 'i') | (df_yes.RightView == 'i')]
-            df_no = df[((df.LeftView == 'a') | (df.LeftView == 'i')) &
-                       ((df.FrontView == 'a') | (df.FrontView == 'i')) &
-                       ((df.RightView == 'a') | (df.RightView == 'i'))]
-
-        df_yes_no.Presence = 'False'
-
-        if not is_unbalanced:
-            # half sample from df_yes_no and the other half sample from df_no
-            sample_cnt = df_yes_single_yes_cnt // 2
-            no_ratio = df_yes_single_no_cnt / (df_yes_single_yes_cnt + df_yes_single_no_cnt)
-            df_yes_no = df_yes_no.sample(n=int(sample_cnt * no_ratio) + 1, random_state=42)
-            df_yes_no_single_yes_cnt = len(df_yes_no[df_yes_no.LeftView == 'p']) + \
-                                       len(df_yes_no[df_yes_no.FrontView == 'p']) + \
-                                       len(df_yes_no[df_yes_no.RightView == 'p'])
-            df_yes_no_single_no_cnt = len(df_yes_no) * 3 - df_yes_no_single_yes_cnt
-            sample_cnt = df_yes_single_yes_cnt - df_yes_no_single_no_cnt
-            df_no = df_no.sample(n=sample_cnt // 3 + 1, random_state=42)
-        df_no = pd.concat([df_yes_no, df_no])
-        # have to reset index since negative single images from the joined positive images could have the same
-        # image names as the positive single images, which would be lost without reset_index call
-        df.reset_index(inplace=True)
-        df = pd.concat([df_yes, df_no])
-        print('df.shape after concatenation: ', df.shape)
+            df = create_single_data_frame(df)
+            df.set_index('Image', inplace=True)
+            if not is_unbalanced:
+                df_yes = df[df.Presence == 'True']
+                df_no = df[df.Presence == 'False']
+                df_yes_cnt = len(df_yes)
+                df_no_cnt = len(df_no)
+                if df_yes_cnt > df_no_cnt:
+                    sample_size = df_no_cnt
+                    df_yes = df_yes.sample(n=sample_size, random_state=42)
+                else:
+                    sample_size = df_yes_cnt
+                    df_no = df_no.sample(n=sample_size, random_state=42)
+                df = pd.concat([df_yes, df_no])
+                print('df.shape after concatenation: ', df.shape)
     elif not is_unbalanced:
         df_yes = df[df.Presence == 'True']
         df_no = df[df.Presence == 'False']
@@ -190,10 +189,10 @@ train_df = train_df.reset_index()
 valid_df = valid_df.reset_index()
 
 
-def prepare_image(src, dst, left, front, right, presence, prepare_opposite=True, irelevant_as_false=False):
+def prepare_image(src, dst, presence, left=None, front=None, right=None, prepare_opposite=True, irelevant_as_false=False):
     dst_path = os.path.dirname(dst)
     os.makedirs(dst_path, exist_ok=True)
-    if original_image_without_join and src.startswith(input_prefix_dir):
+    if original_image_without_join and src.startswith(input_prefix_dir) and left and front and right:
         sym_link_single_view_image(src, dst, left, front, right, presence, irelevant_as_false=irelevant_as_false,
                                    prepare_opposite=prepare_opposite)
     else:
@@ -203,16 +202,25 @@ def prepare_image(src, dst, left, front, right, presence, prepare_opposite=True,
 
 train_path = f'{root_al_dir}/train/'
 create_yes_no_sub_dirs(train_path)
-train_df.apply(lambda row: prepare_image(row['Full_Path_Image'],
-                                         os.path.join(train_path, 'yes' if row['Presence'] == 'True' else 'no',
-                                                      row['Image']),
-                                         row['LeftView'], row['FrontView'], row['RightView'], row['Presence'],
-                                         prepare_opposite=False, irelevant_as_false=(not i_as_p)), axis=1)
 valid_path = f'{root_al_dir}/validation/'
 create_yes_no_sub_dirs(valid_path)
-valid_df.apply(lambda row: prepare_image(row['Full_Path_Image'],
-                                         os.path.join(valid_path, 'yes' if row['Presence'] == 'True' else 'no',
-                                                      row['Image']),
-                                         row['LeftView'], row['FrontView'], row['RightView'], row['Presence'],
-                                         prepare_opposite=False, irelevant_as_false=(not i_as_p)), axis=1)
+
+if 'LeftView' in train_df.columns:
+    train_df.apply(lambda row: prepare_image(row['Full_Path_Image'],
+                                             os.path.join(train_path, 'yes' if row['Presence'] == 'True' else 'no',
+                                                          row['Image']), row['Presence'],
+                                             row['LeftView'], row['FrontView'], row['RightView'],
+                                             prepare_opposite=False, irelevant_as_false=(not i_as_p)), axis=1)
+    valid_df.apply(lambda row: prepare_image(row['Full_Path_Image'],
+                                             os.path.join(valid_path, 'yes' if row['Presence'] == 'True' else 'no',
+                                                          row['Image']), row['Presence'],
+                                             row['LeftView'], row['FrontView'], row['RightView'],
+                                             prepare_opposite=False, irelevant_as_false=(not i_as_p)), axis=1)
+else:
+    train_df.apply(lambda row: prepare_image(row['Full_Path_Image'],
+                                             os.path.join(train_path, 'yes' if row['Presence'] == 'True' else 'no',
+                                                          row['Image']), row['Presence']), axis=1)
+    valid_df.apply(lambda row: prepare_image(row['Full_Path_Image'],
+                                             os.path.join(valid_path, 'yes' if row['Presence'] == 'True' else 'no',
+                                                          row['Image']), row['Presence']), axis=1)
 print('Done')
