@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_file2', type=str,
                         default='/projects/ncdot/secondary_road/single_image_features/d04_single_image_features2.parquet',
                         help='output file with last half of the input data frame in parquet format')
-    parser.add_argument('half_size', type=int, default=1112214, help='middle index number to separate input '
+    parser.add_argument('--half_size', type=int, default=1112214, help='middle index number to separate input '
                                                                      'dataframe into two')
     args = parser.parse_args()
     input_file = args.input_file
