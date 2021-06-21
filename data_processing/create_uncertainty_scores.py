@@ -135,6 +135,9 @@ if __name__ == '__main__':
     parser.add_argument('--remain_image_name_file', type=str,
                         default='../server/metadata/pole/round3/remain_image_base_names.csv',
                         help='input image base names remaining to create uncertainty scores for')
+    parser.add_argument('--uncertainty_group_size', type=int,
+                        default=500,
+                        help='number of images in one uncertainty group for efficient query in annotation tool')
     parser.add_argument('--output_file', type=str,
                         default='../server/metadata/pole/round3/image_uncertainty_scores.csv',
                         help='output file for uncertainty scores of the mapped images to ingest into annotation tool db')
@@ -149,6 +152,7 @@ if __name__ == '__main__':
     d8_db = args.d8_db
     d1314_db = args.d1314_db
     single_image_pred = args.single_image_pred
+    uncertainty_group_size = args.uncertainty_group_size
     remain_image_name_file = args.remain_image_name_file
     output_file = args.output_file
 
@@ -176,5 +180,7 @@ if __name__ == '__main__':
           ', d13:', len(df_10k[df_10k.DIVISION=='d13']), ', d14:', len(df_10k[df_10k.DIVISION=='d14']))
     # uncertainty reflects sorting by SCORE
     whole_df["UNCERTAINTY"] = whole_df.apply(lambda row: whole_size - whole_df.index.get_loc(row.name), axis=1)
+    whole_df["UNCERTAINTY_GROUP"] = whole_df.apply(
+        lambda row: (int)(whole_df.index.get_loc(row.name) / uncertainty_group_size), axis=1)
     whole_df.to_csv(output_file)
     print('Done')

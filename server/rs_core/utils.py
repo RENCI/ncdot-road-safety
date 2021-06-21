@@ -26,13 +26,23 @@ def save_metadata_to_db(route_id, image, lat, long, milepost='', path='', aspect
                   'image_path': path,
                   'aspect_ratio': aspect_ratio}
     )
+    if not created:
+        route_image.location = fromstr(f'POINT({long} {lat})', srid=4326)
+        route_image.mile_post = milepost
+        route_image.image_path = path
+        route_image.aspect_ratio = aspect_ratio
+        route_image.save()
 
     if predict is not None:
         annot_obj = AnnotationSet.objects.get(name__iexact=feature_name)
         presence = True if predict >= 0.5 else False
-        AIImageAnnotation.objects.get_or_create(image=route_image,
-                                                annotation=annot_obj,
-                                                defaults={'presence': presence, 'certainty': predict})
+        obj, created = AIImageAnnotation.objects.get_or_create(image=route_image,
+                                                               annotation=annot_obj,
+                                                               defaults={'presence': presence, 'certainty': predict})
+        if not created:
+            obj.presence = presence
+            obj.certainty = predict
+            obj.save()
     return
 
 
@@ -244,10 +254,14 @@ def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty, unc
         image = RouteImage.objects.get(image_base_name=image_base_name)
     except RouteImage.DoesNotExist:
         return
-    obj = AIImageAnnotation.objects.get(image=image, annotation=annotation)
-    obj.uncertainty_measure = uncertainty
-    obj.uncertainty_group = uncertainty_group
-    obj.save()
+    obj, created = AIImageAnnotation.objects.get_or_create(image=image,
+                                                           annotation=annotation,
+                                                           defaults={'uncertainty_measure': uncertainty,
+                                                                     'uncertainty_group': uncertainty_group})
+    if not created:
+        obj.uncertainty_measure = uncertainty
+        obj.uncertainty_group = uncertainty_group
+        obj.save()
 
 
 def save_guardrail_data_to_db_old(begin_long, begin_lat, end_long, end_lat, route_id):
