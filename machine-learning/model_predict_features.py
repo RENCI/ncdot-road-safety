@@ -49,7 +49,7 @@ if __name__ == '__main__':
 
 
     args = parser.parse_args()
-    input_file_or_dir = args.input_file
+    input_file_or_dir = args.input_file_or_dir
     model_file = args.model_file
     output_file = args.output_file
 
