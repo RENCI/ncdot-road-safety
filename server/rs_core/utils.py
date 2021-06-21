@@ -249,7 +249,7 @@ def save_user_annot_summary_to_db(username, presence, annot_name, round_no, tota
         obj.save()
 
 
-def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty, uncertainty_group=0):
+def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty, uncertainty_group=0, predict=None):
     try:
         image = RouteImage.objects.get(image_base_name=image_base_name)
     except RouteImage.DoesNotExist:
@@ -258,10 +258,13 @@ def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty, unc
     obj, created = AIImageAnnotation.objects.get_or_create(image=image,
                                                            annotation=annot_obj,
                                                            defaults={'uncertainty_measure': uncertainty,
-                                                                     'uncertainty_group': uncertainty_group})
+                                                                     'uncertainty_group': uncertainty_group,
+                                                                     'certainty': predict})
     if not created:
         obj.uncertainty_measure = uncertainty
         obj.uncertainty_group = uncertainty_group
+        if predict:
+            obj.certainty = predict
         obj.save()
 
 

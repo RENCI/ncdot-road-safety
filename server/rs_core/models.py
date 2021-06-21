@@ -43,7 +43,7 @@ class AnnotationSet(models.Model):
 class AIImageAnnotation(models.Model):
     image = models.ForeignKey(RouteImage, on_delete=models.CASCADE)
     annotation = models.ForeignKey(AnnotationSet, on_delete=models.CASCADE)
-    presence = models.BooleanField()
+    presence = models.BooleanField(null=True, default=None)
     certainty = models.FloatField()
     uncertainty_measure = models.IntegerField(null=True, blank=True)
     uncertainty_group = models.IntegerField(null=True, blank=True)
