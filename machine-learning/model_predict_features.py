@@ -16,7 +16,7 @@ def read_input_file_into_df(input_file):
                          memory_map=True)
         df['FEATURES'] = df['FEATURES'].apply(lambda row: np.array(json.loads(row)))
         return df
-    elif input_file.endswith('.parquet'):
+    elif input_file.endswith('.parquet') or input_file.split('.')[-2].endswith('parquet'):
         df = pd.read_parquet(input_file, engine='fastparquet')
         df['FEATURES'] = df['FEATURES'].apply(lambda row: np.array(row))
         return df
