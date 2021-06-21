@@ -4,13 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def get_pred_dataframe_from_csv(input_csv_file, filter_image_df=None):
+def get_pred_dataframe_from_csv(input_csv_file, filter_image_df=None, single_pred=False):
     df = pd.read_csv(input_csv_file, header=0, index_col=False, usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'],
                      dtype={'MAPPED_IMAGE': str, 'ROUND_PREDICT': float})
     df['DIVISION'] = df.MAPPED_IMAGE.str.split('/').str[0]
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.strip()
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.split('/').str[-1]
     df.MAPPED_IMAGE = df.MAPPED_IMAGE.str.replace('.jpg', '')
+    if single_pred:
+        df['MAPPED_IMAGE'] = df.MAPPED_IMAGE.str[:-1]
+        df = df.groupby(by=['MAPPED_IMAGE', 'DIVISION']).max()
+        df.reset_index(inplace=True)
     if filter_image_df is not None:
         df = df[df.MAPPED_IMAGE.isin(filter_image_df['MAPPED_IMAGE'])]
     df = df.set_index('MAPPED_IMAGE')
@@ -112,25 +116,27 @@ def get_sub_samples_by_distribution(df):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file_d4', type=str,
-                        default='../server/metadata/model-related/secondary_road/round2/predict_d4.csv',
+                        default='../server/metadata/pole/round3/predict_d04.csv',
                         help='input prediction file for mapped images to create uncertainty scores for')
-    parser.add_argument('--d4_db', type=float, default=0.01, help='decision boundary for division 4')
+    parser.add_argument('--d4_db', type=float, default=0.75, help='decision boundary for division 4')
     parser.add_argument('--input_file_d8', type=str,
-                        default='../server/metadata/model-related/secondary_road/round2/predict_d8.csv',
+                        default='../server/metadata/pole/round3/predict_d08.csv',
                         help='input prediction file for mapped images to create uncertainty scores for')
-    parser.add_argument('--d8_db', type=float, default=0, help='decision boundary for division 8')
+    parser.add_argument('--d8_db', type=float, default=0.62, help='decision boundary for division 8')
     parser.add_argument('--input_file_d13', type=str,
-                        default='../server/metadata/model-related/secondary_road/round2/predict_d13.csv',
+                        default='../server/metadata/pole/round3/predict_d13.csv',
                         help='input prediction file for mapped images to create uncertainty scores for')
     parser.add_argument('--input_file_d14', type=str,
-                        default='../server/metadata/model-related/secondary_road/round2/predict_d14.csv',
+                        default='../server/metadata/pole/round3/predict_d14.csv',
                         help='input prediction file for mapped images to create uncertainty scores for')
-    parser.add_argument('--d1314_db', type=float, default=0.08, help='decision boundary for division 13/14')
+    parser.add_argument('--d1314_db', type=float, default=0.6, help='decision boundary for division 13/14')
+    parser.add_argument('--single_image_pred', type=bool, default=True,
+                        help='whether input predictions are for single images or joined images')
     parser.add_argument('--remain_image_name_file', type=str,
-                        default='../server/metadata/remain_image_base_names.csv',
+                        default='../server/metadata/pole/round3/remain_image_base_names.csv',
                         help='input image base names remaining to create uncertainty scores for')
     parser.add_argument('--output_file', type=str,
-                        default='../server/metadata/image_uncertainty_scores_round2.csv',
+                        default='../server/metadata/pole/round3/image_uncertainty_scores.csv',
                         help='output file for uncertainty scores of the mapped images to ingest into annotation tool db')
 
 
@@ -142,29 +148,30 @@ if __name__ == '__main__':
     d4_db = args.d4_db
     d8_db = args.d8_db
     d1314_db = args.d1314_db
+    single_image_pred = args.single_image_pred
     remain_image_name_file = args.remain_image_name_file
     output_file = args.output_file
 
     np.random.seed(1)
 
     remain_image_df = pd.read_csv(remain_image_name_file, header=0, dtype=str)
-    df_d4 = get_pred_dataframe_from_csv(input_file_d4, filter_image_df=remain_image_df)
+    df_d4 = get_pred_dataframe_from_csv(input_file_d4, filter_image_df=remain_image_df, single_pred=single_image_pred)
     print('d4 shape', df_d4.shape)
-    df_d8 = get_pred_dataframe_from_csv(input_file_d8, filter_image_df=remain_image_df)
+    df_d8 = get_pred_dataframe_from_csv(input_file_d8, filter_image_df=remain_image_df, single_pred=single_image_pred)
     print('d8 shape', df_d8.shape)
-    df_d13 = get_pred_dataframe_from_csv(input_file_d13, filter_image_df=remain_image_df)
+    df_d13 = get_pred_dataframe_from_csv(input_file_d13, filter_image_df=remain_image_df, single_pred=single_image_pred)
     print('d13 shape', df_d13.shape)
-    df_d14 = get_pred_dataframe_from_csv(input_file_d14, filter_image_df=remain_image_df)
+    df_d14 = get_pred_dataframe_from_csv(input_file_d14, filter_image_df=remain_image_df, single_pred=single_image_pred)
     print('d14 shape', df_d14.shape)
 
-    df_d4['SCORE'] = df_d4.apply(lambda row: compute_score(d4_db, row['ROUND_PREDICT'], 0.16), axis=1)
-    df_d8['SCORE'] = df_d8.apply(lambda row: compute_score(d8_db, row['ROUND_PREDICT'], 0.16), axis=1)
+    df_d4['SCORE'] = df_d4.apply(lambda row: compute_score(d4_db, row['ROUND_PREDICT'], 0.18), axis=1)
+    df_d8['SCORE'] = df_d8.apply(lambda row: compute_score(d8_db, row['ROUND_PREDICT'], 0.183), axis=1)
     df_d13['SCORE'] = df_d13.apply(lambda row: compute_score(d1314_db, row['ROUND_PREDICT'], 0.2), axis=1)
     df_d14['SCORE'] = df_d14.apply(lambda row: compute_score(d1314_db, row['ROUND_PREDICT'], 0.2), axis=1)
     whole_df = pd.concat([df_d4, df_d8, df_d13, df_d14])
     whole_df = whole_df.sort_values(by=['SCORE'])
     whole_size = len(whole_df)
-    df_10k = whole_df.head(10000)
+    df_10k = whole_df.head(5000)
     print(whole_size, ', d4:', len(df_10k[df_10k.DIVISION=='d04']), ', d8:', len(df_10k[df_10k.DIVISION=='d08']),
           ', d13:', len(df_10k[df_10k.DIVISION=='d13']), ', d14:', len(df_10k[df_10k.DIVISION=='d14']))
     # uncertainty reflects sorting by SCORE
