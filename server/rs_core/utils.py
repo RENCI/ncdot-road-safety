@@ -254,8 +254,9 @@ def save_uncertainty_measure_to_db(image_base_name, annotation, uncertainty, unc
         image = RouteImage.objects.get(image_base_name=image_base_name)
     except RouteImage.DoesNotExist:
         return
+    annot_obj = AnnotationSet.objects.get(name__iexact=annotation)
     obj, created = AIImageAnnotation.objects.get_or_create(image=image,
-                                                           annotation=annotation,
+                                                           annotation=annot_obj,
                                                            defaults={'uncertainty_measure': uncertainty,
                                                                      'uncertainty_group': uncertainty_group})
     if not created:
