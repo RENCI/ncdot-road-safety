@@ -77,26 +77,23 @@ output_dir = args.output_dir
 sensor_output_file_2lane = args.sensor_output_file_2lane
 skip_initial_2lane_mapping = args.skip_initial_2lane_mapping
 
-if skip_initial_2lane_mapping:
-    sensor_df = pd.read_csv(input_sensor_file, header=0, dtype=str,
-                            usecols=["RouteID", "Start-MP", "Start-Image", "StaLatitude", "StaLongitude"])
-else:
-    sensor_df = pd.read_csv(input_sensor_file, header=0, dtype=str,
+
+sensor_df = pd.read_csv(input_sensor_file, header=0, dtype=str,
                             usecols=["RouteID", "Set", "Start-MP","Start-Image", "StaLatitude","StaLongitude"])
-    sensor_df.columns = sensor_df.columns.str.strip()
-    sensor_df['Start-MP'] = sensor_df['Start-MP'].str.strip()
-    sensor_df['Start-MP'] = pd.to_numeric(sensor_df['Start-MP'], downcast="float")
-    sensor_df['RouteID'] = sensor_df['RouteID'].str.strip()
-    sensor_df['Start-Image'] = sensor_df['Start-Image'].str.strip()
-    sensor_df['Start-Image'] = sensor_df['Start-Image'].str.replace(':', '')
-    sensor_df['StaLatitude'] = sensor_df['StaLatitude'].str.strip()
-    sensor_df['StaLongitude'] = sensor_df['StaLongitude'].str.strip()
-    sensor_df['Set'] = sensor_df['Set'].str.strip()
+sensor_df.columns = sensor_df.columns.str.strip()
+sensor_df['Start-MP'] = sensor_df['Start-MP'].str.strip()
+sensor_df['Start-MP'] = pd.to_numeric(sensor_df['Start-MP'], downcast="float")
+sensor_df['RouteID'] = sensor_df['RouteID'].str.strip()
+sensor_df['Start-Image'] = sensor_df['Start-Image'].str.strip()
+sensor_df['Start-Image'] = sensor_df['Start-Image'].str.replace(':', '')
+sensor_df['StaLatitude'] = sensor_df['StaLatitude'].str.strip()
+sensor_df['StaLongitude'] = sensor_df['StaLongitude'].str.strip()
+sensor_df['Set'] = sensor_df['Set'].str.strip()
+print("Before removing duplicate", sensor_df.shape)
+sensor_df.drop_duplicates(inplace=True)
+print("After removing duplicate", sensor_df.shape)
 
-    print("Before removing duplicate", sensor_df.shape)
-    sensor_df.drop_duplicates(inplace=True)
-    print("After removing duplicate", sensor_df.shape)
-
+if skip_initial_2lane_mapping:
     shape_df = pd.read_csv(input_2lane_shape_file, header=0, dtype={'Division': int,
                                                                     'RouteID': str,
                                                                     'BeginMp1': float,
@@ -109,21 +106,22 @@ else:
     route_list = list(shape_df['RouteID'].unique())
     sensor_df = sensor_df[sensor_df["RouteID"].isin(route_list)]
     print("sensor data after filtering route ids", sensor_df.shape)
-    sensor_df['Start-Image'] = sensor_df['Set'] + sensor_df['Start-Image']
-    sensor_df.drop_duplicates(subset=['RouteID', 'Start-Image'], inplace=True)
-    print("sensor data after dropping duplicates on RouteID and Start-Image", sensor_df.shape)
-
     shape_df.set_index('RouteID', inplace=True)
     shape_df.sort_index()
     print("Shape df size after setting and sorting index:", shape_df.shape)
 
+sensor_df['Start-Image'] = sensor_df['Set'] + sensor_df['Start-Image']
+sensor_df.drop_duplicates(subset=['RouteID', 'Start-Image'], inplace=True)
+print("sensor data after dropping duplicates on RouteID and Start-Image", sensor_df.shape)
+sensor_df.drop(columns=['Set'], inplace=True)
+
+if skip_initial_2lane_mapping:
     sensor_df["Keep"] = sensor_df.apply(lambda row: image_covered(
         shape_df.loc[row['RouteID']], row['Start-MP']), axis=1)
 
     sensor_df = sensor_df[sensor_df['Keep'] == True]
-    sensor_df.drop(columns=['Set', 'Keep'], inplace=True)
+    sensor_df.drop(columns=['Keep'], inplace=True)
     print("Sensor df size after filtering out non-2 lane images", sensor_df.shape)
-
     sensor_df.to_csv(sensor_output_file_2lane, index=False)
 
 row_list = []
