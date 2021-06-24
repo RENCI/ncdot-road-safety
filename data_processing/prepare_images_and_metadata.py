@@ -45,24 +45,25 @@ def join_images(left_image_path, front_image_path, right_image_path):
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_sensor_file', type=str,
-                    default='/projects/ncdot/secondary_road/d8_sensor_output.txt',
+                    default='/projects/ncdot/secondary_road/d1_sensor_output.TXT',
                     help='input sensor output file with path for mapping images to metadata')
-parser.add_argument('--skip_initial_2lane_mapping', type=bool, default=False, help='whether to skip initial mapping '
-                                                                                   'for picking out 2 lanes from '
-                                                                                   'sensor output')
-parser.add_argument('--division', type=int, default=8, help='division for the data')
+parser.add_argument('--skip_initial_2lane_mapping', action='store_true', default=False,
+                    help='whether to skip initial mapping for picking out 2 lanes from sensor output')
+parser.add_argument('--division', type=int, default=1, help='division for the data')
 parser.add_argument('--input_2lane_shape_file', type=str,
                     default='/projects/ncdot/secondary_road/NCRural2LaneSecondaryRoadsInfo.csv',
                     help='input 2 lane road characteristic csv file to pick out 2 lane images')
 parser.add_argument('--root_dir', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/d08',
+                    default='/projects/ncdot/NC_2018_Secondary/d01',
                     help='root directory to look for images to process')
-parser.add_argument('--output_file', type=str, default='../server/metadata/mapped_2lane_sr_images_d8.csv',
+parser.add_argument('--output_file', type=str, default='/projects/ncdot/secondary_road/mapped_2lane_sr_images_d1.csv',
                     help='output file for mapped secondary road images')
 parser.add_argument('--sensor_output_file_2lane', type=str,
-                    default='/projects/ncdot/secondary_road/d8_sensor_output_2lane.csv',
+                    default='/projects/ncdot/secondary_road/d1_sensor_output_2lane.csv',
                     help='output file for mapped secondary road images')
-parser.add_argument('--output_dir', type=str, default='/projects/ncdot/NC_2018_Secondary/images/d8',
+parser.add_argument('--join_image', action='store_true', default=False,
+                    help='if set, prepare joined images; otherwise, prepare symlink to single images')
+parser.add_argument('--output_dir', type=str, default='/projects/ncdot/NC_2018_Secondary/single_images/d01',
                     help='output directory for copying joined 2 lane images')
 
 args = parser.parse_args()
@@ -71,6 +72,7 @@ input_2lane_shape_file = args.input_2lane_shape_file
 output_file = args.output_file
 division = args.division
 root_dir = args.root_dir
+join_image = args.join_image
 output_dir = args.output_dir
 sensor_output_file_2lane = args.sensor_output_file_2lane
 skip_initial_2lane_mapping = args.skip_initial_2lane_mapping
@@ -153,7 +155,12 @@ for dir_name, subdir_list, file_list in os.walk(root_dir):
             if rel_input_dir.startswith('/') or rel_input_dir.startswith('\\'):
                 rel_input_dir = rel_input_dir[1:]
             target_dir = os.path.join(output_dir, rel_input_dir)
-            target = os.path.join(target_dir, f'{base_name}.jpg')
+            if join_image:
+                target = os.path.join(target_dir, f'{base_name}.jpg')
+            else:
+                target = os.path.join(target_dir, file_name)
+                target_left = os.path.join(target_dir, file_name5)
+                target_right = os.path.join(target_dir, file_name2)
             if os.path.isfile(target):
                 row_list.append({'ROUTEID': base_df['RouteID'].values[0],
                                  'MAPPED_IMAGE': base_name,
@@ -166,9 +173,15 @@ for dir_name, subdir_list, file_list in os.walk(root_dir):
                 front = os.path.join(dir_name, file_name)
                 left = os.path.join(dir_name, file_name5)
                 right = os.path.join(dir_name, file_name2)
-                dst_img = join_images(left, front, right)
-                if dst_img:
-                    dst_img.save(target)
+                if join_image:
+                    dst_img = join_images(left, front, right)
+                    if dst_img:
+                        dst_img.save(target)
+                else:
+                    os.symlink(front, target)
+                    os.symlink(left, target_left)
+                    os.symlink(right, target_right)
+                if (not join_image) or (join_image and dst_img):
                     row_list.append({'ROUTEID': base_df['RouteID'].values[0],
                                      'MAPPED_IMAGE': base_name,
                                      'LATITUDE': base_df['StaLatitude'].values[0],

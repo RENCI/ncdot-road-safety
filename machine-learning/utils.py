@@ -180,13 +180,6 @@ def sym_link_single_view_image(src, dst, left, front, right, presence, irelevant
     return
 
 
-def sym_link_image(src, dst):
-    dst_path = os.path.dirname(dst)
-    os.makedirs(dst_path, exist_ok=True)
-    os.symlink(src, dst)
-    return
-
-
 def sym_link_single_image(src, dst):
     dst_path = os.path.dirname(dst)
     os.makedirs(dst_path, exist_ok=True)
