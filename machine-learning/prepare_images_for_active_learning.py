@@ -47,6 +47,8 @@ parser.add_argument('--is_unbalanced', action='store_true', default=False,
                          'data without balancing; otherwise, undersample majority class to balance with minority class')
 parser.add_argument('--i_as_p', action='store_true', default=False,
                     help='If set, irrlevant images will be treated as positive rather than negative by default')
+parser.add_argument('--remove_i', action='store_true', default=False,
+                    help='If set, irrlevant images will be removed when creating unbalanced data')
 
 args = parser.parse_args()
 input_file = args.input_file
@@ -64,6 +66,7 @@ original_image_without_join = args.original_image_without_join
 no_exist_train = args.no_exist_train
 is_unbalanced = args.is_unbalanced
 i_as_p = args.i_as_p
+remove_i = args.remove_i
 
 
 def read_annotation_df(df_file):
@@ -120,7 +123,7 @@ if no_exist_train:
             df = pd.concat([df_yes, df_no])
             print('df.shape after concatenation: ', df.shape)
         else:
-            df = create_single_data_frame(df, full_path=True)
+            df = create_single_data_frame(df, full_path=True, remove_i=remove_i)
             df.set_index('Image', inplace=True)
             if not is_unbalanced:
                 df_yes = df[df.Presence == 'True']

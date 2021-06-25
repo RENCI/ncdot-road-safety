@@ -198,34 +198,41 @@ def sym_link_single_image(src, dst):
     return
 
 
-def _create_single_image_data(base_image_name, left_view, front_view, right_view, single_data_list, full_path=None):
+def _create_single_image_data(base_image_name, left_view, front_view, right_view, single_data_list, full_path=None,
+                              remove_i=False):
     if full_path:
         base_path, ext = os.path.splitext(full_path)
         base_path_img, ext_img = os.path.splitext(base_image_name)
-        single_data_list.append([f'{base_path_img}5{ext_img}', 'True' if left_view == 'p' else 'False',
-                                 f'{base_path}5{ext}'])
-        single_data_list.append([f'{base_path_img}1{ext_img}', 'True' if front_view == 'p' else 'False',
-                                 f'{base_path}1{ext}'])
-        single_data_list.append([f'{base_path_img}2{ext_img}', 'True' if right_view == 'p' else 'False',
-                                 f'{base_path}2{ext}'])
+        if not(remove_i and left_view == 'i'):
+            single_data_list.append([f'{base_path_img}5{ext_img}', 'True' if left_view == 'p' else 'False',
+                                     f'{base_path}5{ext}'])
+        if not (remove_i and front_view == 'i'):
+            single_data_list.append([f'{base_path_img}1{ext_img}', 'True' if front_view == 'p' else 'False',
+                                     f'{base_path}1{ext}'])
+        if not (remove_i and right_view == 'i'):
+            single_data_list.append([f'{base_path_img}2{ext_img}', 'True' if right_view == 'p' else 'False',
+                                     f'{base_path}2{ext}'])
     else:
-        single_data_list.append([f'{base_image_name}5', 'True' if left_view == 'p' else 'False'])
-        single_data_list.append([f'{base_image_name}1', 'True' if front_view == 'p' else 'False'])
-        single_data_list.append([f'{base_image_name}2', 'True' if right_view == 'p' else 'False'])
+        if not (remove_i and left_view == 'i'):
+            single_data_list.append([f'{base_image_name}5', 'True' if left_view == 'p' else 'False'])
+        if not (remove_i and front_view == 'i'):
+            single_data_list.append([f'{base_image_name}1', 'True' if front_view == 'p' else 'False'])
+        if not (remove_i and right_view == 'i'):
+            single_data_list.append([f'{base_image_name}2', 'True' if right_view == 'p' else 'False'])
     return
 
 
-def create_single_data_frame(joined_df, full_path=False):
+def create_single_data_frame(joined_df, full_path=False, remove_i=False):
     single_image_data_list = []
     if full_path is True:
         joined_df.apply(lambda row: _create_single_image_data(row.name, row.LeftView, row.FrontView,
                                                               row.RightView, single_image_data_list,
-                                                              row.Full_Path_Image),
+                                                              row.Full_Path_Image, remove_i=remove_i),
                         axis=1)
         return pd.DataFrame(single_image_data_list, columns=['Image', 'Presence', 'Full_Path_Image'])
     else:
         joined_df.apply(lambda row: _create_single_image_data(row.name, row.LeftView, row.FrontView,
-                                                       row.RightView, single_image_data_list),
+                                                              row.RightView, single_image_data_list, remove_i=remove_i),
                         axis=1)
         return pd.DataFrame(single_image_data_list, columns=['Image', 'Presence'])
 
