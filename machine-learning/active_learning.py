@@ -65,28 +65,30 @@ def get_train_val_data(bat_size):
     return normalized_train_ds, len(train_ds), normalized_valid_ds, len(val_ds)
 
 
-def get_model(input_file):
+def get_model(input_file, fine_tune=False):
     """
     Get the model for active learning with random weights for the top classification head layer
     :param input_file: the model file to load model from
+    :param fine_tune: if True, unfreeze all layers to fine tune weights
     :return: the model instance
     """
     feature_model = tf.keras.models.load_model(input_file)
     # print(feature_model.summary())
     feature_model.trainable = True
-    # only make the top dense classification layer (2049 parameters) trainable
-    for layer in feature_model.layers[:-1]:
-        layer.trainable = False
+    if not fine_tune:
+        # only make the top dense classification layer (2049 parameters) trainable
+        for layer in feature_model.layers[:-1]:
+            layer.trainable = False
 
-    # randomize classification head layer's weights and make it trainable
-    head_layer = feature_model.layers[-1]
-    weight_initializer = tf.keras.initializers.GlorotUniform(seed=42)
-    bias_initializer = tf.keras.initializers.Zeros()
-    old_weights, old_biases = head_layer.get_weights()
-    head_layer.set_weights([
-        weight_initializer(shape=old_weights.shape),
-        bias_initializer(shape=old_biases.shape)])
-    head_layer.trainable = True
+        # randomize classification head layer's weights and make it trainable
+        head_layer = feature_model.layers[-1]
+        weight_initializer = tf.keras.initializers.GlorotUniform(seed=42)
+        bias_initializer = tf.keras.initializers.Zeros()
+        old_weights, old_biases = head_layer.get_weights()
+        head_layer.set_weights([
+            weight_initializer(shape=old_weights.shape),
+            bias_initializer(shape=old_biases.shape)])
+        head_layer.trainable = True
 
     # use a small learning rate 1e-5 given the active learning training dataset is relatively small
     feature_model.compile(optimizer=keras.optimizers.Adam(1e-5),
@@ -152,6 +154,8 @@ if __name__ == '__main__':
                         help='model file with path output by training')
     parser.add_argument('--make_inference_only', action='store_true', default=False,
                         help='if set, will make inference only')
+    parser.add_argument('--fine_tune_all_weights', action='store_true', default=False,
+                        help='if set, will fine tune all layer weights')
     parser.add_argument('--class_weights', type=dict,
                         default={0: 0.5996278377372535, 1: 3.0093388121031004},
                         help='class weights to pass in fit() for unbalanced training data')
@@ -167,6 +171,7 @@ if __name__ == '__main__':
     output_model_file = args.output_model_file
     num_of_epoch = args.num_of_epoch
     batch_size = args.batch_size
+    fine_tune_all_weights = args.fine_tune_all_weights
     make_inference_only = args.make_inference_only
     class_weights = args.class_weights
 
@@ -178,7 +183,7 @@ if __name__ == '__main__':
         norm_train_ds, train_ds_len, norm_val_ds, val_ds_len = get_train_val_data(batch_size)
 
         with strategy.scope():
-            model = get_model(model_file)
+            model = get_model(model_file, fine_tune=fine_tune_all_weights)
 
         ts = time.time()
         if class_weights:
