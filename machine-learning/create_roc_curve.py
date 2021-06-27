@@ -5,20 +5,23 @@ from sklearn.metrics import roc_curve, roc_auc_score
 from utils import create_single_data_frame
 
 
-# model_predict_file_list = [
-#     '../server/metadata/model_predict_test_base.csv',
-#     '../server/metadata/model_predict_test_round1.csv',
-#     '../server/metadata/model_predict_test_round2.csv',
-#     '../server/metadata/model_predict_test_round3.csv',
-#     '../server/metadata/model_predict_test_round4.csv',
-#     '../server/metadata/model_predict_test_round5.csv'
-# ]
-
 model_predict_file_list = [
-    '../server/metadata/pole/round1/model_predict_test.csv',
-    '../server/metadata/pole/round2/model_predict_test.csv',
-    '../server/metadata/pole/round3/model_predict_test.csv'
+    '../server/metadata/model_predict_test_base.csv',
+    '../server/metadata/model_predict_test_round1.csv',
+    '../server/metadata/model_predict_test_round2.csv',
+    '../server/metadata/model_predict_test_round3.csv',
+    '../server/metadata/model_predict_test_round4.csv',
+    '../server/metadata/model_predict_test_round5.csv',
+    '../server/metadata/round5/model_predict_test_fine_tuned_further_best.csv'
 ]
+
+# model_predict_file_list = [
+#     '../server/metadata/pole/round1/model_predict_test.csv',
+#     '../server/metadata/pole/round2/model_predict_test.csv',
+#     '../server/metadata/pole/round3/model_predict_test.csv',
+#     '../server/metadata/pole/round4/model_predict_test.csv',
+#     '../server/metadata/pole/round4/model_predict_test_fine_tuned.csv',
+# ]
 
 
 def read_predict_file(filename, rename_cols=None):
@@ -27,6 +30,10 @@ def read_predict_file(filename, rename_cols=None):
                           usecols=['MAPPED_IMAGE', 'ROUND_PREDICT'])
     pred_df['MAPPED_IMAGE'] = pred_df['MAPPED_IMAGE'].str.split('/').str[-1]
     pred_df['MAPPED_IMAGE'] = pred_df['MAPPED_IMAGE'].str.replace('.jpg', '')
+    if len(pred_df['MAPPED_IMAGE'][0]) > 11:
+        pred_df['MAPPED_IMAGE'] = pred_df.MAPPED_IMAGE.str[:-1]
+        pred_df = pred_df.groupby(by=['MAPPED_IMAGE']).max()
+        pred_df.reset_index(inplace=True)
     if rename_cols is not None:
         pred_df.rename(columns=rename_cols, inplace=True)
     pred_df = pred_df[pred_df.MAPPED_IMAGE.isin(df_in.index)]
@@ -42,13 +49,13 @@ def draw_roc_curve(y_true, y_score):
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_file', type=str,
-                    #default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
+                    default='../server/metadata/holdout_test/user_annoted_image_info_for_holdout.csv',
                     #default='../server/metadata/holdout_test/user_annoted_balanced_image_info.txt',
                     #default='../server/metadata/pole/holdout_test_user_annots_balanced_edited.csv',
-                    default='../server/metadata/pole/holdout_test_user_annots_edited.csv',
+                    #default='../server/metadata/pole/holdout_test_user_annots_edited.csv',
                     help='input file with path to create roc curve from')
 parser.add_argument('--curve_title', type=str, default='ROC Curve', help='ROC curve title')
-parser.add_argument('--single_image', type=bool, default=True,
+parser.add_argument('--single_image', type=bool, default=False,
                     help='if True, create roc curve for single imagge rather than for joined image')
 
 
@@ -86,11 +93,13 @@ legend_score_strs = []
 for num, _ in enumerate(model_predict_file_list):
     if num == 0:
         score = draw_roc_curve(df_all['Presence'], df_all['ROUND_PREDICT'])
-        legend_score_strs.append(f'Round{num+1} model (AUC: {score})')
+        legend_score_strs.append(f'Base model (AUC: {score})')
     else:
         score = draw_roc_curve(df_all['Presence'], df_all[f'ROUND_PREDICT{num}'])
-        legend_score_strs.append(f'Round{num+1} model (AUC: {score})')
-
+        if num == 6:
+            legend_score_strs.append(f'Round{num-1} fine-tuned (AUC: {score})')
+        else:
+            legend_score_strs.append(f'Round{num} model (AUC: {score})')
 plt.legend(legend_score_strs, loc='lower right')
 plt.plot([0, 1], [0, 1], 'k--')
 plt.show()
