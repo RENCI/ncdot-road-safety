@@ -56,10 +56,11 @@ parser.add_argument('--input_2lane_shape_file', type=str,
 parser.add_argument('--root_dir', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/d01',
                     help='root directory to look for images to process')
-parser.add_argument('--output_file', type=str, default='/projects/ncdot/secondary_road/mapped_2lane_sr_images_d1.csv',
+parser.add_argument('--output_file', type=str,
+                    default='/projects/ncdot/secondary_road/output/d01/mapped_2lane_sr_images_d1.csv',
                     help='output file for mapped secondary road images')
 parser.add_argument('--sensor_output_file_2lane', type=str,
-                    default='/projects/ncdot/secondary_road/d1_sensor_output_2lane.csv',
+                    default='/projects/ncdot/secondary_road/output/d01/d1_sensor_output_2lane.csv',
                     help='output file for mapped secondary road images')
 parser.add_argument('--join_image', action='store_true', default=False,
                     help='if set, prepare joined images; otherwise, prepare symlink to single images')
@@ -93,7 +94,7 @@ print("Before removing duplicate", sensor_df.shape)
 sensor_df.drop_duplicates(inplace=True)
 print("After removing duplicate", sensor_df.shape)
 
-if skip_initial_2lane_mapping:
+if not skip_initial_2lane_mapping:
     shape_df = pd.read_csv(input_2lane_shape_file, header=0, dtype={'Division': int,
                                                                     'RouteID': str,
                                                                     'BeginMp1': float,
@@ -115,7 +116,7 @@ sensor_df.drop_duplicates(subset=['RouteID', 'Start-Image'], inplace=True)
 print("sensor data after dropping duplicates on RouteID and Start-Image", sensor_df.shape)
 sensor_df.drop(columns=['Set'], inplace=True)
 
-if skip_initial_2lane_mapping:
+if not skip_initial_2lane_mapping:
     sensor_df["Keep"] = sensor_df.apply(lambda row: image_covered(
         shape_df.loc[row['RouteID']], row['Start-MP']), axis=1)
 
