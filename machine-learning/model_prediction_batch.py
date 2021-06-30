@@ -37,6 +37,8 @@ setup_gpu_memory()
 normalization_layer = tf.keras.layers.experimental.preprocessing.Rescaling(1./255)
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 strategy = tf.distribute.MirroredStrategy()
+options = tf.data.Options()
+options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
 with strategy.scope():
     # load the model for prediction only, no need to compile the model
     model = tf.keras.models.load_model(model_file, compile=False)
@@ -55,6 +57,7 @@ for div_dir in divisions:
         test_ds = image_dataset_from_directory(
             os.path.join(div_dir, subdir), validation_split=None, subset=None, label_mode=None,
             shuffle=False, image_size=(299, 299), batch_size=batch_size)
+        test_ds.with_options(options)
         normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
         normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
         ts = time.time()
