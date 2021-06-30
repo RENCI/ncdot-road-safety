@@ -63,7 +63,7 @@ for div_dir in divisions:
         normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
         normalized_test_ds.with_options(options)
         ts = time.time()
-        pred = model.predict(normalized_test_ds)
+        pred = model.predict(normalized_test_ds, verbose=True)
         te = time.time()
         time_list.append(te-ts)
         pred_rounded = np.round(pred, decimals=2)
