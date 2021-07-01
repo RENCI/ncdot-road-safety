@@ -175,22 +175,19 @@ def create_ai_image_annotation(image_base_name, annotation, presence, certainty,
         image = RouteImage.objects.get(image_base_name=image_base_name)
     except RouteImage.DoesNotExist:
         return
-    AIImageAnnotation.objects.get_or_create(image=image,
-                                            annotation=annotation,
-                                            defaults={'presence': presence, 'certainty': certainty,
-                                                      'uncertainty_measure': uncertainty_measure,
-                                                      'uncertainty_group': uncertainty_group})
-
-
-def update_ai_image_annotation(image_base_name, annotation, presence, certainty):
-    try:
-        image = RouteImage.objects.get(image_base_name=image_base_name)
-    except RouteImage.DoesNotExist:
-        return
-    obj = AIImageAnnotation.objects.get(image=image, annotation=annotation)
-    obj.presence = presence
-    obj.certainty = certainty
-    obj.save()
+    obj, created = AIImageAnnotation.objects.get_or_create(image=image,
+                                                           annotation=annotation,
+                                                           defaults={'presence': presence, 'certainty': certainty,
+                                                                     'uncertainty_measure': uncertainty_measure,
+                                                                     'uncertainty_group': uncertainty_group})
+    if not created:
+        obj.presence = presence
+        obj.certainty = certainty
+        if uncertainty_measure:
+            obj.uncertainty_measure = uncertainty_measure
+        if uncertainty_group:
+            obj.uncertainty_group = uncertainty_group
+        obj.save()
 
 
 def save_holdout_test_info_to_db(image_base_name, annot_name, round_no, presence, in_balance_set, certainty,

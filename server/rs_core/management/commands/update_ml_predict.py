@@ -2,8 +2,8 @@ import pandas as pd
 
 from django.core.management.base import BaseCommand
 
-from rs_core.models import AnnotationSet, AIImageAnnotation
-from rs_core.utils import update_ai_image_annotation
+from rs_core.models import AnnotationSet
+from rs_core.utils import create_ai_image_annotation
 
 
 class Command(BaseCommand):
@@ -23,23 +23,35 @@ class Command(BaseCommand):
         # csv filename with full path to load metadata from
         parser.add_argument('input_file', help='input csv file name with full path to be '
                                                'processed and load prediction data from')
+        parser.add_argument('--threshold', type=float,
+                            help=('Optional. The threshold for binary model classifier'))
         parser.add_argument('--feature_name', type=str,
                             help=('Optional. The feature name the ML prediction is for'))
 
+
     def handle(self, *args, **options):
         input_file = options['input_file']
+        threshold = options['threshold']
         feature_name = options['feature_name']
+        if not threshold:
+            threshold = 0.8
         if not feature_name:
             feature_name = 'guardrail'
+
         df = pd.read_csv(input_file, header=0, index_col=False, dtype={'MAPPED_IMAGE': 'str',
                                                                        'ROUND_PREDICT': 'float'})
         print(df.shape)
         df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.replace('.jpg', '')
         df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.split('/').str[-1]
-        image_list = list(AIImageAnnotation.objects.values_list("image", flat=True))
-        df = df[df.MAPPED_IMAGE.isin(image_list)]
+        if len(df['MAPPED_IMAGE'][0]) == 12:
+            # single image prediction
+            df['MAPPED_IMAGE'] = df.MAPPED_IMAGE.str[:-1]
+            df = df.groupby(by=['MAPPED_IMAGE']).max()
+            df.reset_index(inplace=True)
+        # image_list = list(AIImageAnnotation.objects.values_list("image", flat=True))
+        # df = df[df.MAPPED_IMAGE.isin(image_list)]
         annot_obj = AnnotationSet.objects.get(name__iexact=feature_name)
-        df.apply(lambda row: update_ai_image_annotation(row['MAPPED_IMAGE'], annot_obj,
-                                                        True if row["ROUND_PREDICT"] >= 0.5 else False,
+        df.apply(lambda row: create_ai_image_annotation(row['MAPPED_IMAGE'], annot_obj,
+                                                        True if row["ROUND_PREDICT"] >= threshold else False,
                                                         row["ROUND_PREDICT"]), axis=1)
         print('Done')
