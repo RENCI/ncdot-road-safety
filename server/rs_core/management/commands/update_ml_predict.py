@@ -1,8 +1,9 @@
 import pandas as pd
 
 from django.core.management.base import BaseCommand
+from django.conf import settings
 
-from rs_core.models import AnnotationSet
+from rs_core.models import AnnotationSet, RouteImage
 from rs_core.utils import create_ai_image_annotation
 
 
@@ -38,8 +39,8 @@ class Command(BaseCommand):
         if not feature_name:
             feature_name = 'guardrail'
 
-        df = pd.read_csv(input_file, header=0, index_col=False, dtype={'MAPPED_IMAGE': 'str',
-                                                                       'ROUND_PREDICT': 'float'})
+        df = pd.read_csv(input_file, header=0, index_col=False, dtype={'MAPPED_IMAGE': str,
+                                                                       'ROUND_PREDICT': float})
         print(df.shape)
         df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.replace('.jpg', '')
         df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.split('/').str[-1]
@@ -48,8 +49,11 @@ class Command(BaseCommand):
             df['MAPPED_IMAGE'] = df.MAPPED_IMAGE.str[:-1]
             df = df.groupby(by=['MAPPED_IMAGE']).max()
             df.reset_index(inplace=True)
-        # image_list = list(AIImageAnnotation.objects.values_list("image", flat=True))
-        # df = df[df.MAPPED_IMAGE.isin(image_list)]
+        if settings.USE_IRODS:
+            image_list = list(RouteImage.objects.values_list("image_base_name", flat=True))
+            print(len(image_list))
+            df = df[df.MAPPED_IMAGE.isin(image_list)]
+            print(df.shape)
         annot_obj = AnnotationSet.objects.get(name__iexact=feature_name)
         df.apply(lambda row: create_ai_image_annotation(row['MAPPED_IMAGE'], annot_obj,
                                                         True if row["ROUND_PREDICT"] >= threshold else False,

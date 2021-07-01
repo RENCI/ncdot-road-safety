@@ -151,6 +151,11 @@ STATIC_ROOT = os.path.join(BASE_DIR, "static")
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'
 
+MODEL_THRESHOLDS = {
+    'guardrail': 0.8,
+    'pole': 0.67
+}
+
 if DEBUG:
     # Email configuration
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

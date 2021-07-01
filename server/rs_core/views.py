@@ -430,6 +430,16 @@ def get_image_annotations(request, image_base_name):
 
 
 @login_required
+def get_model_threshold(request, feature_name):
+    if feature_name in settings.MODEL_THRESHOLDS:
+        return JsonResponse({'feature_name': feature_name,
+                             'model_threshold': settings.MODEL_THRESHOLDS[feature_name]},
+                            status=status.HTTP_200_OK)
+    else:
+        return JsonResponse({'error': f'there is no such model for the requested {feature_name}'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+@login_required
 def save_annotations(request):
     username = request.user.username
     json_data = json.loads(request.body)
