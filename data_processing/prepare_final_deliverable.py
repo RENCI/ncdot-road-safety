@@ -13,7 +13,8 @@ if __name__ == '__main__':
     parser.add_argument('--threshold', type=float, default=0.8,
                         help='threshold for model binary classification')
     parser.add_argument('--output_file', type=str,
-                        default='/projects/ncdot/secondary_road/predict/guardrail/guardrail_model_predict_d13.csv',
+                        default='/projects/ncdot/secondary_road/predict/guardrail/deliverable/'
+                                'guardrail_model_predict_d13.csv',
                         help='output file for final deliverable')
 
     args = parser.parse_args()
@@ -22,8 +23,9 @@ if __name__ == '__main__':
     threshold = args.threshold
     output_file = args.output_file
 
-    map_df = pd.read_csv(input_map_file, header=0, index_col='MAPPED_IMAGE', dtype=str,
+    map_df = pd.read_csv(input_map_file, header=0, index_col=None, dtype=str,
                          usecols=['ROUTEID', 'MAPPED_IMAGE', 'MILE_POST'])
+    map_df.set_index('MAPPED_IMAGE', inplace=True)
     predict_df = pd.read_csv(input_predict_file, header=0, index_col=None,
                              dtype={'MAPPED_IMAGE': str,
                                     'ROUND_PREDICT': float})
