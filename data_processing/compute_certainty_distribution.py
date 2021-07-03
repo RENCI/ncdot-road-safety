@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
-                        default='../server/metadata/predict/guardrail/predict_d13_single.csv',
+                        default='../server/metadata/predict/pole/predict_d14_single.csv',
                         help='input file with path with model predictions')
-    parser.add_argument('--threshold', type=float, default=0.8,
+    parser.add_argument('--threshold', type=float, default=0.67,
                         help='threshold for model binary classification')
-    parser.add_argument('--title', type=str, default='D13 guardrail model single image prediction distribution',
+    parser.add_argument('--title', type=str, default='D14 pole model single image prediction distribution',
                         help='title to put on the plot')
     parser.add_argument('--joined', type=bool, default=False, help='compute certainty distribution for joined images')
 
@@ -20,8 +20,8 @@ if __name__ == '__main__':
     threshold = args.threshold
     joined = args.joined
 
-    df = pd.read_csv(input_file, header=0, index_col=None, dtype={'MAPPED_IMAGE': 'str',
-                                                                  'ROUND_PREDICT': 'float'})
+    df = pd.read_csv(input_file, header=0, index_col=None, dtype={'MAPPED_IMAGE': str,
+                                                                  'ROUND_PREDICT': float})
     df.dropna(inplace=True)
     df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.replace('.jpg', '')
     df['MAPPED_IMAGE'] = df['MAPPED_IMAGE'].str.split('/').str[-1]
@@ -36,8 +36,8 @@ if __name__ == '__main__':
     plt.show()
     print("mean:", prob_series.mean())
     print("std:", prob_series.std())
-    prob_series_yes = df['ROUND_PREDICT'][df['ROUND_PREDICT'] >= threshold]
-    prob_series_no = df['ROUND_PREDICT'][df['ROUND_PREDICT'] < threshold]
-    prob_series_1 = df['ROUND_PREDICT'][df['ROUND_PREDICT'] == 1.0]
+    prob_series_yes = df[df['ROUND_PREDICT'] >= threshold]
+    prob_series_no = df[df['ROUND_PREDICT'] < threshold]
+    prob_series_1 = df[df['ROUND_PREDICT'] == 1.0]
     print(f'{len(prob_series_yes)}, {len(prob_series_no)}, {len(prob_series)}')
     print(len(prob_series_1), len(prob_series_1)/len(prob_series))

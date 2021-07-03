@@ -133,7 +133,8 @@ def save_annot_data_cache(img_base_name_list, username, annot_name):
 
 def save_annot_data_to_db(img_base_name, username, annot_name, annot_views, annot_flags=None, annot_comments=''):
     with transaction.atomic():
-        if annot_views['left'] == 'present' or annot_views['front'] == 'present' or annot_views['right'] == 'present':
+        if annot_views['left'] == 'present' or annot_views['left'] == 'p' or annot_views['front'] == 'present' \
+                or annot_views['front'] == 'p' or annot_views['right'] == 'present' or annot_views['right'] == 'p':
             presence = True
         else:
             presence = False
