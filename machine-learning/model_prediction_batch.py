@@ -54,29 +54,34 @@ else:
 
 for div_dir in divisions:
     for subdir in os.listdir(div_dir):
-        test_ds = image_dataset_from_directory(
-            os.path.join(div_dir, subdir), validation_split=None, subset=None, label_mode=None,
-            shuffle=False, image_size=(299, 299), batch_size=batch_size)
-        test_ds.with_options(options)
-        normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
-        normalized_test_ds.with_options(options)
-        normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
-        normalized_test_ds.with_options(options)
-        ts = time.time()
-        pred = model.predict(normalized_test_ds, verbose=True)
-        te = time.time()
-        time_list.append(te-ts)
-        pred_rounded = np.round(pred, decimals=2)
+        try:
+            test_ds = image_dataset_from_directory(
+                os.path.join(div_dir, subdir), validation_split=None, subset=None, label_mode=None,
+                shuffle=False, image_size=(299, 299), batch_size=batch_size)
+            test_ds.with_options(options)
+            normalized_test_ds = test_ds.map(lambda x: normalization_layer(x))
+            normalized_test_ds.with_options(options)
+            normalized_test_ds = normalized_test_ds.cache().prefetch(buffer_size=AUTOTUNE)
+            normalized_test_ds.with_options(options)
+            ts = time.time()
+            pred = model.predict(normalized_test_ds, verbose=True)
+            te = time.time()
+            time_list.append(te-ts)
+            pred_rounded = np.round(pred, decimals=2)
 
-        res_df_list.append(pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
-                                         "ROUND_PREDICT": pred_rounded[:, 0]}))
-        res_df_list[-1].MAPPED_IMAGE = res_df_list[-1].MAPPED_IMAGE.str.replace(
-            '/projects/ncdot/NC_2018_Secondary/images/', '')
-        # release memory
-        del test_ds
-        del normalized_test_ds
-        del pred
-        del pred_rounded
+            res_df_list.append(pd.DataFrame({"MAPPED_IMAGE": test_ds.file_paths,
+                                             "ROUND_PREDICT": pred_rounded[:, 0]}))
+            res_df_list[-1].MAPPED_IMAGE = res_df_list[-1].MAPPED_IMAGE.str.replace(
+                '/projects/ncdot/NC_2018_Secondary/images/', '')
+            # release memory
+            del test_ds
+            del normalized_test_ds
+            del pred
+            del pred_rounded
+        except Exception as ex:
+            print('path before exception: ', os.path.join(div_dir, subdir))
+            print(ex)
+            continue
 print('Total time taken for prediction: ', sum(time_list))
 # combine multiple results into one
 combined_results = pd.concat(res_df_list)
