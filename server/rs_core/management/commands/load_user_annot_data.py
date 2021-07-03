@@ -24,10 +24,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         input_file = options['input_file']
         annot_name = options['annot_name']
-        df = pd.read_csv(input_file, header=0, index_col=False, usecols=['Image', 'Username', 'LeftView',
-                                                                         'FrontView', 'RightView'])
+        df = pd.read_csv(input_file, header=0, index_col=False, dtype=str)
         df.Image = df.Image.str.split('/').str[-1].str.split('.').str[0]
-        df.apply(lambda row: save_annot_data_to_db(row['Image'], row['Username'], annot_name,
+        df.apply(lambda row: save_annot_data_to_db(row['Image'],
+                                                   'admin' if row.get('Username') is None else row['Username'],
+                                                   annot_name,
                                                    {'left': row['LeftView'],
                                                     'front': row['FrontView'],
                                                     'right': row['RightView']}), axis=1)
