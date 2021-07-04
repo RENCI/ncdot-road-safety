@@ -1,13 +1,9 @@
 import os
-from PIL import Image
-import tensorflow as tf
 import pandas as pd
-from sklearn.metrics import precision_recall_curve
-from sklearn.metrics import roc_curve
-import matplotlib.pyplot as plt
 
 
 def setup_gpu_memory(mem_limit=1024*30):
+    import tensorflow as tf
     # there are 2 GPUs with 32GB mem each on groucho. Need to set memory limit to 30G
     # for each to avoid running exceptions
     try:
@@ -60,6 +56,7 @@ def join_images(left_image_path, front_image_path, right_image_path):
     """
     join input left, front, and right images into a single image
     """
+    from PIL import Image
     img_names = [left_image_path, front_image_path, right_image_path]
     imgs = []
     try:
@@ -238,6 +235,10 @@ def create_single_data_frame(joined_df, full_path=False, remove_i=False):
 
 
 def draw_plots(y_true, y_predict):
+    from sklearn.metrics import precision_recall_curve
+    from sklearn.metrics import roc_curve
+    import matplotlib.pyplot as plt
+
     precision, recall, threshold = precision_recall_curve(y_true, y_predict)
     plt.plot(threshold, precision[:-1], "b--", label='Precision')
     plt.plot(threshold, recall[:-1], "g--", label='Recall')
