@@ -36,8 +36,10 @@ is_subset = args.is_subset
 
 setup_gpu_memory()
 
-# load the model
-model = tf.keras.models.load_model(model_file, compile=False)
+strategy = tf.distribute.MirroredStrategy()
+with strategy.scope():
+    # load the model
+    model = tf.keras.models.load_model(model_file, compile=False)
 print(model.summary())
 
 
