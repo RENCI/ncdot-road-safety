@@ -55,7 +55,6 @@ for dir_name, subdir_list, file_list in os.walk(data_dir, followlinks=True):
                 file_name_list.append(full_file_name)
             except Exception as ex:
                 print(full_file_name)
-                print(ex)
                 continue
 te = time.time()
 print('Total time taken for prediction: ', te-ts)

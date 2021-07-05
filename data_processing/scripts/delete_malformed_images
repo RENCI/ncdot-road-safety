@@ -1,0 +1,8 @@
+#!/bin/bash
+
+IMAGE_LIST=malformed_images.txt
+
+while IFS= read -r line
+do
+  rm $line
+done < "IMAGE_LIST"
