@@ -29,6 +29,8 @@ urlpatterns = [
     path('get_annotation_set/', views.get_annotation_set, name='get_annotation_set'),
     path('save_annotations/', views.save_annotations, name='save_annotations'),
     path('get_image_annotations/<image_base_name>/', views.get_image_annotations, name='get_image_annotations'),
+    path('get_model_fps/<annot_name>/', views.get_model_fps, name='get_model_fps'),
+    path('get_model_fns/<annot_name>/', views.get_model_fns, name='get_model_fns'),
     path('get_holdout_test_info/<annot_name>/<round_no>/<category>', views.get_holdout_test_info,
          name='get_holdout_test_info'),
 ]

@@ -479,6 +479,46 @@ def save_annotations(request):
 
 
 @login_required
+def get_model_fps(request, annot_name):
+    ret_info = {'fps_info': []}
+    info_qs = RouteImage.objects.filter(aiimageannotation__annotation__name__iexact=annot_name,
+                                        aiimageannotation__presence=True,
+                                        userimageannotation__annotation__name__exact=annot_name,
+                                        userimageannotation__presence=False)
+    for info in info_qs:
+        user_annot_obj = info.userimageannotation_set.get(annotation__name__iexact=annot_name)
+        info_dict = {
+            'image_base_name': info.image_base_name,
+            'certainty': info.aiimageannotation_set.get(annotation__name__iexact=annot_name).certainty,
+            'left_view_annot': user_annot_obj.left_view,
+            'front_view_annot': user_annot_obj.front_view,
+            'right_view_annot': user_annot_obj.right_view
+        }
+        ret_info['fps_info'].append(info_dict)
+    return JsonResponse(ret_info, status=status.HTTP_200_OK)
+
+
+@login_required
+def get_model_fns(request, annot_name):
+    ret_info = {'fns_info': []}
+    info_qs = RouteImage.objects.filter(aiimageannotation__annotation__name__iexact=annot_name,
+                                        aiimageannotation__presence=False,
+                                        userimageannotation__annotation__name__exact=annot_name,
+                                        userimageannotation__presence=True)
+    for info in info_qs:
+        user_annot_obj = info.userimageannotation_set.get(annotation__name__iexact=annot_name)
+        info_dict = {
+            'image_base_name': info.image_base_name,
+            'certainty': info.aiimageannotation_set.get(annotation__name__iexact=annot_name).certainty,
+            'left_view_annot': user_annot_obj.left_view,
+            'front_view_annot': user_annot_obj.front_view,
+            'right_view_annot': user_annot_obj.right_view
+        }
+        ret_info['fns_info'].append(info_dict)
+    return JsonResponse(ret_info, status=status.HTTP_200_OK)
+
+
+@login_required
 def get_holdout_test_info(request, annot_name, round_no, category):
     ret_info = {'holdout_test_info': []}
     info_qs = HoldoutTestInfo.objects.filter(annotation__name__iexact=annot_name, round_number=int(round_no),
