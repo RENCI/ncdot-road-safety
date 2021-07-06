@@ -1,9 +1,9 @@
 import os
 import pandas as pd
+import tensorflow as tf
 
 
 def setup_gpu_memory(mem_limit=1024*30):
-    import tensorflow as tf
     # there are 2 GPUs with 32GB mem each on groucho. Need to set memory limit to 30G
     # for each to avoid running exceptions
     try:
