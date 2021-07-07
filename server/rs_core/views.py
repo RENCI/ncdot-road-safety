@@ -357,10 +357,11 @@ def get_route_info(request, route_id):
                             status=status.HTTP_400_BAD_REQUEST)
     image_base_filter = RouteImage.objects.filter(route_id=route_id).order_by('mile_post')
     if not feature_name:
-        route_images = list(image_base_filter.values("image_base_name", "mile_post", 'location'))
+        route_images = list(image_base_filter.values("image_base_name", "route_index", "mile_post", 'location'))
     else:
         route_images = list(image_base_filter.filter(aiimageannotation__annotation__name=feature_name).values(
-            "image_base_name", "mile_post", "location", "aiimageannotation__certainty", "userimageannotation__presence"))
+            "image_base_name", "route_index", "mile_post", "location", "aiimageannotation__certainty",
+            "userimageannotation__presence"))
     if start_image_index >= 0 and end_image_index >= 0:
         updated_route_images = route_images[start_image_index:end_image_index]
     elif start_image_index >= 0:
