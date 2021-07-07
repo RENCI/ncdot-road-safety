@@ -15,6 +15,7 @@ class UserProfile(models.Model):
 
 class RouteImage(models.Model):
     route_id = models.CharField(max_length=20, db_index=True)
+    route_index = models.IntegerField(default=-1)
     # 8 digit number string with first 2 digit representing hour (00 or 01), next 2 digit
     # representing minute (00 to 59), next 2 digit representing second (00 to 59), and the
     # last 2 digit representing frame number (max of 29)
