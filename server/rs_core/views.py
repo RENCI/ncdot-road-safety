@@ -488,6 +488,7 @@ def get_model_fps(request, annot_name):
     for info in info_qs:
         user_annot_obj = info.userimageannotation_set.get(annotation__name__iexact=annot_name)
         info_dict = {
+            'route_id': info.route_id,
             'image_base_name': info.image_base_name,
             'certainty': info.aiimageannotation_set.get(annotation__name__iexact=annot_name).certainty,
             'left_view_annot': user_annot_obj.left_view,
@@ -508,6 +509,7 @@ def get_model_fns(request, annot_name):
     for info in info_qs:
         user_annot_obj = info.userimageannotation_set.get(annotation__name__iexact=annot_name)
         info_dict = {
+            'route_id': info.route_id,
             'image_base_name': info.image_base_name,
             'certainty': info.aiimageannotation_set.get(annotation__name__iexact=annot_name).certainty,
             'left_view_annot': user_annot_obj.left_view,
