@@ -22,4 +22,5 @@ urlpatterns = [
     path('', include('rs_core.urls')),
     path('', TemplateView.as_view(template_name='home.html'), name='home'),
     re_path(r'routes(?:.*)/?', TemplateView.as_view(template_name='home.html'), name='routes'),
+    path('prediction-errors', TemplateView.as_view(template_name='home.html'), name='prediction-errors')
 ]
