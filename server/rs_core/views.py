@@ -487,7 +487,8 @@ def get_model_fps(request, annot_name):
                                         userimageannotation__annotation__name__exact=annot_name,
                                         userimageannotation__presence=False)
     for info in info_qs:
-        user_annot_obj = info.userimageannotation_set.get(annotation__name__iexact=annot_name)
+        user_annot_obj = info.userimageannotation_set.get(annotation__name__iexact=annot_name,
+                                                          presence__isnull=False)
         info_dict = {
             'route_id': info.route_id,
             'route_index': info.route_index,

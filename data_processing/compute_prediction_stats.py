@@ -5,7 +5,7 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
-                        default='../server/metadata/predict/guardrail/deliverable/guardrail_model_predict_d4.csv',
+                        default='../server/metadata/predict/pole/deliverable/pole_model_predict_d4.csv',
                         help='input prediction file with route id and mile post')
 
     args = parser.parse_args()
@@ -13,6 +13,7 @@ if __name__ == '__main__':
 
     input_df = pd.read_csv(input_file, header=0, index_col=None, usecols=['MAPPED_IMAGE', 'ROUTEID', 'MILE_POST',
                                                                           'PRESENCE'])
+    input_df = input_df.sort_values(by=['ROUTEID', 'MILE_POST'])
     total = len(input_df)
     yes_total = len(input_df[input_df.PRESENCE == True])
     route_ids = input_df.ROUTEID.unique()
@@ -27,7 +28,8 @@ if __name__ == '__main__':
         yes_diff_df = route_yes_df.diff()
         negative_df = yes_diff_df[yes_diff_df.MILE_POST < 0]
         if not negative_df.empty:
-            print(rid, negative_df)
+            print('route id:', rid)
+            print(negative_df)
         yes_diff_df = yes_diff_df[yes_diff_df.MILE_POST < 0.03]
         total_yes_miles += yes_diff_df.MILE_POST.sum()
 
