@@ -355,13 +355,14 @@ def get_route_info(request, route_id):
     if start_image_index >= 0 and end_image_index >= 0 and start_image_index >= end_image_index:
         return JsonResponse({"error": "start_image_index parameter must be smaller than end_image_index parameter"},
                             status=status.HTTP_400_BAD_REQUEST)
+
     image_base_filter = RouteImage.objects.filter(route_id=route_id).order_by('mile_post')
     if not feature_name:
         route_images = list(image_base_filter.values("image_base_name", "route_index", "mile_post", 'location'))
     else:
-        route_images = list(image_base_filter.filter(aiimageannotation__annotation__name=feature_name).values(
-            "image_base_name", "route_index", "mile_post", "location", "aiimageannotation__certainty",
-            "userimageannotation__presence"))
+        route_images = list(image_base_filter.filter(aiimageannotation__annotation__name__iexact=feature_name).values(
+            "image_base_name", "route_index", "mile_post", "location", "aiimageannotation__certainty"))
+
     if start_image_index >= 0 and end_image_index >= 0:
         updated_route_images = route_images[start_image_index:end_image_index]
     elif start_image_index >= 0:
@@ -378,8 +379,12 @@ def get_route_info(request, route_id):
         }
         if feature_name:
             image_dict['probability'] = image_dict.pop('aiimageannotation__certainty')
-            image_dict['presence'] = image_dict.pop('userimageannotation__presence')
-            if image_dict['presence'] is None:
+            try:
+                obj = UserImageAnnotation.objects.get(image__image_base_name=image_dict['image_base_name'],
+                                                      annotation__name__iexact=feature_name,
+                                                      presence__isnull=False)
+                image_dict['presence'] = obj.presence
+            except UserImageAnnotation.DoesNotExist:
                 image_dict['presence'] = 'N/A'
 
     return JsonResponse({'route_image_info': updated_route_images}, status=status.HTTP_200_OK)

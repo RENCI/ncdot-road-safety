@@ -116,7 +116,8 @@ def get_image_base_names_by_annotation(annot_name, req_username, count=5, route_
 def get_image_annotations_queryset(image_base_name):
     ai_annot = AIImageAnnotation.objects.filter(image__image_base_name=image_base_name).values_list(
         'annotation__name', flat=True).distinct()
-    u_annot = UserImageAnnotation.objects.filter(image__image_base_name=image_base_name).values_list(
+    u_annot = UserImageAnnotation.objects.filter(image__image_base_name=image_base_name,
+                                                 presence__isnull=False).values_list(
         'annotation__name', flat=True).distinct()
     return ai_annot.union(u_annot)
 
