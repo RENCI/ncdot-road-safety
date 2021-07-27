@@ -486,11 +486,19 @@ def save_annotations(request):
 
 @login_required
 def get_model_fps(request, annot_name):
+    route_id = request.GET.get('route_id', None)
     ret_info = {'fps_info': []}
-    info_qs = RouteImage.objects.filter(aiimageannotation__annotation__name__iexact=annot_name,
-                                        aiimageannotation__presence=True,
-                                        userimageannotation__annotation__name__exact=annot_name,
-                                        userimageannotation__presence=False)
+    if not route_id:
+        info_qs = RouteImage.objects.filter(aiimageannotation__annotation__name__iexact=annot_name,
+                                            aiimageannotation__presence=True,
+                                            userimageannotation__annotation__name__exact=annot_name,
+                                            userimageannotation__presence=False)
+    else:
+        info_qs = RouteImage.objects.filter(route_id__exact=route_id,
+                                            aiimageannotation__annotation__name__iexact=annot_name,
+                                            aiimageannotation__presence=True,
+                                            userimageannotation__annotation__name__exact=annot_name,
+                                            userimageannotation__presence=False)
     for info in info_qs:
         user_annot_obj = info.userimageannotation_set.get(annotation__name__iexact=annot_name,
                                                           presence__isnull=False)
@@ -509,11 +517,19 @@ def get_model_fps(request, annot_name):
 
 @login_required
 def get_model_fns(request, annot_name):
+    route_id = request.GET.get('route_id', None)
     ret_info = {'fns_info': []}
-    info_qs = RouteImage.objects.filter(aiimageannotation__annotation__name__iexact=annot_name,
-                                        aiimageannotation__presence=False,
-                                        userimageannotation__annotation__name__exact=annot_name,
-                                        userimageannotation__presence=True)
+    if not route_id:
+        info_qs = RouteImage.objects.filter(aiimageannotation__annotation__name__iexact=annot_name,
+                                            aiimageannotation__presence=False,
+                                            userimageannotation__annotation__name__exact=annot_name,
+                                            userimageannotation__presence=True)
+    else:
+        info_qs = RouteImage.objects.filter(route_id__exact=route_id,
+                                            aiimageannotation__annotation__name__iexact=annot_name,
+                                            aiimageannotation__presence=False,
+                                            userimageannotation__annotation__name__exact=annot_name,
+                                            userimageannotation__presence=True)
     for info in info_qs:
         user_annot_obj = info.userimageannotation_set.get(annotation__name__iexact=annot_name,
                                                           presence__isnull=False)
