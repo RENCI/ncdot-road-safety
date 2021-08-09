@@ -1,4 +1,4 @@
-FROM renci/ncdot_docker_base:1.4
+FROM renci/ncdot_docker_base:1.5
 
 ARG UID
 ARG GID
