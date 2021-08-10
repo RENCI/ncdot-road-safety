@@ -5,11 +5,13 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
-                        default='../server/metadata/predict/pole/deliverable/pole_model_predict_d4.csv',
+                        default='../server/metadata/predict/guardrail/deliverable/guardrail_model_predict_d9.csv',
                         help='input prediction file with route id and mile post')
+    parser.add_argument('--feature_name', type=str, default='guardrail', help='feature name to get stats for')
 
     args = parser.parse_args()
     input_file = args.input_file
+    feature_name = args.feature_name
 
     input_df = pd.read_csv(input_file, header=0, index_col=None, usecols=['MAPPED_IMAGE', 'ROUTEID', 'MILE_POST',
                                                                           'PRESENCE'])
@@ -33,6 +35,6 @@ if __name__ == '__main__':
         yes_diff_df = yes_diff_df[yes_diff_df.MILE_POST < 0.03]
         total_yes_miles += yes_diff_df.MILE_POST.sum()
 
-    print('guardrail image percentage: ', yes_total/total)
-    print('Total miles: ', total_miles, ', guardrail miles: ', total_yes_miles, ', guardrail mile percentage: ',
-          total_yes_miles/total_miles)
+    print(f'{feature_name} image percentage: ', yes_total/total)
+    print(f'Total miles: {total_miles}, {feature_name} miles: {total_yes_miles}, '
+          f'{feature_name} mile percentage: {total_yes_miles / total_miles}')
