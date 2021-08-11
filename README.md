@@ -118,4 +118,4 @@ The following steps summarize how to run the active learning pipeline.
 - Load uncertainty scores in the annotation tool database by running ` docker exec dot-server python manage.py load_uncertainty_measures metadata/image_uncertainty_scores_round1.csv guardrail` followed by running `docker exec dot-server python manage.py create_uncertainty_groups guardrail 500` to create uncertainty groups for speeding up uncertainty measure based image queries.
 - Load the latest model predictions into the annotation tool for diagnostic visualization and analysis by running  ```docker exec dot-server python manage.py update_ml_predict <prediction_csv_file>```.
 
-Running the steps below gets the annotation tool ready for another round of active learning.
+Running the steps above gets the annotation tool ready for another round of active learning.
