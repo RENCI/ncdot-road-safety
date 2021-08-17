@@ -7,7 +7,7 @@ tool to detect safety features such as guardrails and utility poles in dispersed
 
 To use our final models obtained through the iterative AL process directly or as pretrained models for transfer learning,  you can download them here: 
 * [guardrail model](https://github.com/RENCI/ncdot-road-safety/blob/master/machine-learning/models/guardrail_round5.h5)
-* [utility pole model](https://github.com/RENCI/ncdot-road-safety/blob/master/machine-learning/models/pole_round4.h5). 
+* [utility pole model](https://github.com/RENCI/ncdot-road-safety/blob/master/machine-learning/models/pole_round4.h5) 
 
 The web-based annotation tool is implemented using the [Docker](https://www.docker.com/) platform, [Django](https://www.djangoproject.com/) web framework on the server backend, and [React](https://reactjs.org/) JavaScript library on the client frontend. [iRODS](https://irods.org/) is also used as an optional middleware component to manage and transfer images for local development on any personal computer. If the tool is deployed on a server with the data volume mounted directly, iRODS can be easily turned off by setting `USE_IRODS` environment variable to `False`. 
 
