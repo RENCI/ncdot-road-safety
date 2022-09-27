@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import argparse
 import os
 import os.path
 import time
@@ -9,7 +9,7 @@ from scipy.cluster.hierarchy import linkage, fcluster
 
 '''
 ------------------------------------------
-This file contains Python (v2.7) implementation of the MRF-based triangulation procedure introduced in
+This file contains Python implementation of the MRF-based triangulation procedure introduced in
 "Automatic Discovery and Geotagging of Objects from Street View Imagery"
 by V. A. Krylov, E. Kenny, R. Dahyot.
 https://arxiv.org/abs/1708.08417
@@ -35,14 +35,11 @@ to 2).
 #  I N P U T     P A R A M E T E R S      #
 ###########################################
 
-# Input CSV file
-inputfilename = 'Sample dataset/Traffic lights 50/detection_input.csv'		
-# Output CSV file
-outputfilename = 'Sample dataset/Traffic lights 50/traffic_lights_detection.csv'		
-
 # preset parameters
 MaxObjectDstFromCam = 25  # Max distance from camera to objects (in meters)
 MaxDstInCluster = 1  # Maximal size of clusters employed (in meters)
+
+aspect_ratio = 640.0/256
 
 # MRF optimization parameters
 ICMiterations = 15		# Number of iterations for ICM
@@ -97,7 +94,7 @@ def Intersect(Object1, Object2):
     latC2 = Object2[5]
     lonC1 = Object1[6]
     lonC2 = Object2[6]
-
+    # normalized object lat/lon which does not take into account input depth
     latP1 = Object1[0]
     latP2 = Object2[0]
     lonP1 = Object1[1]
@@ -132,11 +129,13 @@ def Intersect(Object1, Object2):
 def CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, Object):
     inters = np.count_nonzero(ObjectsConnectivity[Object, :])
     if inters == 0:
+        # increase energy if the view ray object has no intersection with other view ray objects
         return StandAlonePrice
     Energy = 0
     dpthmin, dpthmax = 1000, 0
     for i in range(len(ObjectsBase)):
         if ObjectsConnectivity[Object, i]:
+            # increase energy by penalizing distance between triangulated distance and depth estimate
             dpthPen = DepthWeight*abs(ObjectsDst[Object, i] - (ObjectsBase[Object])[3])
             Energy += dpthPen
             dpth = ObjectsDst[Object, i]
@@ -144,6 +143,7 @@ def CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, Object):
                 dpthmin = dpth
             if dpth > dpthmax:
                 dpthmax = dpth
+    # increase energy by penalizing excessive spread for an object with multiple view ray intersections
     return Energy + ObjectMultiView*(dpthmax-dpthmin)
 
 
@@ -174,7 +174,7 @@ def MyClust(intersects, MaxIntraDegreeDst):
 
 
 # only PAIRWISE intersections
-def main():
+def main(inputfilename, outputfilename):
     start = time.time()
     ObjectsBase = []
 
@@ -212,11 +212,11 @@ def main():
             # calculating the object positions from camera position + bearing + depth_estimate
             mx, my = LatLonToMeters(lat, lon)
             br1 = radians(bearing)
-            yCP = my + depth * cos(br1) * 640/256  # depth-based positions
-            xCP = mx + depth * sin(br1) * 640/256
+            yCP = my + depth * cos(br1) * aspect_ratio  # depth-based positions
+            xCP = mx + depth * sin(br1) * aspect_ratio
             latp, lonp = MetersToLatLon(xCP, yCP)
-            yCP = my + 1.0 * cos(br1) * 640/256	 # normalized positions (at 1m distance from camera)
-            xCP = mx + 1.0 * sin(br1) * 640/256
+            yCP = my + 1.0 * cos(br1) * aspect_ratio	 # normalized positions (at 1m distance from camera)
+            xCP = mx + 1.0 * sin(br1) * aspect_ratio
             latp1, lonp1 = MetersToLatLon(xCP, yCP)
             ObjectsBase.append((latp1, lonp1, bearing, depth, 0, lat, lon, latp, lonp))
 
@@ -234,7 +234,7 @@ def main():
     Intersects = np.zeros((len(ObjectsBase), len(ObjectsBase), 2))
     for i in range(len(ObjectsBase)):
         if i % 1000 == 0 and i > 0:
-            print('Parced {} object entries ({:.2f}%)'.format(i, 100. * i / len(ObjectsBase)))
+            print('Parsed {} object entries ({:.2f}%)'.format(i, 100. * i / len(ObjectsBase)))
         ObjectsDst[i, i] = -5
         for j in range(i+1, len(ObjectsBase)):
             CamDstMtrs = haversine((ObjectsBase[i])[6], (ObjectsBase[i])[5], (ObjectsBase[j])[6], (ObjectsBase[j])[5])
@@ -247,6 +247,7 @@ def main():
             ObjectsDst[i, j], ObjectsDst[j, i], Intersects[i, j, 0], Intersects[i, j, 1] = Intersect(ObjectsBase[i],
                                                                                                      ObjectsBase[j])
             Intersects[j, i, 0], Intersects[j, i, 1] = Intersects[i, j, 0], Intersects[i, j, 1]
+            print(i, j, ObjectsDst[i, j], ObjectsDst[j, i], Intersects[i, j, 0], Intersects[i, j, 1])
             if ObjectsDst[i, j] > 0:
                 NumIntersects += 1
 
@@ -256,6 +257,7 @@ def main():
     ObjectsConnectivityViableOptions = np.zeros(len(ObjectsBase), dtype=np.uint8)
     for i in range(len(ObjectsBase)):
         ObjectsConnectivityViableOptions[i] = np.count_nonzero(ObjectsDst[i, :] > 0)
+    print(ObjectsConnectivityViableOptions)
 
     #############################
     #           I C M           #
@@ -267,6 +269,7 @@ def main():
         if (ICMiter+1) % (len(ObjectsBase)) == 0:
             print('Iteration #{}: accepted {} changes'.format((ICMiter + 1) / (len(ObjectsBase)), chngcnt))
             chngcnt = 0
+        # randomly select a viable pair of intersections testObject <-> testObjectPair
         testObject = np.random.randint(0, len(ObjectsBase))
         if ObjectsConnectivityViableOptions[testObject] == 0:  # no pairing possible (standalone - )
             continue
@@ -283,27 +286,25 @@ def main():
 
         EnergyOld = CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObject)
         EnergyOld += CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObjectPair)
-
         ObjectsConnectivity[testObject, testObjectPair] = 1 - ObjectsConnectivity[testObject, testObjectPair]
         ObjectsConnectivity[testObjectPair, testObject] = 1 - ObjectsConnectivity[testObjectPair, testObject]
-
         EnergyNew = CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObject)
         EnergyNew += CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObjectPair)
-
         if EnergyNew <= EnergyOld:
+            # keep the connection between testObject and testObjectPair for this iteration
             chngcnt += 1
             continue
 
         # revert to the old configuration
         ObjectsConnectivity[testObject, testObjectPair] = 1 - ObjectsConnectivity[testObject, testObjectPair]
         ObjectsConnectivity[testObjectPair, testObject] = 1 - ObjectsConnectivity[testObjectPair, testObject]
-
     #############################
     #    C L U S T E R I N G    #
     #############################
 
     mx, my = LatLonToMeters((ObjectsBase[0])[0], (ObjectsBase[0])[1])
-    d45 = 0.707 * MaxDstInCluster * 640.0/256
+    # cos(45) and sin(45) are all equal to 0.707, so d45 is the projected distance of MaxDisInCluster to x and y
+    d45 = 0.707 * MaxDstInCluster * aspect_ratio
     ax, ay = MetersToLatLon(mx + d45, my + d45)
     ax1, ay1 = MetersToLatLon(mx, my)
     MaxDegreeDstInCluster = ((ax - ax1) ** 2 + (ay - ay1) ** 2) ** 0.5
@@ -318,8 +319,9 @@ def main():
             ICMintersect.append((res[0], res[1]))
 
     print("ICM inrersections: {0:d}".format(len(ICMintersect)))
+    print(ICMintersect)
     IntersectClusters = MyClust(ICMintersect, MaxDegreeDstInCluster)
-
+    print(IntersectClusters)
     NumClusters = IntersectClusters.shape[0]
     with open(outputfilename, "w") as inter:
         inter.write("lat,lon,score\n")
@@ -333,4 +335,12 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Process arguments.')
+    parser.add_argument('--inputfilename', type=str, default='data/pole_input.csv', help='input file name with path')
+    parser.add_argument('--outputfilename', type=str, default='data/pole_detection.csv',
+                        help='output file name with path')
+
+    args = parser.parse_args()
+    inputfilename = args.inputfilename
+    outputfilename = args.outputfilename
+    main(inputfilename, outputfilename)
