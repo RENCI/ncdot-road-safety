@@ -4,9 +4,27 @@ import tensorflow as tf
 
 
 def setup_gpu_memory(mem_limit=1024*30):
+    # this code works with the latest tensorflow version 2.10
+    # default memory limit is set to be 30GB, but can be configurable by passing in a different parameter
+    try:
+        gpus = tf.config.list_physical_devices('GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+            tf.config.set_logical_device_configuration(
+                gpu,
+                [tf.config.LogicalDeviceConfiguration(memory_limit=mem_limit)])
+        logical_gpus = tf.config.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+    except RuntimeError as e:
+        print(e)
+
+
+def setup_gpu_memory_old(mem_limit=1024*30):
+    # this code works with old tensorflow version up to version 2.3, but does not work with the
+    # latest tensorflow version 2.10
     # there are 2 GPUs with 32GB mem each on groucho. Need to set memory limit to 30G
     # for each to avoid running exceptions
-    try:
+    try:e
         tf.config.experimental.set_memory_growth = True
         gpus = tf.config.experimental.list_physical_devices('GPU')
         for gpu in gpus:
