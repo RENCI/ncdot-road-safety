@@ -24,7 +24,7 @@ def setup_gpu_memory_old(mem_limit=1024*30):
     # latest tensorflow version 2.10
     # there are 2 GPUs with 32GB mem each on groucho. Need to set memory limit to 30G
     # for each to avoid running exceptions
-    try:e
+    try:
         tf.config.experimental.set_memory_growth = True
         gpus = tf.config.experimental.list_physical_devices('GPU')
         for gpu in gpus:
