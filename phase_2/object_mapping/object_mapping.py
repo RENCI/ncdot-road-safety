@@ -99,7 +99,7 @@ def Intersect(Object1, Object2):
     latP2 = Object2[0]
     lonP1 = Object1[1]
     lonP2 = Object2[1]
-   
+
     a1 = latP1 - latC1
     b1 = latP2 - latC2
     c1 = latC2 - latC1
@@ -122,6 +122,7 @@ def Intersect(Object1, Object2):
     if (x > MaxObjectDstFromCam) or (y > MaxObjectDstFromCam):
         return -3, -3, 0, 0
     mx, my = a1*x+latC1, a2*x+lonC1
+    # x and y are the distance of intersection to camera, and mx, my are location of intersection
     return x, y, mx, my
 
 
@@ -257,7 +258,6 @@ def main(inputfilename, outputfilename):
     ObjectsConnectivityViableOptions = np.zeros(len(ObjectsBase), dtype=np.uint8)
     for i in range(len(ObjectsBase)):
         ObjectsConnectivityViableOptions[i] = np.count_nonzero(ObjectsDst[i, :] > 0)
-    print(ObjectsConnectivityViableOptions)
 
     #############################
     #           I C M           #
@@ -283,7 +283,6 @@ def main(inputfilename, outputfilename):
             if curcnt == randnum:
                 testObjectPair = i
                 break
-
         EnergyOld = CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObject)
         EnergyOld += CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObjectPair)
         ObjectsConnectivity[testObject, testObjectPair] = 1 - ObjectsConnectivity[testObject, testObjectPair]
@@ -308,7 +307,6 @@ def main(inputfilename, outputfilename):
     ax, ay = MetersToLatLon(mx + d45, my + d45)
     ax1, ay1 = MetersToLatLon(mx, my)
     MaxDegreeDstInCluster = ((ax - ax1) ** 2 + (ay - ay1) ** 2) ** 0.5
-    print(MaxDegreeDstInCluster)
 
     ICMintersect = []
     ifObjectIntersects = np.zeros(len(ObjectsBase), dtype=np.uint8)
