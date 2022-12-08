@@ -10,6 +10,7 @@ from utils import consecutive
 ROAD = 1
 POLE = 2
 SCALING_FACTOR = 25
+GAP_PIXEL_COUNT = 15
 
 
 def compute_depth(mapped_image, path):
@@ -25,48 +26,64 @@ def compute_depth(mapped_image, path):
         levels = input_data[np.nonzero(input_data)]
         if np.size(levels) > 0:
             obj_level_indices = np.where(input_data == POLE)
-            print(obj_level_indices)
             count = np.size(obj_level_indices)
             if count > 0:
-                min_yx = max_yx = []
-                for idx in range(2):
-                    con_level_indices = consecutive(obj_level_indices[idx], step_size=1)
-                    for level_indices in con_level_indices:
-                        print(level_indices)
-                        min_yx.append(min(level_indices))
-                        max_yx.append(max(level_indices))
-                        print(min_yx, min(level_indices))
-                        print(max_yx, max(level_indices))
-                print(input_image_name, min_yx[0], max_yx[0], min_yx[1], max_yx[1])
-                trim_size_y = (max_yx[0] - min_yx[0]) * 0.05
-                trim_size_x = (max_yx[1] - min_yx[1]) * 0.05
-                if trim_size_y > 0:
-                    filtered_level_indices = level_indices[0][((level_indices[0]-min_yx[0]) > trim_size_y)
-                                                              & ((max_yx[0]-level_indices[0]) > trim_size_y)]
-                    average_y = int(np.average(filtered_level_indices))
-                else:
-                    average_y = int(np.average(level_indices[0]))
-                if trim_size_x > 0:
-                    filtered_level_indices = level_indices[1][((level_indices[1]-min_yx[1]) > trim_size_x)
-                                                              & ((max_yx[1]-level_indices[1]) > trim_size_x)]
-                    average_x = int(np.average(filtered_level_indices) + 0.5)
-                else:
-                    average_x = int(np.average(level_indices[1])+0.5)
-
-                # input_data[input_data == POLE] = 255
-                # updated_image = Image.fromarray(input_data)
-                # updated_image.save(os.path.join(path, f'updated_{mapped_image}{suffix}'))
-
                 loader = PFMLoader((image_width, image_height), color=False, compress=False)
                 input_image_base_name = os.path.basename(os.path.splitext(input_image_name)[0])
                 image_pfm = loader.load_pfm(os.path.join(input_depth_image_path,
                                                          f'{input_image_base_name}.pfm'))
                 image_pfm = np.flipud(image_pfm)
-                print(f'image_pfm shape: {image_pfm.shape}')
+                # print(f'image_pfm shape: {image_pfm.shape}')
                 min_depth = image_pfm.min()
                 max_depth = image_pfm.max()
-                depth = (image_pfm[average_y, average_x] - min_depth) / (max_depth - min_depth)
-                img_depth_list.append([input_image_base_name, (1 - depth) * SCALING_FACTOR])
+                # input_data[input_data == POLE] = 255
+                # updated_image = Image.fromarray(input_data)
+                # updated_image.save(os.path.join(path, f'updated_{mapped_image}{suffix}'))
+
+                # pole are straight objects, so considering y axis for separating multiple poles since arrays are
+                # stored in row/x order so y axis should be continuous
+                centroid_xs = []
+                split_indices, con_level_indices_y = consecutive(obj_level_indices[0], step_size=GAP_PIXEL_COUNT)
+                # use the same splits to split corresponding x values for separated poles by y
+                con_level_indices_x = np.split(obj_level_indices[1], split_indices + 1)
+                for level_indices_x, level_indices_y in zip(con_level_indices_x, con_level_indices_y):
+                    min_x = min(level_indices_x)
+                    max_x = max(level_indices_x)
+                    min_y = min(level_indices_y)
+                    max_y = max(level_indices_y)
+                    centroid_x = (min_x+max_x)/2
+                    if not centroid_xs:
+                        centroid_xs.append(centroid_x)
+                    else:
+                        is_separate_pole = False
+                        for x in centroid_xs:
+                            if abs(centroid_x - x) > GAP_PIXEL_COUNT:
+                                is_separate_pole = True
+                                break
+                        if not is_separate_pole:
+                            continue
+                    trim_size_y = (max_y - min_y) * 0.01
+                    trim_size_x = (max_x - min_x) * 0.01
+                    if trim_size_y > 0:
+                        filtered_level_indices = level_indices_y[((level_indices_y-min_y) > trim_size_y)
+                                                                  & ((max_y-level_indices_y) > trim_size_y)]
+                        if np.size(filtered_level_indices) > 0:
+                            average_y = int(np.average(filtered_level_indices))
+                        else:
+                            continue
+                    else:
+                        average_y = int(np.average(level_indices_y))
+                    if trim_size_x > 0:
+                        filtered_level_indices = level_indices_x[((level_indices_x-min_x) > trim_size_x)
+                                                                  & ((max_x-level_indices_x) > trim_size_x)]
+                        if np.size(filtered_level_indices) > 0:
+                            average_x = int(np.average(filtered_level_indices) + 0.5)
+                        else:
+                            continue
+                    else:
+                        average_x = int(np.average(level_indices_x)+0.5)
+                    depth = (image_pfm[average_y, average_x] - min_depth) / (max_depth - min_depth)
+                    img_depth_list.append([input_image_base_name, (1 - depth) * SCALING_FACTOR])
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
