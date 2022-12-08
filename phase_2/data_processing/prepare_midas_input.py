@@ -17,7 +17,7 @@ parser.add_argument('--input_csv_file_with_path', type=str,
                     default='/projects/ncdot/ade20k_annotations/route_40001001011_segment_labels_with_poles.csv',
                     help='input csv file that includes input image path and name for MiDAS depth prediction')
 parser.add_argument('--output_file_path', type=str,
-                    default='/projects/ncdot/midas/input',
+                    default='/projects/ncdot/geotagging/midas_input',
                     help='output path to put input images to feed to the MiDAS model')
 
 
