@@ -35,5 +35,5 @@ image_width_list = []
 image_name_list = []
 df = pd.read_csv(input_csv_file_with_path, index_col=None, usecols=['MAPPED_IMAGE', 'LABEL_PATH'], dtype=str)
 df.apply(lambda row: get_image_resolution(row['MAPPED_IMAGE'], row['LABEL_PATH']), axis=1)
-out_df = pd.DataFrame(list(zip(image_width_list, image_name_list)), columns=['ImageName', 'HorizontalResolution'])
+out_df = pd.DataFrame(list(zip(image_width_list, image_name_list)), columns=['ImageWidth', 'ImageName'])
 out_df.to_csv(output_file, index=False)
