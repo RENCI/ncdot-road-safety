@@ -3,23 +3,40 @@ import argparse
 import pandas as pd
 import numpy as np
 from pypfm import PFMLoader
-from utils import consecutive, get_object_data_from_image, POLE
+from utils import consecutive, get_object_data_from_image, POLE, bearing_between_two_latlon_points
 
 
 ROAD = 1
 SCALING_FACTOR = 25
 GAP_PIXEL_COUNT = 15
+width_to_hfov = {
+    2748: 71.43
+}
 
 
-def compute_depth(mapped_image, path):
+def compute_mapping_input(mapped_image, path):
     # compute depth of segmented object taking the 10%-trimmed mean of the depths of its constituent pixels
     # to gain robustness with respect to segmentation errors, in particular along the object borders
     image_suffix_list = ('5.png', '1.png', '2.png')
     for suffix in image_suffix_list:
         input_image_name = os.path.join(path, f'{mapped_image}{suffix}')
         image_width, image_height, obj_level_indices = get_object_data_from_image(input_image_name, POLE)
+        if image_width not in width_to_hfov:
+            print(f'no HFOV can be found for image width {image_width} of the image {input_image_name}')
+            continue
         count = np.size(obj_level_indices)
         if count > 0:
+            # get camera location for the mapped image
+            mapped_image_df = mapping_df[mapping_df['MAPPED_IMAGE'] == mapped_image]
+            if len(mapped_image_df) != 1:
+                # no camera location
+                print(f'no camera location found for {mapped_image}')
+                continue
+            cam_lat = float(mapped_image_df.iloc[0]['LATITUDE'])
+            cam_lon = float(mapped_image_df.iloc[0]['LONGITUDE'])
+            # find the next camera lat/lon for computing bearing
+            cam_lat2 = float(mapping_df.iloc[mapped_image_df.index+1]['LATITUDE'])
+            cam_lon2 = float(mapping_df.iloc[mapped_image_df.index+1]['LONGITUDE'])
             loader = PFMLoader((image_width, image_height), color=False, compress=False)
             input_image_base_name = os.path.basename(os.path.splitext(input_image_name)[0])
             image_pfm = loader.load_pfm(os.path.join(input_depth_image_path,
@@ -75,13 +92,27 @@ def compute_depth(mapped_image, path):
                 else:
                     average_x = int(np.average(level_indices_x)+0.5)
                 depth = (image_pfm[average_y, average_x] - min_depth) / (max_depth - min_depth)
-                img_depth_list.append([input_image_base_name, (1 - depth) * SCALING_FACTOR])
+                # compute bearing
+                cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2)
+                image_center_x = image_width/2
+                if average_x < image_center_x:
+                    minus_bearing = True
+                else:
+                    minus_bearing = False
+                hdist = abs(average_x - image_center_x)
+                hangle = (hdist/image_width) * width_to_hfov[image_width]
+                br_angle = (cam_br - hangle) if minus_bearing else (cam_br + hangle)
+                br_angle = (br_angle + 360) % 360
+                img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, (1 - depth) * SCALING_FACTOR])
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
-parser.add_argument('--input_csv_file_with_path', type=str,
+parser.add_argument('--input_seg_map_info_with_path', type=str,
                     default='/projects/ncdot/ade20k_annotations/route_40001001011_segment_labels_with_poles.csv',
                     help='input csv file that includes input segmented image path and name for computing depth')
+parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
+                    default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13.csv',
+                    help='input csv file that includes mapped image lat/lon info')
 parser.add_argument('--input_depth_image_path', type=str,
                     default='/projects/ncdot/geotagging/midas_output',
                     help='input path that includes depth prediction output images')
@@ -91,12 +122,16 @@ parser.add_argument('--output_file', type=str,
 
 
 args = parser.parse_args()
-input_csv_file_with_path = args.input_csv_file_with_path
+input_seg_map_info_with_path = args.input_seg_map_info_with_path
+input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
 input_depth_image_path = args.input_depth_image_path
 output_file = args.output_file
 
-df = pd.read_csv(input_csv_file_with_path, index_col=None, usecols=['MAPPED_IMAGE', 'LABEL_PATH'], dtype=str)
-img_depth_list = []
-df.apply(lambda row: compute_depth(row['MAPPED_IMAGE'], row['LABEL_PATH']), axis=1)
-out_df = pd.DataFrame (img_depth_list, columns = ['ImageBaseName', 'Depth'])
+df = pd.read_csv(input_seg_map_info_with_path, index_col=None, usecols=['MAPPED_IMAGE', 'LABEL_PATH'], dtype=str)
+mapping_df = pd.read_csv(input_sensor_mapping_file_with_path,
+                         usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE','LONGITUDE'], dtype=str)
+mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
+img_input_list = []
+df.apply(lambda row: compute_mapping_input(row['MAPPED_IMAGE'], row['LABEL_PATH']), axis=1)
+out_df = pd.DataFrame(img_input_list, columns=["ImageBaseName", "lat", "lon", "bearing", "Depth"])
 out_df.to_csv(output_file, index=False)

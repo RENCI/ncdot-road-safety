@@ -1,5 +1,6 @@
 import numpy as np
 from PIL import Image
+import math
 
 
 POLE = 2
@@ -16,3 +17,13 @@ def get_object_data_from_image(input_image_name, object_level):
     image_height = input_image.height
     input_data = np.array(input_image)
     return image_width, image_height, np.where(input_data == object_level)
+
+
+def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2):
+    lon_delta_rad = math.radians(lon2-lon1)
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    y = math.sin(lon_delta_rad) * math.cos(lat2_rad)
+    x = math.cos(lat1_rad)*math.sin(lat2_rad) - math.sin(lat1_rad)*math.cos(lat2_rad)*math.cos(lon_delta_rad)
+    theta = math.atan2(y, x)
+    return math.degrees(theta)
