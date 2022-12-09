@@ -117,7 +117,7 @@ parser.add_argument('--input_depth_image_path', type=str,
                     default='/projects/ncdot/geotagging/midas_output',
                     help='input path that includes depth prediction output images')
 parser.add_argument('--output_file', type=str,
-                    default='/projects/ncdot/geotagging/other/route_40001001011_segment_object_depths.csv',
+                    default='/projects/ncdot/geotagging/input/route_40001001011_segment_object_mapping_input.csv',
                     help='output file that contains image base names and corresponding segmented object depths')
 
 
