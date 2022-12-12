@@ -183,8 +183,7 @@ def main(inputfilename, outputfilename):
         return
 
     if os.path.isfile(outputfilename):
-        print('A file with the specified ouput name already exists. Aborting.')
-        return
+        os.remove(outputfilename)
 
     try:
         f1 = open(outputfilename, 'w')
@@ -202,10 +201,13 @@ def main(inputfilename, outputfilename):
             nums = line.split(',')
             if len(nums) < 3:
                 print('Broken entry ignored')
-            if len(nums) < 4:  # if a depth estimate is not available
-                lat, lon, bearing, depth = float(nums[0]), float(nums[1]), float(nums[2]), 5
-            else:
+            if len(nums) == 5:
+                # first column can be ignored
+                lat, lon, bearing, depth = float(nums[1]), float(nums[2]), float(nums[3]), float(nums[4])
+            elif len(nums) == 4:
                 lat, lon, bearing, depth = float(nums[0]), float(nums[1]), float(nums[2]), float(nums[3])
+            else: # if a depth estimate is not available
+                lat, lon, bearing, depth = float(nums[0]), float(nums[1]), float(nums[2]), 5
             if depth <= 0:
                 depth = 5
 
@@ -221,7 +223,6 @@ def main(inputfilename, outputfilename):
             ObjectsBase.append((latp1, lonp1, bearing, depth, 0, lat, lon, latp, lonp))
 
     print("All detected objects: {0:d}".format(len(ObjectsBase)))
-
     #############################
     # A D M I S S I B L E       #
     #############################

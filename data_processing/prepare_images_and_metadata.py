@@ -139,7 +139,7 @@ for dir_name, subdir_list, file_list in os.walk(root_dir):
             base_df = sensor_df[sensor_df['Start-Image'] == base_name]
             if base_df.empty:
                 base_name_int = int(base_name)
-                if base_name.endswith('01'):
+                if base_name.endswith('01') or base_name.endswith('00'):
                     base_name_next = str(base_name_int + 1)
                 else:
                     base_name_next = str(base_name_int - 1)
