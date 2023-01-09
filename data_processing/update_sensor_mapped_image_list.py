@@ -20,7 +20,7 @@ parser.add_argument('--input_sensor_output_file_2lane', type=str,
 parser.add_argument('--output_dir', type=str, default='/projects/ncdot/NC_2018_Secondary/single_images/d13',
                     help='output directory for creating symlinked images')
 parser.add_argument('--output_file', type=str,
-                    default='/projects/ncdot/secondary_road/output/d01/mapped_2lane_sr_images_d13_updated.csv',
+                    default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13_updated.csv',
                     help='output file for updating the file as set in input_map_file_to_update argument')
 
 args = parser.parse_args()
