@@ -1,5 +1,7 @@
 import os
 import numpy as np
+import pandas as pd
+from PIL import Image
 
 
 SECOND_ROAD_PREFIX_PATH = '/projects/ncdot/NC_2018_Secondary/images'
@@ -41,3 +43,100 @@ def round_feature(df):
     df = df.compute(scheduler='processes')
     df['FEATURES'] = out_series
     return df
+
+
+def image_covered(ref_data, mile_post):
+    if isinstance(ref_data, pd.Series):
+        mp1 = min(ref_data['BeginMp1'], ref_data['EndMp1'])
+        mp2 = max(ref_data['BeginMp1'], ref_data['EndMp1'])
+        if mp1 <= mile_post <= mp2:
+            return True
+        else:
+            return False
+    else: # DataFrame
+        intervals = list(zip(ref_data['BeginMp1'], ref_data['EndMp1']))
+        for start, stop in intervals:
+            if start <= mile_post <= stop or stop <= mile_post <= start:
+                return True
+        return False
+
+
+def join_images(left_image_path, front_image_path, right_image_path):
+    img_names = [left_image_path, front_image_path, right_image_path]
+    imgs = []
+    try:
+        for idx in range(3):
+            imgs.append(Image.open(img_names[idx]))
+
+        dest_img = Image.new('RGB', (imgs[0].width+imgs[1].width+imgs[2].width, imgs[0].height))
+
+        dest_img.paste(imgs[0], (0, 0))
+        dest_img.paste(imgs[1], (imgs[0].width, 0))
+        dest_img.paste(imgs[2], (imgs[0].width+imgs[1].width, 0))
+        return dest_img
+    except OSError as ex:
+        print(left_image_path, str(ex))
+        return None
+
+
+def map_image(geo_df, base_image_name, file_list, root_dir, dir_name, output_dir, is_join_image=False):
+    file_name = f'{base_image_name}1.jpg'
+    file_name2 = f'{base_image_name}2.jpg'
+    file_name5 = f'{base_image_name}5.jpg'
+    if file_name2 not in file_list or file_name5 not in file_list:
+        print(base_image_name, 'cannot be mapped', flush=True)
+        return {}
+    base_df = geo_df[geo_df['Start-Image'] == base_image_name]
+    if base_df.empty:
+        base_name_int = int(base_image_name)
+        if base_image_name.endswith('01') or base_image_name.endswith('00'):
+            base_name_next = str(base_name_int + 1)
+        else:
+            base_name_next = str(base_name_int - 1)
+        base_df = geo_df[geo_df['Start-Image'] == base_name_next]
+        if base_df.empty:
+            # cannot be mapped
+            print(base_image_name, 'cannot be mapped', flush=True)
+            return {}
+
+    # check if images already exist in target directory
+    idx = dir_name.index(root_dir) + len(root_dir)
+    rel_input_dir = dir_name[idx:]
+    if rel_input_dir.startswith('/') or rel_input_dir.startswith('\\'):
+        rel_input_dir = rel_input_dir[1:]
+    target_dir = os.path.join(output_dir, rel_input_dir)
+    if is_join_image:
+        target = os.path.join(target_dir, f'{base_image_name}.jpg')
+    else:
+        target = os.path.join(target_dir, file_name)
+        target_left = os.path.join(target_dir, file_name5)
+        target_right = os.path.join(target_dir, file_name2)
+    if os.path.isfile(target):
+        return {'ROUTEID': base_df['RouteID'].values[0],
+                'MAPPED_IMAGE': base_image_name,
+                'LATITUDE': base_df['StaLatitude'].values[0],
+                'LONGITUDE': base_df['StaLongitude'].values[0],
+                'MILE_POST': base_df['Start-MP'].values[0],
+                'PATH': target_dir}
+    else:
+        os.makedirs(target_dir, exist_ok=True)
+        front = os.path.join(dir_name, file_name)
+        left = os.path.join(dir_name, file_name5)
+        right = os.path.join(dir_name, file_name2)
+        if is_join_image:
+            dst_img = join_images(left, front, right)
+            if dst_img:
+                dst_img.save(target)
+        else:
+            os.symlink(front, target)
+            os.symlink(left, target_left)
+            os.symlink(right, target_right)
+        if (not is_join_image) or (is_join_image and dst_img):
+            return {'ROUTEID': base_df['RouteID'].values[0],
+                    'MAPPED_IMAGE': base_image_name,
+                    'LATITUDE': base_df['StaLatitude'].values[0],
+                    'LONGITUDE': base_df['StaLongitude'].values[0],
+                    'MILE_POST': base_df['Start-MP'].values[0],
+                    'PATH': target_dir}
+        else:
+            return {}
