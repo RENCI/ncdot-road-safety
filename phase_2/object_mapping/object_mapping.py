@@ -4,8 +4,9 @@ import os
 import os.path
 import time
 import numpy as np
-from math import radians, pi, cos, sin, asin, sqrt, tan, atan, exp, log
-from scipy.cluster.hierarchy import linkage, fcluster
+from math import radians, cos, sin, asin, sqrt
+from utils import lat_lon_to_meters, meters_to_lat_lon, hierarchical_clustering, \
+    get_max_degree_dist_in_cluster_from_lat_lon
 
 '''
 ------------------------------------------
@@ -48,27 +49,6 @@ ObjectMultiView = 0.2		# weight beta in  Eq.(4)
 StandAlonePrice = max(1 - DepthWeight - ObjectMultiView, 0)  # weight (1-alpha-beta) in Eq. (4)
 
 ###########################################
-
-
-# conversion from (lat,lon) to meters
-def LatLonToMeters(lat, lon):
-    # Converts given lat/lon in WGS84 Datum to XY in Spherical Mercator EPSG:4326
-    originShift = 2 * pi * 6378137 / 2.0
-    mx = lon * originShift / 180.0
-    my = log(tan((90+lat) * pi/360.0))/(pi/180.0)
-    my = my * originShift / 180.0
-    return mx, my
-
-
-# conversion from meters to (lat,lon)
-def MetersToLatLon(mx, my):
-    # Converts XY point from Spherical Mercator EPSG:4326 to lat/lon in WGS84 Datum
-    originShift = 2 * pi * 6378137 / 2.0
-    lon = (mx / originShift) * 180.0
-    lat = (my / originShift) * 180.0
-    lat = 180 / pi * (2 * atan(exp(lat * pi / 180.0)) - pi / 2.0)
-    return lat, lon
-
 
 # haversine distance formula between two points specified by their GPS coordinates
 def haversine(lon1, lat1, lon2, lat2):
@@ -160,19 +140,6 @@ def CalcAvrgObject(Intersects, ObjectsConnectivity, Object):
     return res
 
 
-# hierarchical clustering
-def MyClust(intersects, MaxIntraDegreeDst):
-    Z = linkage(np.asarray(intersects))
-    clusters = fcluster(Z, MaxIntraDegreeDst, criterion='distance') - 1
-    NumClusters = max(clusters) + 1
-    IntersectClusters = np.zeros((NumClusters, 3))
-    for i in range(len(intersects)):
-        IntersectClusters[clusters[i], 0] += (intersects[i])[0]
-        IntersectClusters[clusters[i], 1] += (intersects[i])[1]
-        IntersectClusters[clusters[i], 2] += 1
-    return IntersectClusters
-
-
 # only PAIRWISE intersections
 def main(inputfilename, outputfilename):
     start = time.time()
@@ -201,9 +168,11 @@ def main(inputfilename, outputfilename):
             nums = line.split(',')
             if len(nums) < 3:
                 print('Broken entry ignored')
+            base_img = ''
             if len(nums) == 5:
                 # first column can be ignored
-                lat, lon, bearing, depth = float(nums[1]), float(nums[2]), float(nums[3]), float(nums[4])
+                lat, lon, bearing, depth, base_img = float(nums[1]), float(nums[2]), float(nums[3]), float(nums[4]), \
+                                                     str(nums[0])
             elif len(nums) == 4:
                 lat, lon, bearing, depth = float(nums[0]), float(nums[1]), float(nums[2]), float(nums[3])
             else: # if a depth estimate is not available
@@ -212,15 +181,15 @@ def main(inputfilename, outputfilename):
                 depth = 5
 
             # calculating the object positions from camera position + bearing + depth_estimate
-            mx, my = LatLonToMeters(lat, lon)
+            mx, my = lat_lon_to_meters(lat, lon)
             br1 = radians(bearing)
             yCP = my + depth * cos(br1) * scaling_factor  # depth-based positions
             xCP = mx + depth * sin(br1) * scaling_factor
-            latp, lonp = MetersToLatLon(xCP, yCP)
+            latp, lonp = meters_to_lat_lon(xCP, yCP)
             yCP = my + 1.0 * cos(br1) * scaling_factor	 # normalized positions (at 1m distance from camera)
             xCP = mx + 1.0 * sin(br1) * scaling_factor
-            latp1, lonp1 = MetersToLatLon(xCP, yCP)
-            ObjectsBase.append((latp1, lonp1, bearing, depth, 0, lat, lon, latp, lonp))
+            latp1, lonp1 = meters_to_lat_lon(xCP, yCP)
+            ObjectsBase.append((latp1, lonp1, bearing, depth, 0, lat, lon, latp, lonp, base_img))
 
     print("All detected objects: {0:d}".format(len(ObjectsBase)))
     #############################
@@ -248,7 +217,6 @@ def main(inputfilename, outputfilename):
             ObjectsDst[i, j], ObjectsDst[j, i], Intersects[i, j, 0], Intersects[i, j, 1] = Intersect(ObjectsBase[i],
                                                                                                      ObjectsBase[j])
             Intersects[j, i, 0], Intersects[j, i, 1] = Intersects[i, j, 0], Intersects[i, j, 1]
-            print(i, j, ObjectsDst[i, j], ObjectsDst[j, i], Intersects[i, j, 0], Intersects[i, j, 1])
             if ObjectsDst[i, j] > 0:
                 NumIntersects += 1
 
@@ -301,12 +269,7 @@ def main(inputfilename, outputfilename):
     #    C L U S T E R I N G    #
     #############################
 
-    mx, my = LatLonToMeters((ObjectsBase[0])[0], (ObjectsBase[0])[1])
-    # cos(45) and sin(45) are all equal to 0.707, so d45 is the projected distance of MaxDisInCluster to x and y
-    d45 = 0.707 * MaxDstInCluster * scaling_factor
-    ax, ay = MetersToLatLon(mx + d45, my + d45)
-    ax1, ay1 = MetersToLatLon(mx, my)
-    MaxDegreeDstInCluster = ((ax - ax1) ** 2 + (ay - ay1) ** 2) ** 0.5
+    MaxDegreeDstInCluster = get_max_degree_dist_in_cluster_from_lat_lon((ObjectsBase[0])[0], (ObjectsBase[0])[1])
 
     ICMintersect = []
     ifObjectIntersects = np.zeros(len(ObjectsBase), dtype=np.uint8)
@@ -317,9 +280,8 @@ def main(inputfilename, outputfilename):
             ICMintersect.append((res[0], res[1]))
 
     print("ICM inrersections: {0:d}".format(len(ICMintersect)))
-    print(ICMintersect)
-    IntersectClusters = MyClust(ICMintersect, MaxDegreeDstInCluster)
-    print(IntersectClusters)
+    IntersectClusters = hierarchical_clustering(ICMintersect, MaxDegreeDstInCluster)
+
     NumClusters = IntersectClusters.shape[0]
     with open(outputfilename, "w") as inter:
         inter.write("lat,lon,score\n")
