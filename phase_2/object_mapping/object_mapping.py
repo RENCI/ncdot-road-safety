@@ -131,13 +131,15 @@ def CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, Object):
 def CalcAvrgObject(Intersects, ObjectsConnectivity, Object):
     res = np.zeros(2)
     cnt = 0
+    idx_list = []
     for i in range(Intersects.shape[0]):
         if ObjectsConnectivity[Object, i]:
             res[:] += Intersects[Object, i, :]
+            idx_list.append(i)
             cnt += 1
     if cnt:
-        return res/cnt
-    return res
+        return res/cnt, idx_list
+    return res, idx_list
 
 
 # only PAIRWISE intersections
@@ -273,13 +275,16 @@ def main(inputfilename, outputfilename):
 
     ICMintersect = []
     ifObjectIntersects = np.zeros(len(ObjectsBase), dtype=np.uint8)
+    ICMintersect_images = []
     for i in range(len(ObjectsBase)):
-        res = CalcAvrgObject(Intersects, ObjectsConnectivity, i)
+        res, id_list = CalcAvrgObject(Intersects, ObjectsConnectivity, i)
         if res[0]:
             ifObjectIntersects[i] = 1
             ICMintersect.append((res[0], res[1]))
+            for id in id_list:
+                ICMintersect_images.append(((ObjectsBase[i])[9], (ObjectsBase[id])[9]))
 
-    print("ICM inrersections: {0:d}".format(len(ICMintersect)))
+    print("ICM intersections: {0:d}".format(len(ICMintersect)))
     IntersectClusters = hierarchical_clustering(ICMintersect, MaxDegreeDstInCluster)
 
     NumClusters = IntersectClusters.shape[0]
@@ -289,6 +294,10 @@ def main(inputfilename, outputfilename):
             inter.write("{0:f},{1:f},{2:d}\n".format(IntersectClusters[i, 0]/IntersectClusters[i, 2],
                                                      IntersectClusters[i, 1]/IntersectClusters[i, 2],
                                                      int(IntersectClusters[i, 2])))
+    with open(f'{os.path.splitext(outputfilename)[0]}_intersect_base_images.txt', "w") as img_fp:
+        for item in ICMintersect_images:
+            img_fp.write(f"{item}\n")
+
     print("Number of output ICM clusters: {0:d}".format(NumClusters))
 
     print("Elapsed total time: {0:.2f} seconds.".format(time.time() - start))
