@@ -94,13 +94,26 @@ def compute_mapping_input(mapped_image, path):
                 depth = (image_pfm[average_y, average_x] - min_depth) / (max_depth - min_depth)
                 # compute bearing
                 cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2)
-                image_center_x = image_width/2
-                if average_x < image_center_x:
+                if suffix == '1.png':
+                    # front view image
+                    image_center_x = image_width/2
+                    if average_x < image_center_x:
+                        minus_bearing = True
+                    else:
+                        minus_bearing = False
+                    hangle = (abs(average_x - image_center_x)/image_width) * width_to_hfov[image_width]
+
+                elif suffix == '5.png':
+                    # left view image
                     minus_bearing = True
+                    # addition of 0.5 is needed to account for the front view image
+                    hangle = ((image_width - average_x)/image_width + 0.5) * width_to_hfov[image_width]
                 else:
+                    # right view image
                     minus_bearing = False
-                hdist = abs(average_x - image_center_x)
-                hangle = (hdist/image_width) * width_to_hfov[image_width]
+                    # addition of 0.5 is needed to account for the front view image
+                    hangle = (average_x / image_width + 0.5) * width_to_hfov[image_width]
+
                 br_angle = (cam_br - hangle) if minus_bearing else (cam_br + hangle)
                 br_angle = (br_angle + 360) % 360
                 img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, (1 - depth) * SCALING_FACTOR])
