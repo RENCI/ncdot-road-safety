@@ -81,7 +81,8 @@ def compute_mapping_input(mapped_image, path):
                     else:
                         continue
                 else:
-                    average_y = int(np.average(level_indices_y))
+                    # detected pole is too short and treated as FP
+                    continue
                 if trim_size_x > 0:
                     filtered_level_indices = level_indices_x[((level_indices_x-min_x) > trim_size_x)
                                                               & ((max_x-level_indices_x) > trim_size_x)]
