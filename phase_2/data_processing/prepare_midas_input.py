@@ -14,16 +14,23 @@ def prepare_image(mapped_image, path, output_path):
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_csv_file_with_path', type=str,
-                    default='/projects/ncdot/ade20k_annotations/route_40001001011_segment_labels_with_poles.csv',
+                    default='/projects/ncdot/test_route_segmentation/test_route_road_pole_labels.csv',
                     help='input csv file that includes input image path and name for MiDAS depth prediction')
+parser.add_argument('--route_id', type=str,
+                    default='40001001011',
+                    help='route id to filter the input label with')
 parser.add_argument('--output_file_path', type=str,
-                    default='/projects/ncdot/geotagging/midas_input',
+                    default='/projects/ncdot/geotagging/midas_input/d13_route_40001001011/oneformer',
                     help='output path to put input images to feed to the MiDAS model')
 
 
 args = parser.parse_args()
 input_csv_file_with_path = args.input_csv_file_with_path
+route_id = args.route_id
 output_file_path = args.output_file_path
 
-df = pd.read_csv(input_csv_file_with_path, index_col=None, usecols=['MAPPED_IMAGE', 'PATH'], dtype=str)
+df = pd.read_csv(input_csv_file_with_path, index_col=None, usecols=['ROUTEID', 'MAPPED_IMAGE', 'PATH'],
+                 dtype=str)
+if route_id:
+    df = df[df.ROUTEID == route_id]
 df.apply(lambda row: prepare_image(row['MAPPED_IMAGE'], row['PATH'], output_file_path), axis=1)
