@@ -121,30 +121,40 @@ def compute_mapping_input(mapped_image, path):
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_seg_map_info_with_path', type=str,
-                    default='/projects/ncdot/ade20k_annotations/route_40001001011_segment_labels_with_poles.csv',
+                    default='/projects/ncdot/test_route_segmentation/test_route_road_pole_labels.csv',
                     help='input csv file that includes input segmented image path and name for computing depth')
+parser.add_argument('--route_id', type=str, default='40001001011',
+                    help='route id to filter input_seg_map_info_with_path data with')
+parser.add_argument('--model_col_header', type=str, default='ONEFORMER',
+                    help='input model column header in the input_seg_map_info_with_path to get segmentation path')
 parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
                     default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13.csv',
                     help='input csv file that includes mapped image lat/lon info')
 parser.add_argument('--input_depth_image_path', type=str,
-                    default='/projects/ncdot/geotagging/midas_output',
+                    default='/projects/ncdot/geotagging/midas_output/d13_route_40001001011/oneformer',
                     help='input path that includes depth prediction output images')
-parser.add_argument('--output_file', type=str,
-                    default='/projects/ncdot/geotagging/input/route_40001001011_segment_object_mapping_input.csv',
+parser.add_argument('--output_file', type=str, default='/projects/ncdot/geotagging/input/oneformer/'
+                                                       'route_40001001011_segment_object_mapping_input.csv',
                     help='output file that contains image base names and corresponding segmented object depths')
 
 
 args = parser.parse_args()
 input_seg_map_info_with_path = args.input_seg_map_info_with_path
+route_id = args.route_id
+model_col_header = args.model_col_header
 input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
 input_depth_image_path = args.input_depth_image_path
 output_file = args.output_file
 
-df = pd.read_csv(input_seg_map_info_with_path, index_col=None, usecols=['MAPPED_IMAGE', 'LABEL_PATH'], dtype=str)
+df = pd.read_csv(input_seg_map_info_with_path, index_col=None,
+                 usecols=['ROUTEID', 'MAPPED_IMAGE', model_col_header], dtype=str)
+if route_id:
+    df = df[df.ROUTEID == route_id]
+
 mapping_df = pd.read_csv(input_sensor_mapping_file_with_path,
                          usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE','LONGITUDE'], dtype=str)
 mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
 img_input_list = []
-df.apply(lambda row: compute_mapping_input(row['MAPPED_IMAGE'], row['LABEL_PATH']), axis=1)
+df.apply(lambda row: compute_mapping_input(row['MAPPED_IMAGE'], row[model_col_header]), axis=1)
 out_df = pd.DataFrame(img_input_list, columns=["ImageBaseName", "lat", "lon", "bearing", "Depth"])
 out_df.to_csv(output_file, index=False)
