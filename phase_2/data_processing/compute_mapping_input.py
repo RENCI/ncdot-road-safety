@@ -26,7 +26,6 @@ def compute_mapping_input(mapped_image, path):
         input_data[input_data == ROAD] = 0
         # perform connected component analysis
         labeled_data, count = skimage.measure.label(input_data, connectivity=2, return_num=True)
-        print(f'pole count: {count}')
 
         if image_width not in width_to_hfov:
             print(f'no HFOV can be found for image width {image_width} of the image {input_image_name}')
@@ -57,8 +56,9 @@ def compute_mapping_input(mapped_image, path):
 
             # pole are straight objects, so considering y axis for separating multiple poles since arrays are
             # stored in row/x order so y axis should be continuous
+            print(f'pole count: {count}')
             for i in range(count):
-                level_indices = np.where(labeled_data == i)
+                level_indices = np.where(labeled_data == i+1)
                 level_indices_y = level_indices[0]
                 level_indices_x = level_indices[1]
                 min_x = min(level_indices_x)
