@@ -9,6 +9,7 @@ from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points
 
 
 SCALING_FACTOR = 25
+POLE_WIDTH_THRESHOLD = 10
 POLE_ASPECT_RATIO_THRESHOLD = 12
 width_to_hfov = {
     2748: 71.43
@@ -53,10 +54,6 @@ def compute_mapping_input(mapped_image, path):
             # input_data[input_data == POLE] = 255
             # updated_image = Image.fromarray(input_data)
             # updated_image.save(os.path.join(path, f'updated_{mapped_image}{suffix}'))
-
-            # pole are straight objects, so considering y axis for separating multiple poles since arrays are
-            # stored in row/x order so y axis should be continuous
-            print(f'pole count: {count}')
             for i in range(count):
                 level_indices = np.where(labeled_data == i+1)
                 level_indices_y = level_indices[0]
@@ -67,7 +64,7 @@ def compute_mapping_input(mapped_image, path):
                 max_y = max(level_indices_y)
                 xdiff = max_x - min_x
                 ydiff = max_y - min_y
-                if ydiff/xdiff < POLE_ASPECT_RATIO_THRESHOLD:
+                if xdiff < POLE_WIDTH_THRESHOLD or ydiff/xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                     # filter out detected short sticks
                     continue
                 trim_size_y = ydiff * 0.01
