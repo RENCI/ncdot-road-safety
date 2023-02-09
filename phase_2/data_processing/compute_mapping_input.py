@@ -9,7 +9,7 @@ from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points
 
 
 SCALING_FACTOR = 25
-GAP_PIXEL_COUNT = 15
+POLE_ASPECT_RATIO_THRESHOLD = 12
 width_to_hfov = {
     2748: 71.43
 }
@@ -65,8 +65,13 @@ def compute_mapping_input(mapped_image, path):
                 max_x = max(level_indices_x)
                 min_y = min(level_indices_y)
                 max_y = max(level_indices_y)
-                trim_size_y = (max_y - min_y) * 0.01
-                trim_size_x = (max_x - min_x) * 0.01
+                xdiff = max_x - min_x
+                ydiff = max_y - min_y
+                if ydiff/xdiff < POLE_ASPECT_RATIO_THRESHOLD:
+                    # filter out detected short sticks
+                    continue
+                trim_size_y = ydiff * 0.01
+                trim_size_x = xdiff * 0.01
                 if trim_size_y > 0:
                     filtered_level_indices = level_indices_y[((level_indices_y-min_y) > trim_size_y)
                                                               & ((max_y-level_indices_y) > trim_size_y)]
