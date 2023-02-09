@@ -2,14 +2,15 @@ import os
 import argparse
 import pandas as pd
 import numpy as np
-from utils import get_object_data_from_image, POLE
+from utils import get_data_from_image, POLE
 
 
 def get_image_resolution(mapped_image, path):
     image_suffix_list = ('5.png', '1.png', '2.png')
     for suffix in image_suffix_list:
         image_name = f'{mapped_image}{suffix}'
-        image_width, image_height, obj_level_indices = get_object_data_from_image(os.path.join(path, image_name), POLE)
+        image_width, image_height, input_data = get_data_from_image(os.path.join(path, image_name))
+        obj_level_indices = np.where(input_data == POLE)
         count = np.size(obj_level_indices)
         if count > 0:
             if image_width not in image_width_list:

@@ -3,10 +3,11 @@ import argparse
 import pandas as pd
 import numpy as np
 from pypfm import PFMLoader
-from utils import consecutive, get_object_data_from_image, POLE, bearing_between_two_latlon_points
+import skimage.measure
+
+from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points
 
 
-ROAD = 1
 SCALING_FACTOR = 25
 GAP_PIXEL_COUNT = 15
 width_to_hfov = {
@@ -20,11 +21,16 @@ def compute_mapping_input(mapped_image, path):
     image_suffix_list = ('5.png', '1.png', '2.png')
     for suffix in image_suffix_list:
         input_image_name = os.path.join(path, f'{mapped_image}{suffix}')
-        image_width, image_height, obj_level_indices = get_object_data_from_image(input_image_name, POLE)
+        image_width, image_height, input_data = get_data_from_image(input_image_name)
+        # move ROAD to background in order to get all pole objects
+        input_data[input_data == ROAD] = 0
+        # perform connected component analysis
+        labeled_data, count = skimage.measure.label(input_data, connectivity=2, return_num=True)
+        print(f'pole count: {count}')
+
         if image_width not in width_to_hfov:
             print(f'no HFOV can be found for image width {image_width} of the image {input_image_name}')
             continue
-        count = np.size(obj_level_indices)
         if count > 0:
             # get camera location for the mapped image
             mapped_image_df = mapping_df[mapping_df['MAPPED_IMAGE'] == mapped_image]
@@ -51,26 +57,14 @@ def compute_mapping_input(mapped_image, path):
 
             # pole are straight objects, so considering y axis for separating multiple poles since arrays are
             # stored in row/x order so y axis should be continuous
-            centroid_xs = []
-            split_indices, con_level_indices_y = consecutive(obj_level_indices[0], step_size=GAP_PIXEL_COUNT)
-            # use the same splits to split corresponding x values for separated poles by y
-            con_level_indices_x = np.split(obj_level_indices[1], split_indices + 1)
-            for level_indices_x, level_indices_y in zip(con_level_indices_x, con_level_indices_y):
+            for i in range(count):
+                level_indices = np.where(labeled_data == i)
+                level_indices_y = level_indices[0]
+                level_indices_x = level_indices[1]
                 min_x = min(level_indices_x)
                 max_x = max(level_indices_x)
                 min_y = min(level_indices_y)
                 max_y = max(level_indices_y)
-                centroid_x = (min_x+max_x)/2
-                if not centroid_xs:
-                    centroid_xs.append(centroid_x)
-                else:
-                    is_separate_pole = False
-                    for x in centroid_xs:
-                        if abs(centroid_x - x) > GAP_PIXEL_COUNT:
-                            is_separate_pole = True
-                            break
-                    if not is_separate_pole:
-                        continue
                 trim_size_y = (max_y - min_y) * 0.01
                 trim_size_x = (max_x - min_x) * 0.01
                 if trim_size_y > 0:
@@ -103,7 +97,6 @@ def compute_mapping_input(mapped_image, path):
                     else:
                         minus_bearing = False
                     hangle = (abs(average_x - image_center_x)/image_width) * width_to_hfov[image_width]
-
                 elif suffix == '5.png':
                     # left view image
                     minus_bearing = True
