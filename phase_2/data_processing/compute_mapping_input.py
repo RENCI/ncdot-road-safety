@@ -11,6 +11,11 @@ from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points
 SCALING_FACTOR = 25
 POLE_WIDTH_THRESHOLD = 10
 POLE_ASPECT_RATIO_THRESHOLD = 12
+# Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25, filter out those with H < 350
+D_H_THRESHOLD = {
+    10: 500,
+    25: 350
+}
 width_to_hfov = {
     2748: 71.43
 }
@@ -67,6 +72,7 @@ def compute_mapping_input(mapped_image, path):
                 if xdiff < POLE_WIDTH_THRESHOLD or ydiff/xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                     # filter out detected short sticks
                     continue
+
                 trim_size_y = ydiff * 0.01
                 trim_size_x = xdiff * 0.01
                 if trim_size_y > 0:
@@ -89,6 +95,17 @@ def compute_mapping_input(mapped_image, path):
                 else:
                     average_x = int(np.average(level_indices_x)+0.5)
                 depth = (image_pfm[average_y, average_x] - min_depth) / (max_depth - min_depth)
+                depth = (1 - depth) * SCALING_FACTOR
+                # apply depth-height filtering
+                filtered_out = False
+                for key, val in D_H_THRESHOLD.items():
+                    if depth < key:
+                        if ydiff < val:
+                            filtered_out = True
+                        break
+                if filtered_out:
+                    continue
+
                 # compute bearing
                 cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2)
                 if suffix == '1.png':
@@ -112,7 +129,7 @@ def compute_mapping_input(mapped_image, path):
 
                 br_angle = (cam_br - hangle) if minus_bearing else (cam_br + hangle)
                 br_angle = (br_angle + 360) % 360
-                img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, (1 - depth) * SCALING_FACTOR])
+                img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, depth])
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
