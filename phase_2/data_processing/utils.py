@@ -11,6 +11,12 @@ def consecutive(data, step_size=1):
     return split_indices, np.split(data, split_indices+1)
 
 
+def split_into_lines(y_data, x_data):
+    # find the indices of start of each new line in data
+    split_indices = np.where(np.diff(y_data) == 1)[0]
+    return np.split(y_data, split_indices+1), np.split(x_data, split_indices+1)
+
+
 def get_data_from_image(input_image_name):
     input_image = Image.open(input_image_name)
     image_width = input_image.width

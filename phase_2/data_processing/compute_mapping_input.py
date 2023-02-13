@@ -118,11 +118,26 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                             x_dist = abs(line_indices_x[i][0] - line_indices_x[i-1][last_start_idx])
                             if x_dist > POLE_WIDTH_THRESHOLD:
                                 # connected wired are included in the line, remove those added pixels compared to
-                                # its previous line needs to be removed
+                                # its previous line
                                 if line_indices_x[i][0] < line_indices_x[i-1][last_start_idx]:
                                     line_indices_x[i][line_indices_x[i] < line_indices_x[i-1][last_start_idx]] = 0
+                                    # update min_x and xdiff as needed
+                                    if line_indices_x[i][0] - min_x <= 1:
+                                        obj_indices = np.where(line_indices_x[i] != 0)[0]
+                                        if abs(line_indices_x[i][0] - min_x) <= 1:
+                                            min_x = obj_indices[0]
+                                        elif obj_indices[0] < min_x:
+                                            min_x = obj_indices[0]
+                                        xdiff = max_x - min_x
                                 else:
                                     line_indices_x[i][line_indices_x[i] > line_indices_x[i-1][last_end_idx]] = 0
+                                    if max_x - line_indices_x[i][-1] <= 1:
+                                        obj_indices = np.where(line_indices_x[i] != 0)[0]
+                                        if abs(max_x - line_indices_x[i][-1]) <= 1:
+                                            max_x = obj_indices[-1]
+                                        elif obj_indices[-1] > max_x:
+                                            max_x = obj_indices[-1]
+                                        xdiff = max_x - min_x
 
                 trim_size_y = ydiff * 0.01
                 trim_size_x = xdiff * 0.01
