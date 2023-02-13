@@ -126,7 +126,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                                     obj_indices = np.where(line_indices_x[i] != 0)[0]
                                     if abs(line_indices_x[i][0] - min_x) <= 1:
                                         min_x = obj_indices[0]
-                                    elif obj_indices[0] < min_x:
+                                    elif any(obj_indices) and obj_indices[0] < min_x:
                                         min_x = obj_indices[0]
                                     xdiff = max_x - min_x
                             else:
@@ -135,7 +135,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                                     obj_indices = np.where(line_indices_x[i] != 0)[0]
                                     if abs(max_x - line_indices_x[i][-1]) <= 1:
                                         max_x = obj_indices[-1]
-                                    elif obj_indices[-1] > max_x:
+                                    elif any(obj_indices) and obj_indices[-1] > max_x:
                                         max_x = obj_indices[-1]
                                     xdiff = max_x - min_x
 
