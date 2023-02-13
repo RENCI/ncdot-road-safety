@@ -5,7 +5,8 @@ import numpy as np
 from pypfm import PFMLoader
 import skimage.measure
 
-from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points, split_into_lines, consecutive
+from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points, split_into_lines, consecutive, \
+    save_data_to_image
 
 
 SCALING_FACTOR = 25
@@ -78,66 +79,65 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                     if major_axis_len / minor_axis_len < POLE_ASPECT_RATIO_THRESHOLD:
                         # filter out detected short sticks
                         continue
-                    else:
-                        # connected wires from detected pole make xdiff much bigger than it should,
-                        # remove connected wires in order to make accurate centroid computations to get depth info
-                        line_indices_y, line_indices_x = split_into_lines(level_indices_y, level_indices_x)
-                        # use number of pixels and the first pixel x coordinate for two consecutive lines to determine
-                        # whether there are connected wires on the line that need to be removed
-                        is_first_line = True
-                        for i in range(len(line_indices_x)):
-                            split_indices, con_level_indices_x = consecutive(line_indices_x[i])
-                            if any(split_indices):
-                                # the line is not consecutive, so use the line segment that is closet to the last line
-                                # for continuity
-                                if is_first_line:
-                                    # if the first line is not consecutive, remove this line from the detected object
-                                    line_indices_x[i][line_indices_x[i] != 0] = 0
-                                    continue
-
-                                # only keep the closest segment while cleaning up other segments with zeros
-                                x_dist_to_last_line = 10000
-                                closest_seg = None
-                                for segment in con_level_indices_x:
-                                    x_dist = abs(segment[0] - line_indices_x[i-1][0])
-                                    if x_dist < x_dist_to_last_line:
-                                        x_dist_to_last_line = x_dist
-                                        if closest_seg is not None:
-                                            closest_seg[closest_seg != 0] = 0
-                                        closest_seg = segment
-                                    else:
-                                        segment[segment != 0] = 0
-
+                    # connected wires from detected pole make xdiff much bigger than it should,
+                    # remove connected wires in order to make accurate centroid computations to get depth info
+                    line_indices_y, line_indices_x = split_into_lines(level_indices_y, level_indices_x)
+                    # use number of pixels and the first pixel x coordinate for two consecutive lines to determine
+                    # whether there are connected wires on the line that need to be removed
+                    is_first_line = True
+                    for i in range(len(line_indices_x)):
+                        split_indices, con_level_indices_x = consecutive(line_indices_x[i])
+                        if any(split_indices):
+                            # the line is not consecutive, so use the line segment that is closet to the last line
+                            # for continuity
                             if is_first_line:
-                                is_first_line = False
+                                # if the first line is not consecutive, remove this line from the detected object
+                                line_indices_x[i][line_indices_x[i] != 0] = 0
                                 continue
-                            # find the first object pixel (with non-zero intensity) in last line
-                            last_obj_indices = np.where(line_indices_x[i-1] != 0)[0]
-                            last_start_idx = last_obj_indices[0]
-                            last_end_idx = last_obj_indices[-1]
-                            x_dist = abs(line_indices_x[i][0] - line_indices_x[i-1][last_start_idx])
-                            if x_dist > POLE_WIDTH_THRESHOLD:
-                                # connected wired are included in the line, remove those added pixels compared to
-                                # its previous line
-                                if line_indices_x[i][0] < line_indices_x[i-1][last_start_idx]:
-                                    line_indices_x[i][line_indices_x[i] < line_indices_x[i-1][last_start_idx]] = 0
-                                    # update min_x and xdiff as needed
-                                    if line_indices_x[i][0] - min_x <= 1:
-                                        obj_indices = np.where(line_indices_x[i] != 0)[0]
-                                        if abs(line_indices_x[i][0] - min_x) <= 1:
-                                            min_x = obj_indices[0]
-                                        elif obj_indices[0] < min_x:
-                                            min_x = obj_indices[0]
-                                        xdiff = max_x - min_x
+
+                            # only keep the closest segment while cleaning up other segments with zeros
+                            x_dist_to_last_line = 10000
+                            closest_seg = None
+                            for segment in con_level_indices_x:
+                                x_dist = abs(segment[0] - line_indices_x[i-1][0])
+                                if x_dist < x_dist_to_last_line:
+                                    x_dist_to_last_line = x_dist
+                                    if closest_seg is not None:
+                                        closest_seg[closest_seg != 0] = 0
+                                    closest_seg = segment
                                 else:
-                                    line_indices_x[i][line_indices_x[i] > line_indices_x[i-1][last_end_idx]] = 0
-                                    if max_x - line_indices_x[i][-1] <= 1:
-                                        obj_indices = np.where(line_indices_x[i] != 0)[0]
-                                        if abs(max_x - line_indices_x[i][-1]) <= 1:
-                                            max_x = obj_indices[-1]
-                                        elif obj_indices[-1] > max_x:
-                                            max_x = obj_indices[-1]
-                                        xdiff = max_x - min_x
+                                    segment[segment != 0] = 0
+
+                        if is_first_line:
+                            is_first_line = False
+                            continue
+                        # find the first object pixel (with non-zero intensity) in last line
+                        last_obj_indices = np.where(line_indices_x[i-1] != 0)[0]
+                        last_start_idx = last_obj_indices[0]
+                        last_end_idx = last_obj_indices[-1]
+                        x_dist = abs(line_indices_x[i][0] - line_indices_x[i-1][last_start_idx])
+                        if x_dist > POLE_WIDTH_THRESHOLD:
+                            # connected wired are included in the line, remove those added pixels compared to
+                            # its previous line
+                            if line_indices_x[i][0] < line_indices_x[i-1][last_start_idx]:
+                                line_indices_x[i][line_indices_x[i] < line_indices_x[i-1][last_start_idx]] = 0
+                                # update min_x and xdiff as needed
+                                if line_indices_x[i][0] - min_x <= 1:
+                                    obj_indices = np.where(line_indices_x[i] != 0)[0]
+                                    if abs(line_indices_x[i][0] - min_x) <= 1:
+                                        min_x = obj_indices[0]
+                                    elif obj_indices[0] < min_x:
+                                        min_x = obj_indices[0]
+                                    xdiff = max_x - min_x
+                            else:
+                                line_indices_x[i][line_indices_x[i] > line_indices_x[i-1][last_end_idx]] = 0
+                                if max_x - line_indices_x[i][-1] <= 1:
+                                    obj_indices = np.where(line_indices_x[i] != 0)[0]
+                                    if abs(max_x - line_indices_x[i][-1]) <= 1:
+                                        max_x = obj_indices[-1]
+                                    elif obj_indices[-1] > max_x:
+                                        max_x = obj_indices[-1]
+                                    xdiff = max_x - min_x
 
                 trim_size_y = ydiff * 0.01
                 trim_size_x = xdiff * 0.01
@@ -197,6 +197,10 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 br_angle = (cam_br - hangle) if minus_bearing else (cam_br + hangle)
                 br_angle = (br_angle + 360) % 360
                 img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, depth])
+                if input_image_base_name == '926005420245' or input_image_base_name == '926005420241':
+                    input_data[input_data != 0 ] = 0
+                    input_data[min_x+trim_size_x:max_x-trim_size_x, min_y+trim_size_y:max_y-trim_size_y] = 255
+                    save_data_to_image(input_data, f'{input_image_base_name}_processed.png')
 
 
 if __name__ == '__main__':
