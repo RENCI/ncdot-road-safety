@@ -93,13 +93,28 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                             if is_first_line:
                                 # if the first line is not consecutive, remove this line from the detected object
                                 line_indices_x[i][line_indices_x[i] != 0] = 0
+                                min_y = min_y - 1
+                                ydiff = ydiff - 1
                                 continue
 
                             # only keep the closest segment while cleaning up other segments with zeros
                             x_dist_to_last_line = 10000
-                            closest_seg = None
+                            is_start = None
                             for segment in con_level_indices_x:
-                                x_dist = abs(segment[0] - line_indices_x[i-1][0])
+                                if is_start is None:
+                                    x_dist_start = abs(segment[0] - line_indices_x[i-1][0])
+                                    x_dist_end = abs(segment[-1] - line_indices_x[i - 1][-1])
+                                    if x_dist_start > x_dist_end:
+                                        is_start = False
+                                        x_dist = x_dist_end
+                                    else:
+                                        is_start = True
+                                        x_dist = x_dist_start
+                                elif is_start is True:
+                                    x_dist = abs(segment[0] - line_indices_x[i - 1][0])
+                                else:
+                                    x_dist = abs(segment[-1] - line_indices_x[i - 1][-1])
+
                                 if x_dist < x_dist_to_last_line:
                                     x_dist_to_last_line = x_dist
                                     if closest_seg is not None:
