@@ -68,7 +68,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 xdiff = max_x - min_x
                 ydiff = max_y - min_y
 
-                if xdiff < POLE_SIZE_THRESHOLD or ydiff < POLE_SIZE_THRESHOLD:
+                if xdiff < POLE_SIZE_THRESHOLD or ydiff < POLE_SIZE_THRESHOLD or xdiff > ydiff:
                     # filter out noises
                     continue
                 level_indices = np.where(labeled_data == i + 1)
