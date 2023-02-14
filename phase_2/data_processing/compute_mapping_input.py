@@ -88,12 +88,19 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                     # use number of pixels and the first pixel x coordinate for two consecutive lines to determine
                     # whether there are connected wires on the line that need to be removed
                     is_first_line = True
+                    not_object = False
                     for lidx in range(len(line_indices_x)):
                         if is_first_line:
                             is_first_line = False
                             continue
+                        if not_object:
+                            break
                         # find the first object pixel (with non-zero intensity) in last line
                         last_obj_indices = np.where(line_indices_x[lidx-1] != 0)[0]
+                        if not any(last_obj_indices):
+                            # previous line no longer contain object
+                            not_object = True
+                            continue
                         last_start_idx = last_obj_indices[0]
                         last_end_idx = last_obj_indices[-1]
                         x_dist = abs(line_indices_x[lidx][0] - line_indices_x[lidx-1][last_start_idx])
