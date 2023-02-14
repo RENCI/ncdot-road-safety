@@ -125,6 +125,8 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                     ydiff = object_features[i].bbox[2] - object_features[i].bbox[0]
 
                 y0, x0 = object_features[i].centroid
+                y0 = int(y0 + 0.5)
+                x0 = int(x0 + 0.5)
                 depth = (image_pfm[y0, x0] - min_depth) / (max_depth - min_depth)
                 depth = (1 - depth) * SCALING_FACTOR
                 # apply depth-height filtering
