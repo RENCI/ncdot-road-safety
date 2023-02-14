@@ -172,7 +172,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, depth])
                 if input_image_base_name == '926005420245' or input_image_base_name == '926005420241':
                     labeled_data[labeled_data != 0 ] = 255
-                    save_data_to_image(input_data, f'{input_image_base_name}_processed.png')
+                    save_data_to_image(labeled_data, f'{input_image_base_name}_processed.png')
 
 
 if __name__ == '__main__':
