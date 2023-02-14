@@ -10,7 +10,7 @@ from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points, 
 
 
 SCALING_FACTOR = 25
-POLE_WIDTH_THRESHOLD = 10
+POLE_SIZE_THRESHOLD = 10
 POLE_ASPECT_RATIO_THRESHOLD = 12
 # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25, filter out those with H < 350
 D_H_THRESHOLD = {
@@ -67,12 +67,15 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 max_x = object_features[i].bbox[3]
                 xdiff = max_x - min_x
                 ydiff = max_y - min_y
-                if xdiff < POLE_WIDTH_THRESHOLD:
+
+                if xdiff < POLE_SIZE_THRESHOLD or ydiff < POLE_SIZE_THRESHOLD:
                     # filter out noises
                     continue
                 level_indices = np.where(labeled_data == i + 1)
                 level_indices_y = level_indices[0]
                 level_indices_x = level_indices[1]
+
+                recompute = False
                 if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                     major_axis_len = object_features[i].major_axis_length
                     minor_axis_len = object_features[i].minor_axis_length
@@ -85,98 +88,44 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                     # use number of pixels and the first pixel x coordinate for two consecutive lines to determine
                     # whether there are connected wires on the line that need to be removed
                     is_first_line = True
-                    for i in range(len(line_indices_x)):
-                        split_indices, con_level_indices_x = consecutive(line_indices_x[i])
-                        if any(split_indices):
-                            # the line is not consecutive, so use the line segment that is closet to the last line
-                            # for continuity
-                            if is_first_line:
-                                # if the first line is not consecutive, remove this line from the detected object
-                                line_indices_x[i][line_indices_x[i] != 0] = 0
-                                min_y = min_y - 1
-                                ydiff = ydiff - 1
-                                continue
-
-                            # only keep the closest segment while cleaning up other segments with zeros
-                            x_dist_to_last_line = 10000
-                            is_start = None
-                            for segment in con_level_indices_x:
-                                if is_start is None:
-                                    x_dist_start = abs(segment[0] - line_indices_x[i-1][0])
-                                    x_dist_end = abs(segment[-1] - line_indices_x[i - 1][-1])
-                                    if x_dist_start > x_dist_end:
-                                        is_start = False
-                                        x_dist = x_dist_end
-                                    else:
-                                        is_start = True
-                                        x_dist = x_dist_start
-                                elif is_start is True:
-                                    x_dist = abs(segment[0] - line_indices_x[i - 1][0])
-                                else:
-                                    x_dist = abs(segment[-1] - line_indices_x[i - 1][-1])
-
-                                if x_dist < x_dist_to_last_line:
-                                    x_dist_to_last_line = x_dist
-                                    if closest_seg is not None:
-                                        closest_seg[closest_seg != 0] = 0
-                                    closest_seg = segment
-                                else:
-                                    segment[segment != 0] = 0
-
+                    for lidx in range(len(line_indices_x)):
                         if is_first_line:
                             is_first_line = False
                             continue
                         # find the first object pixel (with non-zero intensity) in last line
-                        last_obj_indices = np.where(line_indices_x[i-1] != 0)[0]
+                        last_obj_indices = np.where(line_indices_x[lidx-1] != 0)[0]
                         last_start_idx = last_obj_indices[0]
                         last_end_idx = last_obj_indices[-1]
-                        x_dist = abs(line_indices_x[i][0] - line_indices_x[i-1][last_start_idx])
-                        if x_dist > POLE_WIDTH_THRESHOLD:
+                        x_dist = abs(line_indices_x[lidx][0] - line_indices_x[lidx-1][last_start_idx])
+                        if x_dist > POLE_SIZE_THRESHOLD:
                             # connected wired are included in the line, remove those added pixels compared to
                             # its previous line
-                            if line_indices_x[i][0] < line_indices_x[i-1][last_start_idx]:
-                                line_indices_x[i][line_indices_x[i] < line_indices_x[i-1][last_start_idx]] = 0
-                                # update min_x and xdiff as needed
-                                if line_indices_x[i][0] - min_x <= 1:
-                                    obj_indices = np.where(line_indices_x[i] != 0)[0]
-                                    if abs(line_indices_x[i][0] - min_x) <= 1:
-                                        min_x = obj_indices[0]
-                                    elif any(obj_indices) and obj_indices[0] < min_x:
-                                        min_x = obj_indices[0]
-                                    xdiff = max_x - min_x
+                            last_idx = line_indices_x[lidx-1][last_start_idx]
+                            if line_indices_x[lidx][0] < last_idx:
+                                # update original labeled_data
+                                for y, x in zip(line_indices_y[lidx], line_indices_x[lidx]):
+                                    if x < last_idx:
+                                        labeled_data[y,x] = 0
+                                # update indices
+                                line_indices_x[lidx][line_indices_x[lidx] < last_idx] = 0
+                                recompute = True
                             else:
-                                line_indices_x[i][line_indices_x[i] > line_indices_x[i-1][last_end_idx]] = 0
-                                if max_x - line_indices_x[i][-1] <= 1:
-                                    obj_indices = np.where(line_indices_x[i] != 0)[0]
-                                    if abs(max_x - line_indices_x[i][-1]) <= 1:
-                                        max_x = obj_indices[-1]
-                                    elif any(obj_indices) and obj_indices[-1] > max_x:
-                                        max_x = obj_indices[-1]
-                                    xdiff = max_x - min_x
+                                last_idx = line_indices_x[lidx-1][last_end_idx]
+                                # update original labeled_data
+                                for y, x in zip(line_indices_y[lidx], line_indices_x[lidx]):
+                                    if x > last_idx:
+                                        labeled_data[y, x] = 0
+                                # update indices
+                                line_indices_x[lidx][line_indices_x[lidx] > last_idx] = 0
+                                recompute = True
 
-                trim_size_y = ydiff * 0.01
-                trim_size_x = xdiff * 0.01
+                if recompute:
+                    # need to recompute properties since original labeled_data is updated
+                    object_features = skimage.measure.regionprops(labeled_data)
+                    ydiff = object_features[i].bbox[2] - object_features[i].bbox[0]
 
-                if trim_size_y > 0:
-                    filtered_level_indices = level_indices_y[((level_indices_y-min_y) > trim_size_y)
-                                                              & ((max_y-level_indices_y) > trim_size_y)]
-                    if np.size(filtered_level_indices) > 0:
-                        average_y = int(np.average(filtered_level_indices))
-                    else:
-                        continue
-                else:
-                    # detected pole is too short and treated as FP
-                    continue
-                if trim_size_x > 0:
-                    filtered_level_indices = level_indices_x[((level_indices_x-min_x) > trim_size_x)
-                                                              & ((max_x-level_indices_x) > trim_size_x)]
-                    if np.size(filtered_level_indices) > 0:
-                        average_x = int(np.average(filtered_level_indices) + 0.5)
-                    else:
-                        continue
-                else:
-                    average_x = int(np.average(level_indices_x)+0.5)
-                depth = (image_pfm[average_y, average_x] - min_depth) / (max_depth - min_depth)
+                y0, x0 = object_features[i].centroid
+                depth = (image_pfm[y0, x0] - min_depth) / (max_depth - min_depth)
                 depth = (1 - depth) * SCALING_FACTOR
                 # apply depth-height filtering
                 filtered_out = False
@@ -193,28 +142,27 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 if suffix == '1.png':
                     # front view image
                     image_center_x = image_width/2
-                    if average_x < image_center_x:
+                    if x0 < image_center_x:
                         minus_bearing = True
                     else:
                         minus_bearing = False
-                    hangle = (abs(average_x - image_center_x)/image_width) * width_to_hfov[image_width]
+                    hangle = (abs(x0 - image_center_x)/image_width) * width_to_hfov[image_width]
                 elif suffix == '5.png':
                     # left view image
                     minus_bearing = True
                     # addition of 0.5 is needed to account for the front view image
-                    hangle = ((image_width - average_x)/image_width + 0.5) * width_to_hfov[image_width]
+                    hangle = ((image_width - x0)/image_width + 0.5) * width_to_hfov[image_width]
                 else:
                     # right view image
                     minus_bearing = False
                     # addition of 0.5 is needed to account for the front view image
-                    hangle = (average_x / image_width + 0.5) * width_to_hfov[image_width]
+                    hangle = (x0 / image_width + 0.5) * width_to_hfov[image_width]
 
                 br_angle = (cam_br - hangle) if minus_bearing else (cam_br + hangle)
                 br_angle = (br_angle + 360) % 360
                 img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, depth])
                 if input_image_base_name == '926005420245' or input_image_base_name == '926005420241':
-                    input_data[input_data != 0 ] = 0
-                    input_data[min_x+trim_size_x:max_x-trim_size_x, min_y+trim_size_y:max_y-trim_size_y] = 255
+                    labeled_data[labeled_data != 0 ] = 255
                     save_data_to_image(input_data, f'{input_image_base_name}_processed.png')
 
 
