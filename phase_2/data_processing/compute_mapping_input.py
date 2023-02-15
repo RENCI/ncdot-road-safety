@@ -14,7 +14,7 @@ POLE_SIZE_THRESHOLD = 10
 POLE_ASPECT_RATIO_THRESHOLD = 12
 # angle in radians threshold between pole major axis and the x/vertical axis. The threshold is about 3 degrees
 POLE_ORIENTATION_THRESHOLD = 0.05
-POLE_CONTINUITY_THRESHOLD = 6
+POLE_CONTINUITY_THRESHOLD = 10
 # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25, filter out those with H < 350
 D_H_THRESHOLD = {
     10: 500,
@@ -113,7 +113,11 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                         # bigger than POLE_CONTINUITY_THRESHOLD
                         for j in range(1, upper_range):
                             # find the first object pixel (with non-zero intensity) in last line
+                            if cur_idx <= j:
+                                return -1
                             prev_obj_indices = np.where(line_indices_x[cur_idx - j] != 0)[0]
+                            if not any(prev_obj_indices):
+                                return -1
                             start_idx = prev_obj_indices[0]
                             end_idx = prev_obj_indices[-1]
                             if start:
@@ -136,32 +140,34 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
 
                         # remove connected wires from left side
                         left_interval = get_previous_line_index(lidx)
-                        last_obj_indices = np.where(line_indices_x[lidx - left_interval] != 0)[0]
-                        last_idx = line_indices_x[lidx - left_interval][last_obj_indices[0]]
-                        for interval in range(0, left_interval):
-                            # connected wired are included in the line, remove those added pixels compared to
-                            # its previous line within the interval
-                            if line_indices_x[lidx-interval][0] < last_idx:
-                                # update original labeled_data
-                                for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
-                                    if x < last_idx:
-                                        labeled_data[y, x] = 0
-                                # update indices
-                                line_indices_x[lidx-interval][line_indices_x[lidx-interval] < last_idx] = 0
-                                recompute = True
+                        if left_interval > 0:
+                            last_obj_indices = np.where(line_indices_x[lidx - left_interval] != 0)[0]
+                            last_idx = line_indices_x[lidx - left_interval][last_obj_indices[0]]
+                            for interval in range(0, left_interval):
+                                # connected wired are included in the line, remove those added pixels compared to
+                                # its previous line within the interval
+                                if line_indices_x[lidx-interval][0] < last_idx:
+                                    # update original labeled_data
+                                    for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
+                                        if x < last_idx:
+                                            labeled_data[y, x] = 0
+                                    # update indices
+                                    line_indices_x[lidx-interval][line_indices_x[lidx-interval] < last_idx] = 0
+                                    recompute = True
                         # remove connected wires from righ side
                         right_interval = get_previous_line_index(lidx, start=False)
-                        last_obj_indices = np.where(line_indices_x[lidx - right_interval] != 0)[0]
-                        last_idx = line_indices_x[lidx - right_interval][last_obj_indices[-1]]
-                        for interval in range(0, right_interval):
-                            if line_indices_x[lidx-interval][-1] > last_idx:
-                                # update original labeled_data
-                                for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
-                                    if x > last_idx:
-                                        labeled_data[y, x] = 0
-                                # update indices
-                                line_indices_x[lidx-interval][line_indices_x[lidx-interval] > last_idx] = 0
-                                recompute = True
+                        if right_interval > 0:
+                            last_obj_indices = np.where(line_indices_x[lidx - right_interval] != 0)[0]
+                            last_idx = line_indices_x[lidx - right_interval][last_obj_indices[-1]]
+                            for interval in range(0, right_interval):
+                                if line_indices_x[lidx-interval][-1] > last_idx:
+                                    # update original labeled_data
+                                    for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
+                                        if x > last_idx:
+                                            labeled_data[y, x] = 0
+                                    # update indices
+                                    line_indices_x[lidx-interval][line_indices_x[lidx-interval] > last_idx] = 0
+                                    recompute = True
 
                 if recompute:
                     # need to recompute properties since original labeled_data is updated
