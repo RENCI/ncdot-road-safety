@@ -111,19 +111,19 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                         # find the previous line index (up to upper_range number of previous lines) where the
                         # distance between start or end pixel of the current line and the previous line is
                         # bigger than POLE_CONTINUITY_THRESHOLD
-                        for interval in range(1, upper_range):
+                        for j in range(1, upper_range):
                             # find the first object pixel (with non-zero intensity) in last line
-                            last_obj_indices = np.where(line_indices_x[cur_idx - interval] != 0)[0]
-                            start_idx = last_obj_indices[0]
-                            end_idx = last_obj_indices[-1]
+                            prev_obj_indices = np.where(line_indices_x[cur_idx - j] != 0)[0]
+                            start_idx = prev_obj_indices[0]
+                            end_idx = prev_obj_indices[-1]
                             if start:
-                                dist = abs(line_indices_x[cur_idx][0] - line_indices_x[cur_idx - interval][start_idx])
+                                dist = abs(line_indices_x[cur_idx][0] - line_indices_x[cur_idx - j][start_idx])
                                 if dist > POLE_CONTINUITY_THRESHOLD:
-                                    return interval
+                                    return j
                             else:
-                                dist = abs(line_indices_x[cur_idx][-1] - line_indices_x[cur_idx - interval][end_idx])
+                                dist = abs(line_indices_x[cur_idx][-1] - line_indices_x[cur_idx - j][end_idx])
                                 if dist > POLE_CONTINUITY_THRESHOLD:
-                                    return interval
+                                    return j
                         return -1
 
                     # use the first and last pixel x coordinates for two or more consecutive lines
