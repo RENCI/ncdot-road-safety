@@ -103,50 +103,65 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                     if major_axis_len / minor_axis_len < POLE_ASPECT_RATIO_THRESHOLD:
                         # filter out detected short sticks
                         continue
-
                     # connected wires from detected pole make xdiff much bigger than it should,
                     # remove connected wires in order to make accurate centroid computations to get depth info
                     line_indices_y, line_indices_x = split_into_lines(level_indices_y, level_indices_x)
-                    # use number of pixels and the first pixel x coordinate for two consecutive lines to determine
-                    # whether there are connected wires on the line that need to be removed
+
+                    def get_previous_line_index(cur_idx, start=True, upper_range=6):
+                        # find the previous line index (up to upper_range number of previous lines) where the
+                        # distance between start or end pixel of the current line and the previous line is
+                        # bigger than POLE_CONTINUITY_THRESHOLD
+                        for interval in range(1, upper_range):
+                            # find the first object pixel (with non-zero intensity) in last line
+                            last_obj_indices = np.where(line_indices_x[cur_idx - interval] != 0)[0]
+                            start_idx = last_obj_indices[0]
+                            end_idx = last_obj_indices[-1]
+                            if start:
+                                dist = abs(line_indices_x[cur_idx][0] - line_indices_x[cur_idx - interval][start_idx])
+                                if dist > POLE_CONTINUITY_THRESHOLD:
+                                    return interval
+                            else:
+                                dist = abs(line_indices_x[cur_idx][-1] - line_indices_x[lidx - interval][end_idx])
+                                if dist > POLE_CONTINUITY_THRESHOLD:
+                                    return interval
+                        return -1
+
+                    # use the first and last pixel x coordinates for two or more consecutive lines
+                    # to determine whether there are connected wires on the line that need to be removed
                     is_first_line = True
-                    not_object = False
                     for lidx in range(len(line_indices_x)):
                         if is_first_line:
                             is_first_line = False
                             continue
-                        if not_object:
-                            break
-                        # find the first object pixel (with non-zero intensity) in last line
-                        last_obj_indices = np.where(line_indices_x[lidx-1] != 0)[0]
-                        if not any(last_obj_indices):
-                            # previous line no longer contain object
-                            not_object = True
-                            print(f'{input_image_base_name}, detected object index: {i}, no object in line {lidx-1}')
-                            continue
-                        last_start_idx = last_obj_indices[0]
-                        last_end_idx = last_obj_indices[-1]
-                        x_dist = abs(line_indices_x[lidx][0] - line_indices_x[lidx-1][last_start_idx])
-                        if x_dist > POLE_CONTINUITY_THRESHOLD:
+
+
+                        # remove connected wires from left side
+                        left_interval = get_previous_line_index(lidx)
+                        last_obj_indices = np.where(line_indices_x[lidx - left_interval] != 0)[0]
+                        last_idx = line_indices_x[lidx - left_interval][last_obj_indices[0]]
+                        for interval in range(0, left_interval):
                             # connected wired are included in the line, remove those added pixels compared to
-                            # its previous line
-                            last_idx = line_indices_x[lidx-1][last_start_idx]
-                            if line_indices_x[lidx][0] < last_idx:
+                            # its previous line within the interval
+                            if line_indices_x[lidx-interval][0] < last_idx:
                                 # update original labeled_data
-                                for y, x in zip(line_indices_y[lidx], line_indices_x[lidx]):
+                                for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
                                     if x < last_idx:
-                                        labeled_data[y,x] = 0
+                                        labeled_data[y, x] = 0
                                 # update indices
-                                line_indices_x[lidx][line_indices_x[lidx] < last_idx] = 0
+                                line_indices_x[lidx][line_indices_x[lidx-interval] < last_idx] = 0
                                 recompute = True
-                            else:
-                                last_idx = line_indices_x[lidx-1][last_end_idx]
+                        # remove connected wires from righ side
+                        right_interval = get_previous_line_index(lidx, start=False)
+                        last_obj_indices = np.where(line_indices_x[lidx - right_interval] != 0)[0]
+                        last_idx = line_indices_x[lidx - right_interval][last_obj_indices[-1]]
+                        for interval in range(0, right_interval):
+                            if line_indices_x[lidx-interval][-1] > last_idx:
                                 # update original labeled_data
-                                for y, x in zip(line_indices_y[lidx], line_indices_x[lidx]):
+                                for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
                                     if x > last_idx:
                                         labeled_data[y, x] = 0
                                 # update indices
-                                line_indices_x[lidx][line_indices_x[lidx] > last_idx] = 0
+                                line_indices_x[lidx][line_indices_x[lidx-interval] > last_idx] = 0
                                 recompute = True
 
                 if recompute:
