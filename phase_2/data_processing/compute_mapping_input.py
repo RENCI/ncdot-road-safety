@@ -60,6 +60,11 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
             # input_data[input_data == POLE] = 255
             # updated_image = Image.fromarray(input_data)
             # updated_image.save(os.path.join(path, f'updated_{mapped_image}{suffix}'))
+
+            def get_depth(cy, cx):
+                return (1 - (image_pfm[int(cy + 0.5), int(cx + 0.5)] - min_depth) / (max_depth - min_depth)) \
+                       * SCALING_FACTOR
+
             for i in range(count):
                 min_y = object_features[i].bbox[0]
                 max_y = object_features[i].bbox[2]
@@ -75,6 +80,18 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 level_indices_y = level_indices[0]
                 level_indices_x = level_indices[1]
 
+                y0, x0 = object_features[i].centroid
+                depth = get_depth(y0, x0)
+                # apply depth-height filtering
+                filtered_out = False
+                for key, val in D_H_THRESHOLD.items():
+                    if depth < key:
+                        if ydiff < val:
+                            filtered_out = True
+                        break
+                if filtered_out:
+                    continue
+
                 recompute = False
                 if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                     major_axis_len = object_features[i].major_axis_length
@@ -82,6 +99,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                     if major_axis_len / minor_axis_len < POLE_ASPECT_RATIO_THRESHOLD:
                         # filter out detected short sticks
                         continue
+
                     # connected wires from detected pole make xdiff much bigger than it should,
                     # remove connected wires in order to make accurate centroid computations to get depth info
                     line_indices_y, line_indices_x = split_into_lines(level_indices_y, level_indices_x)
@@ -129,22 +147,9 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 if recompute:
                     # need to recompute properties since original labeled_data is updated
                     object_features = skimage.measure.regionprops(labeled_data)
-                    ydiff = object_features[i].bbox[2] - object_features[i].bbox[0]
+                    y0, x0 = object_features[i].centroid
+                    depth = get_depth(y0, x0)
 
-                y0, x0 = object_features[i].centroid
-                y0 = int(y0 + 0.5)
-                x0 = int(x0 + 0.5)
-                depth = (image_pfm[y0, x0] - min_depth) / (max_depth - min_depth)
-                depth = (1 - depth) * SCALING_FACTOR
-                # apply depth-height filtering
-                filtered_out = False
-                for key, val in D_H_THRESHOLD.items():
-                    if depth < key:
-                        if ydiff < val:
-                            filtered_out = True
-                        break
-                if filtered_out:
-                    continue
 
                 # compute bearing
                 cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2)
