@@ -14,6 +14,7 @@ POLE_SIZE_THRESHOLD = 10
 POLE_ASPECT_RATIO_THRESHOLD = 12
 # angle in radians threshold between pole major axis and the x/vertical axis. The threshold is about 3 degrees
 POLE_ORIENTATION_THRESHOLD = 0.05
+POLE_CONTINUITY_THRESHOLD = 6
 # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25, filter out those with H < 350
 D_H_THRESHOLD = {
     10: 500,
@@ -121,11 +122,12 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                         if not any(last_obj_indices):
                             # previous line no longer contain object
                             not_object = True
+                            print(f'{input_image_base_name}, detected object index: {i}, no object in line {lidx-1}')
                             continue
                         last_start_idx = last_obj_indices[0]
                         last_end_idx = last_obj_indices[-1]
                         x_dist = abs(line_indices_x[lidx][0] - line_indices_x[lidx-1][last_start_idx])
-                        if x_dist > POLE_SIZE_THRESHOLD:
+                        if x_dist > POLE_CONTINUITY_THRESHOLD:
                             # connected wired are included in the line, remove those added pixels compared to
                             # its previous line
                             last_idx = line_indices_x[lidx-1][last_start_idx]
