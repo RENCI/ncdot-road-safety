@@ -12,6 +12,8 @@ from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points, 
 SCALING_FACTOR = 25
 POLE_SIZE_THRESHOLD = 10
 POLE_ASPECT_RATIO_THRESHOLD = 12
+# angle in radians threshold between pole major axis and the x/vertical axis. The threshold is about 3 degrees
+POLE_ORIENTATION_THRESHOLD = 0.05
 # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25, filter out those with H < 350
 D_H_THRESHOLD = {
     10: 500,
@@ -73,8 +75,9 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 xdiff = max_x - min_x
                 ydiff = max_y - min_y
 
-                if xdiff < POLE_SIZE_THRESHOLD or ydiff < POLE_SIZE_THRESHOLD or xdiff > ydiff:
-                    # filter out noises
+                if xdiff < POLE_SIZE_THRESHOLD or ydiff < POLE_SIZE_THRESHOLD or xdiff > ydiff or \
+                        abs(object_features[i].orientation) > POLE_ORIENTATION_THRESHOLD:
+                    # filter out noises or non-straight pole-like objects
                     continue
                 level_indices = np.where(labeled_data == i + 1)
                 level_indices_y = level_indices[0]
