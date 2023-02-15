@@ -26,7 +26,7 @@ def get_data_from_image(input_image_name):
 
 
 def save_data_to_image(data, output_image_name):
-    Image.fromarray(data, 'L').save(output_image_name)
+    Image.fromarray(np.uint8(data), 'L').save(output_image_name)
 
 def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2):
     lon_delta_rad = math.radians(lon2-lon1)
