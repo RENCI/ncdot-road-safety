@@ -134,7 +134,6 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                             is_first_line = False
                             continue
 
-
                         # remove connected wires from left side
                         left_interval = get_previous_line_index(lidx)
                         last_obj_indices = np.where(line_indices_x[lidx - left_interval] != 0)[0]
@@ -148,7 +147,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                                     if x < last_idx:
                                         labeled_data[y, x] = 0
                                 # update indices
-                                line_indices_x[lidx][line_indices_x[lidx-interval] < last_idx] = 0
+                                line_indices_x[lidx-interval][line_indices_x[lidx-interval] < last_idx] = 0
                                 recompute = True
                         # remove connected wires from righ side
                         right_interval = get_previous_line_index(lidx, start=False)
@@ -161,7 +160,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                                     if x > last_idx:
                                         labeled_data[y, x] = 0
                                 # update indices
-                                line_indices_x[lidx][line_indices_x[lidx-interval] > last_idx] = 0
+                                line_indices_x[lidx-interval][line_indices_x[lidx-interval] > last_idx] = 0
                                 recompute = True
 
                 if recompute:
