@@ -121,7 +121,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                                 if dist > POLE_CONTINUITY_THRESHOLD:
                                     return interval
                             else:
-                                dist = abs(line_indices_x[cur_idx][-1] - line_indices_x[lidx - interval][end_idx])
+                                dist = abs(line_indices_x[cur_idx][-1] - line_indices_x[cur_idx - interval][end_idx])
                                 if dist > POLE_CONTINUITY_THRESHOLD:
                                     return interval
                         return -1
