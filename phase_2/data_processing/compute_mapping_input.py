@@ -178,8 +178,8 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 br_angle = (cam_br - hangle) if minus_bearing else (cam_br + hangle)
                 br_angle = (br_angle + 360) % 360
                 img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, depth])
-                if input_image_base_name == '926005420245' or input_image_base_name == '926005420241':
-                    labeled_data[labeled_data != 0 ] = 255
+                if input_image_base_name == '926005420241':
+                    labeled_data[labeled_data == 1 ] = 255
                     save_data_to_image(labeled_data, f'{input_image_base_name}_processed.png')
 
 
