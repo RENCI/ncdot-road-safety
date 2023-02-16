@@ -168,12 +168,14 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                                     # update indices
                                     line_indices_x[lidx-interval][line_indices_x[lidx-interval] > last_idx] = 0
                                     recompute = True
-                        # remove disconnected smaller part from the left or right
-                        split_indices, con_indices = consecutive(line_indices_x[lidx], step_size=2)
-                        if any(split_indices) and len(split_indices) == 1:
-                            indices = con_indices[0] if len(con_indices[0]) < len(con_indices[1]) else con_indices[1]
-                            for x in indices:
-                                labeled_data[line_indices_y[lidx][0], x] = 0
+
+                        if left_interval == -1 and right_interval == -1:
+                            # remove disconnected smaller part from the left or right
+                            split_indices, con_indices = consecutive(line_indices_x[lidx], step_size=2)
+                            if any(split_indices) and len(split_indices) == 1:
+                                indices = con_indices[0] if len(con_indices[0]) < len(con_indices[1]) else con_indices[1]
+                                for x in indices:
+                                    labeled_data[line_indices_y[lidx][0], x] = 0
                 if recompute:
                     # need to recompute properties since original labeled_data is updated
                     object_features = skimage.measure.regionprops(labeled_data)
