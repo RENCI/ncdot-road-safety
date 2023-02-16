@@ -138,24 +138,15 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                             is_first_line = False
                             continue
 
-                        left_interval = get_previous_line_index(lidx)
-                        right_interval = get_previous_line_index(lidx, start=False)
                         # remove potentially disconnected line parts
-                        if left_interval == -1 or right_interval == -1:
-                            split_indices, con_indices = consecutive(line_indices_x[lidx], step_size=2)
-                            if any(split_indices) and len(split_indices) == 1:
-                                if left_interval > 0:
-                                    # remove right part of the disconnected part
-                                    indices = con_indices[1]
-                                elif right_interval > 0:
-                                    # remove left part of the disconnected part
-                                    indices = con_indices[0]
-                                else:
-                                    # remove disconnected smaller part from the left or right
-                                    indices = con_indices[0] if len(con_indices[0]) < len(con_indices[1]) \
-                                        else con_indices[1]
-                                for x in indices:
-                                    labeled_data[line_indices_y[lidx][0], x] = 0
+                        split_indices, con_indices = consecutive(line_indices_x[lidx], step_size=2)
+                        if any(split_indices) and len(split_indices) == 1:
+                            # remove disconnected smaller part from the left or right
+                            indices = con_indices[0] if len(con_indices[0]) < len(con_indices[1]) else con_indices[1]
+                            for x in indices:
+                                labeled_data[line_indices_y[lidx][0], x] = 0
+
+                        left_interval = get_previous_line_index(lidx)
                         # remove connected wires from left side
                         if left_interval > 0:
                             last_obj_indices = np.where(line_indices_x[lidx - left_interval] != 0)[0]
@@ -171,6 +162,8 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                                     # update indices
                                     line_indices_x[lidx-interval][line_indices_x[lidx-interval] < last_idx] = 0
                                     recompute = True
+
+                        right_interval = get_previous_line_index(lidx, start=False)
                         # remove connected wires from righ side
                         if right_interval > 0:
                             last_obj_indices = np.where(line_indices_x[lidx - right_interval] != 0)[0]
