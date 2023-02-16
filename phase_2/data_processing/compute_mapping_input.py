@@ -138,37 +138,9 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                             is_first_line = False
                             continue
 
-                        # remove connected wires from left side
                         left_interval = get_previous_line_index(lidx)
-                        if left_interval > 0:
-                            last_obj_indices = np.where(line_indices_x[lidx - left_interval] != 0)[0]
-                            last_idx = line_indices_x[lidx - left_interval][last_obj_indices[0]]
-                            for interval in range(0, left_interval):
-                                # connected wired are included in the line, remove those added pixels compared to
-                                # its previous line within the interval
-                                if line_indices_x[lidx-interval][0] < last_idx:
-                                    # update original labeled_data
-                                    for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
-                                        if x < last_idx:
-                                            labeled_data[y, x] = 0
-                                    # update indices
-                                    line_indices_x[lidx-interval][line_indices_x[lidx-interval] < last_idx] = 0
-                                    recompute = True
-                        # remove connected wires from righ side
                         right_interval = get_previous_line_index(lidx, start=False)
-                        if right_interval > 0:
-                            last_obj_indices = np.where(line_indices_x[lidx - right_interval] != 0)[0]
-                            last_idx = line_indices_x[lidx - right_interval][last_obj_indices[-1]]
-                            for interval in range(0, right_interval):
-                                if line_indices_x[lidx-interval][-1] > last_idx:
-                                    # update original labeled_data
-                                    for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
-                                        if x > last_idx:
-                                            labeled_data[y, x] = 0
-                                    # update indices
-                                    line_indices_x[lidx-interval][line_indices_x[lidx-interval] > last_idx] = 0
-                                    recompute = True
-
+                        # remove potentially disconnected line parts
                         if left_interval == -1 or right_interval == -1:
                             split_indices, con_indices = consecutive(line_indices_x[lidx], step_size=2)
                             if any(split_indices) and len(split_indices) == 1:
@@ -184,6 +156,36 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                                         else con_indices[1]
                                 for x in indices:
                                     labeled_data[line_indices_y[lidx][0], x] = 0
+                        # remove connected wires from left side
+                        if left_interval > 0:
+                            last_obj_indices = np.where(line_indices_x[lidx - left_interval] != 0)[0]
+                            last_idx = line_indices_x[lidx - left_interval][last_obj_indices[0]]
+                            for interval in range(0, left_interval):
+                                # connected wired are included in the line, remove those added pixels compared to
+                                # its previous line within the interval
+                                if line_indices_x[lidx-interval][0] < last_idx:
+                                    # update original labeled_data
+                                    for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
+                                        if x < last_idx:
+                                            labeled_data[y, x] = 0
+                                    # update indices
+                                    line_indices_x[lidx-interval][line_indices_x[lidx-interval] < last_idx] = 0
+                                    recompute = True
+                        # remove connected wires from righ side
+                        if right_interval > 0:
+                            last_obj_indices = np.where(line_indices_x[lidx - right_interval] != 0)[0]
+                            last_idx = line_indices_x[lidx - right_interval][last_obj_indices[-1]]
+                            for interval in range(0, right_interval):
+                                if line_indices_x[lidx-interval][-1] > last_idx:
+                                    # update original labeled_data
+                                    for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
+                                        if x > last_idx:
+                                            labeled_data[y, x] = 0
+                                    # update indices
+                                    line_indices_x[lidx-interval][line_indices_x[lidx-interval] > last_idx] = 0
+                                    recompute = True
+
+
                 if recompute:
                     # need to recompute properties since original labeled_data is updated
                     object_features = skimage.measure.regionprops(labeled_data)
