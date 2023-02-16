@@ -5,8 +5,7 @@ import numpy as np
 from pypfm import PFMLoader
 import skimage.measure
 
-from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points, split_into_lines, consecutive, \
-    save_data_to_image
+from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points, split_into_lines, consecutive
 
 
 SCALING_FACTOR = 25
@@ -68,13 +67,10 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 return (1 - (image_pfm[int(cy + 0.5), int(cx + 0.5)] - min_depth) / (max_depth - min_depth)) \
                        * SCALING_FACTOR
 
+            obj_cnt = 0
             for i in range(count):
-                min_y = object_features[i].bbox[0]
-                max_y = object_features[i].bbox[2]
-                min_x = object_features[i].bbox[1]
-                max_x = object_features[i].bbox[3]
-                xdiff = max_x - min_x
-                ydiff = max_y - min_y
+                xdiff = object_features[i].bbox[3] - object_features[i].bbox[1]
+                ydiff = object_features[i].bbox[2] - object_features[i].bbox[0]
 
                 if xdiff < POLE_SIZE_THRESHOLD or ydiff < POLE_SIZE_THRESHOLD or xdiff > ydiff or \
                         abs(object_features[i].orientation) > POLE_ORIENTATION_THRESHOLD:
@@ -132,19 +128,10 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
 
                     # use the first and last pixel x coordinates for two or more consecutive lines
                     # to determine whether there are connected wires on the line that need to be removed
-                    is_first_line = True
                     for lidx in range(len(line_indices_x)):
-                        if is_first_line:
-                            is_first_line = False
+                        if lidx == 0:
+                            # first line does not need any post-processing
                             continue
-
-                        # remove potentially disconnected line parts
-                        split_indices, con_indices = consecutive(line_indices_x[lidx], step_size=2)
-                        if any(split_indices) and len(split_indices) == 1:
-                            # remove disconnected smaller part from the left or right
-                            indices = con_indices[0] if len(con_indices[0]) < len(con_indices[1]) else con_indices[1]
-                            for x in indices:
-                                labeled_data[line_indices_y[lidx][0], x] = 0
 
                         left_interval = get_previous_line_index(lidx)
                         # remove connected wires from left side
@@ -178,13 +165,22 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                                     line_indices_x[lidx-interval][line_indices_x[lidx-interval] > last_idx] = 0
                                     recompute = True
 
+                        # remove potentially disconnected line parts
+                        split_indices, con_indices = consecutive(line_indices_x[lidx][line_indices_x[lidx] != 0],
+                                                                 step_size=2)
+                        if any(split_indices) and len(split_indices) == 1:
+                            # remove disconnected smaller part from the left or right
+                            indices = con_indices[0] if len(con_indices[0]) < len(con_indices[1]) else \
+                            con_indices[1]
+                            for x in indices:
+                                labeled_data[line_indices_y[lidx][0], x] = 0
+                            recompute = True
 
                 if recompute:
                     # need to recompute properties since original labeled_data is updated
                     object_features = skimage.measure.regionprops(labeled_data)
                     y0, x0 = object_features[i].centroid
                     depth = get_depth(y0, x0)
-
 
                 # compute bearing
                 cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2)
@@ -210,9 +206,15 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 br_angle = (cam_br - hangle) if minus_bearing else (cam_br + hangle)
                 br_angle = (br_angle + 360) % 360
                 img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, depth])
-                if input_image_base_name == '926005420241':
-                    labeled_data[labeled_data == 1 ] = 255
-                    save_data_to_image(labeled_data, f'{input_image_base_name}_processed.png')
+                # if input_image_base_name == '926005420241':
+                #    labeled_data[labeled_data == 1 ] = 255
+                #    save_data_to_image(labeled_data, f'{input_image_base_name}_processed.png')
+                print(f'{input_image_base_name}, xdiff: {object_features[i].bbox[3] - object_features[i].bbox[1]}, '
+                      f'ydiff: {object_features[i].bbox[2] - object_features[i].bbox[0]}, cam_br:{cam_br}, '
+                      f'br_angle: {br_angle}, depth: {depth}')
+                obj_cnt += 1
+            if obj_cnt > 0:
+                print(f'pole count: {obj_cnt}, mapped_image: {mapped_image}')
 
 
 if __name__ == '__main__':
