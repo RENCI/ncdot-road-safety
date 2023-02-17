@@ -16,7 +16,7 @@ POLE_ORIENTATION_THRESHOLD = 0.05
 POLE_CONTINUITY_THRESHOLD = 10
 # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25, filter out those with H < 350
 D_H_THRESHOLD = {
-    10: 500,
+    17: 500,
     25: 350
 }
 width_to_hfov = {
@@ -209,7 +209,10 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 # if input_image_base_name == '926005420241':
                 #    labeled_data[labeled_data == 1 ] = 255
                 #    save_data_to_image(labeled_data, f'{input_image_base_name}_processed.png')
-                print(f'{input_image_base_name}, xdiff: {object_features[i].bbox[3] - object_features[i].bbox[1]}, '
+                print(f'{input_image_base_name}, ori: {object_features[i].orientation}, '
+                      f'minx: {object_features[i].bbox[1]}, maxx: {object_features[i].bbox[3]}, '
+                      f'miny: {object_features[i].bbox[0]}, maxy: {object_features[i].bbox[2]}, '
+                      f'xdiff: {object_features[i].bbox[3] - object_features[i].bbox[1]}, '
                       f'ydiff: {object_features[i].bbox[2] - object_features[i].bbox[0]}, cam_br:{cam_br}, '
                       f'br_angle: {br_angle}, depth: {depth}')
                 obj_cnt += 1
