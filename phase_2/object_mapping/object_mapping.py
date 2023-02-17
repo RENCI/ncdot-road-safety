@@ -143,7 +143,7 @@ def CalcAvrgObject(Intersects, ObjectsConnectivity, Object):
 
 
 # only PAIRWISE intersections
-def main(inputfilename, outputfilename):
+def main(inputfilename, outputfilename, output_intersect=False):
     start = time.time()
     ObjectsBase = []
 
@@ -275,14 +275,16 @@ def main(inputfilename, outputfilename):
 
     ICMintersect = []
     ifObjectIntersects = np.zeros(len(ObjectsBase), dtype=np.uint8)
-    ICMintersect_images = []
+    if output_intersect:
+        ICMintersect_images = []
     for i in range(len(ObjectsBase)):
         res, id_list = CalcAvrgObject(Intersects, ObjectsConnectivity, i)
         if res[0]:
             ifObjectIntersects[i] = 1
             ICMintersect.append((res[0], res[1]))
-            for id in id_list:
-                ICMintersect_images.append(((ObjectsBase[i])[9], (ObjectsBase[id])[9]))
+            if output_intersect:
+                for id in id_list:
+                    ICMintersect_images.append(((ObjectsBase[i])[9], (ObjectsBase[id])[9]))
 
     print("ICM intersections: {0:d}".format(len(ICMintersect)))
     IntersectClusters = hierarchical_clustering(ICMintersect, MaxDegreeDstInCluster)
@@ -294,9 +296,10 @@ def main(inputfilename, outputfilename):
             inter.write("{0:f},{1:f},{2:d}\n".format(IntersectClusters[i, 0]/IntersectClusters[i, 2],
                                                      IntersectClusters[i, 1]/IntersectClusters[i, 2],
                                                      int(IntersectClusters[i, 2])))
-    with open(f'{os.path.splitext(outputfilename)[0]}_intersect_base_images.txt', "w") as img_fp:
-        for item in ICMintersect_images:
-            img_fp.write(f"{item}\n")
+    if output_intersect:
+        with open(f'{os.path.splitext(outputfilename)[0]}_intersect_base_images.txt', "w") as img_fp:
+            for item in ICMintersect_images:
+                img_fp.write(f"{item}\n")
 
     print("Number of output ICM clusters: {0:d}".format(NumClusters))
 
@@ -308,8 +311,11 @@ if __name__ == '__main__':
     parser.add_argument('--inputfilename', type=str, default='data/pole_input.csv', help='input file name with path')
     parser.add_argument('--outputfilename', type=str, default='data/pole_detection.csv',
                         help='output file name with path')
+    parser.add_argument('--output_intersect_base_images', action='store_true',
+                        help='output list of intersection base images for categorization')
 
     args = parser.parse_args()
     inputfilename = args.inputfilename
     outputfilename = args.outputfilename
-    main(inputfilename, outputfilename)
+    output_intersect_base_images = args.output_intersect_base_images
+    main(inputfilename, outputfilename, output_intersect=output_intersect_base_images)
