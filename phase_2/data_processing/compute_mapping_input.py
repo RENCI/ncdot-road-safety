@@ -4,14 +4,14 @@ import pandas as pd
 import numpy as np
 from pypfm import PFMLoader
 import skimage.measure
-
-from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points, split_into_lines, consecutive
+import cv2
+from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points
 
 
 SCALING_FACTOR = 25
 POLE_SIZE_THRESHOLD = 10
 POLE_ASPECT_RATIO_THRESHOLD = 12
-POLE_CONTINUITY_THRESHOLD = 10
+POLE_EROSION_DILATION_KERNEL_SIZE = 10
 # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25, filter out those with H < 350
 D_H_THRESHOLD = {
     17: 500,
@@ -47,6 +47,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
         input_data[input_data == ROAD] = 0
         # perform connected component analysis
         labeled_data, count = skimage.measure.label(input_data, connectivity=2, return_num=True)
+        labeled_data = labeled_data.astype('uint8')
         if count > 0:
             object_features = skimage.measure.regionprops(labeled_data)
             loader = PFMLoader((image_width, image_height), color=False, compress=False)
@@ -73,12 +74,36 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                 if xdiff < POLE_SIZE_THRESHOLD or ydiff < POLE_SIZE_THRESHOLD:
                     # filter out noises or non-straight pole-like objects
                     continue
-                level_indices = np.where(labeled_data == i + 1)
-                level_indices_y = level_indices[0]
-                level_indices_x = level_indices[1]
 
                 y0, x0 = object_features[i].centroid
                 depth = get_depth(y0, x0)
+
+                if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
+                    major_axis_len = object_features[i].major_axis_length
+                    minor_axis_len = object_features[i].minor_axis_length
+                    if major_axis_len / minor_axis_len < POLE_ASPECT_RATIO_THRESHOLD:
+                        # filter out detected short sticks
+                        continue
+                    # connected wires from detected pole make xdiff much bigger than it should,
+                    # remove connected wires in order to make accurate centroid computations to get depth info
+                    binary_labeled_data = np.copy(labeled_data)
+                    binary_labeled_data[binary_labeled_data == i + 1] = 255
+                    binary_labeled_data[binary_labeled_data != 255] = 0
+                    # Define the structuring element for erosion and dilation
+                    kernel = np.ones((POLE_EROSION_DILATION_KERNEL_SIZE, POLE_EROSION_DILATION_KERNEL_SIZE), np.uint8)
+                    # apply erosion
+                    img_erosion = cv2.erode(binary_labeled_data, kernel, iterations=1)
+                    # apply dilation to restore the regions
+                    img_dilation = cv2.dilate(img_erosion, kernel, iterations=1)
+                    # use the resulting image with erosion followed by dilation as a mask to
+                    obj_only = cv2.bitwise_and(labeled_data, img_dilation)
+
+                    # need to recompute properties of the object
+                    updated_object_features = skimage.measure.regionprops(obj_only)
+                    y0, x0 = updated_object_features[0].centroid
+                    depth = get_depth(y0, x0)
+                    object_features[i] = updated_object_features[0]
+
                 # apply depth-height filtering
                 filtered_out = False
                 for key, val in D_H_THRESHOLD.items():
@@ -88,96 +113,6 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
                         break
                 if filtered_out:
                     continue
-
-                recompute = False
-                if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
-                    major_axis_len = object_features[i].major_axis_length
-                    minor_axis_len = object_features[i].minor_axis_length
-                    if major_axis_len / minor_axis_len < POLE_ASPECT_RATIO_THRESHOLD:
-                        # filter out detected short sticks
-                        continue
-                    # connected wires from detected pole make xdiff much bigger than it should,
-                    # remove connected wires in order to make accurate centroid computations to get depth info
-                    line_indices_y, line_indices_x = split_into_lines(level_indices_y, level_indices_x)
-
-                    def get_previous_line_index(cur_idx, start=True, upper_range=6):
-                        # find the previous line index (up to upper_range number of previous lines) where the
-                        # distance between start or end pixel of the current line and the previous line is
-                        # bigger than POLE_CONTINUITY_THRESHOLD
-                        for j in range(1, upper_range):
-                            # find the first object pixel (with non-zero intensity) in last line
-                            if cur_idx <= j:
-                                return -1
-                            prev_obj_indices = np.where(line_indices_x[cur_idx - j] != 0)[0]
-                            if not any(prev_obj_indices):
-                                return -1
-                            start_idx = prev_obj_indices[0]
-                            end_idx = prev_obj_indices[-1]
-                            if start:
-                                dist = abs(line_indices_x[cur_idx][0] - line_indices_x[cur_idx - j][start_idx])
-                                if dist > POLE_CONTINUITY_THRESHOLD:
-                                    return j
-                            else:
-                                dist = abs(line_indices_x[cur_idx][-1] - line_indices_x[cur_idx - j][end_idx])
-                                if dist > POLE_CONTINUITY_THRESHOLD:
-                                    return j
-                        return -1
-
-                    # use the first and last pixel x coordinates for two or more consecutive lines
-                    # to determine whether there are connected wires on the line that need to be removed
-                    for lidx in range(len(line_indices_x)):
-                        if lidx == 0:
-                            # first line does not need any post-processing
-                            continue
-
-                        left_interval = get_previous_line_index(lidx)
-                        # remove connected wires from left side
-                        if left_interval > 0:
-                            last_obj_indices = np.where(line_indices_x[lidx - left_interval] != 0)[0]
-                            last_idx = line_indices_x[lidx - left_interval][last_obj_indices[0]]
-                            for interval in range(0, left_interval):
-                                # connected wired are included in the line, remove those added pixels compared to
-                                # its previous line within the interval
-                                if line_indices_x[lidx-interval][0] < last_idx:
-                                    # update original labeled_data
-                                    for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
-                                        if x < last_idx:
-                                            labeled_data[y, x] = 0
-                                    # update indices
-                                    line_indices_x[lidx-interval][line_indices_x[lidx-interval] < last_idx] = 0
-                                    recompute = True
-
-                        right_interval = get_previous_line_index(lidx, start=False)
-                        # remove connected wires from righ side
-                        if right_interval > 0:
-                            last_obj_indices = np.where(line_indices_x[lidx - right_interval] != 0)[0]
-                            last_idx = line_indices_x[lidx - right_interval][last_obj_indices[-1]]
-                            for interval in range(0, right_interval):
-                                if line_indices_x[lidx-interval][-1] > last_idx:
-                                    # update original labeled_data
-                                    for y, x in zip(line_indices_y[lidx-interval], line_indices_x[lidx-interval]):
-                                        if x > last_idx:
-                                            labeled_data[y, x] = 0
-                                    # update indices
-                                    line_indices_x[lidx-interval][line_indices_x[lidx-interval] > last_idx] = 0
-                                    recompute = True
-
-                        # remove potentially disconnected line parts
-                        split_indices, con_indices = consecutive(line_indices_x[lidx][line_indices_x[lidx] != 0],
-                                                                 step_size=2)
-                        if any(split_indices) and len(split_indices) == 1:
-                            # remove disconnected smaller part from the left or right
-                            indices = con_indices[0] if len(con_indices[0]) < len(con_indices[1]) else \
-                            con_indices[1]
-                            for x in indices:
-                                labeled_data[line_indices_y[lidx][0], x] = 0
-                            recompute = True
-
-                if recompute:
-                    # need to recompute properties since original labeled_data is updated
-                    object_features = skimage.measure.regionprops(labeled_data)
-                    y0, x0 = object_features[i].centroid
-                    depth = get_depth(y0, x0)
 
                 # compute bearing
                 cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2)
