@@ -9,7 +9,8 @@ from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points
 
 
 SCALING_FACTOR = 25
-POLE_SIZE_THRESHOLD = 10
+POLE_X_SIZE_THRESHOLD = 10
+POLE_Y_SIZE_THRESHOLD = 20
 POLE_ASPECT_RATIO_THRESHOLD = 12
 POLE_EROSION_DILATION_KERNEL_SIZE = 10
 # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25, filter out those with H < 350
@@ -71,7 +72,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
                 xdiff = object_features[i].bbox[3] - object_features[i].bbox[1]
                 ydiff = object_features[i].bbox[2] - object_features[i].bbox[0]
 
-                if xdiff < POLE_SIZE_THRESHOLD or ydiff < POLE_SIZE_THRESHOLD:
+                if xdiff <= POLE_X_SIZE_THRESHOLD or ydiff <= POLE_Y_SIZE_THRESHOLD:
                     # filter out noises or non-straight pole-like objects
                     continue
 
@@ -98,6 +99,9 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
                     # use the resulting image with erosion followed by dilation as a mask to
                     obj_only = cv2.bitwise_and(labeled_data, img_dilation)
 
+                    if len(np.unique(obj_only)) <= 1:
+                        # The object gets filtered out, so discard it
+                        continue
                     # need to recompute properties of the object
                     updated_object_features = skimage.measure.regionprops(obj_only)
                     y0, x0 = updated_object_features[0].centroid
