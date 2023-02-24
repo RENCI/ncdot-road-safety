@@ -22,7 +22,7 @@ width_to_hfov = {
 }
 
 
-def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path):
+def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfix, mapped_image, path):
     # compute depth of segmented object taking the 10%-trimmed mean of the depths of its constituent pixels
     # to gain robustness with respect to segmentation errors, in particular along the object borders
     mapped_image_df = mapping_df[mapping_df['MAPPED_IMAGE'] == mapped_image]
@@ -53,7 +53,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, mapped_image, path
             loader = PFMLoader((image_width, image_height), color=False, compress=False)
             input_image_base_name = os.path.basename(os.path.splitext(input_image_name)[0])
             image_pfm = loader.load_pfm(os.path.join(input_depth_image_path,
-                                                     f'{input_image_base_name}.pfm'))
+                                                     f'{input_image_base_name}{depth_image_postfix}.pfm'))
             image_pfm = np.flipud(image_pfm)
             # print(f'image_pfm shape: {image_pfm.shape}')
             min_depth = image_pfm.min()
@@ -167,6 +167,9 @@ if __name__ == '__main__':
     parser.add_argument('--input_depth_image_path', type=str,
                         default='/projects/ncdot/geotagging/midas_output/d13_route_40001001011/oneformer',
                         help='input path that includes depth prediction output images')
+    parser.add_argument('--input_depth_image_postfix', type=str,
+                        default='-dpt_beit_large_512',
+                        help='input depth prediction output image postfix to concatenate with image basename')
     parser.add_argument('--output_file', type=str, default='/projects/ncdot/geotagging/input/oneformer/'
                                                            'route_40001001011_segment_object_mapping_input.csv',
                         help='output file that contains image base names and corresponding segmented object depths')
@@ -178,6 +181,7 @@ if __name__ == '__main__':
     model_col_header = args.model_col_header
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
     input_depth_image_path = args.input_depth_image_path
+    input_depth_image_postfix = args.input_depth_image_postfix
     output_file = args.output_file
 
     df = pd.read_csv(input_seg_map_info_with_path, index_col=None,
@@ -189,7 +193,7 @@ if __name__ == '__main__':
                              usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE','LONGITUDE'], dtype=str)
     mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
     img_input_list = []
-    df.apply(lambda row: compute_mapping_input(mapping_df, input_depth_image_path, row['MAPPED_IMAGE'],
-                                               row[model_col_header]), axis=1)
+    df.apply(lambda row: compute_mapping_input(mapping_df, input_depth_image_path, input_depth_image_postfix,
+                                               row['MAPPED_IMAGE'], row[model_col_header]), axis=1)
     out_df = pd.DataFrame(img_input_list, columns=["ImageBaseName", "lat", "lon", "bearing", "Depth"])
     out_df.to_csv(output_file, index=False)
