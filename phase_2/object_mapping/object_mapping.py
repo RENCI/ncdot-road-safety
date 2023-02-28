@@ -287,7 +287,7 @@ def main(inputfilename, outputfilename, output_intersect=False):
                     ICMintersect_images.append(((ObjectsBase[i])[9], (ObjectsBase[id])[9]))
 
     print("ICM intersections: {0:d}".format(len(ICMintersect)))
-    IntersectClusters = hierarchical_clustering(ICMintersect, MaxDegreeDstInCluster)
+    IntersectClusters, ret_clusters = hierarchical_clustering(ICMintersect, MaxDegreeDstInCluster)
 
     NumClusters = IntersectClusters.shape[0]
     with open(outputfilename, "w") as inter:
@@ -298,8 +298,8 @@ def main(inputfilename, outputfilename, output_intersect=False):
                                                      int(IntersectClusters[i, 2])))
     if output_intersect:
         with open(f'{os.path.splitext(outputfilename)[0]}_intersect_base_images.txt', "w") as img_fp:
-            for item in ICMintersect_images:
-                img_fp.write(f"{item}\n")
+            for i, item in enumerate(ICMintersect_images):
+                img_fp.write(f"{item} {ret_clusters[i]}\n")
 
     print("Number of output ICM clusters: {0:d}".format(NumClusters))
 

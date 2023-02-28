@@ -36,7 +36,7 @@ def hierarchical_clustering(intersects, max_intra_degree_dst):
         intersect_clusters[clusters[i], 0] += (intersects[i])[0]
         intersect_clusters[clusters[i], 1] += (intersects[i])[1]
         intersect_clusters[clusters[i], 2] += 1
-    return intersect_clusters
+    return intersect_clusters, clusters
 
 
 def get_max_degree_dist_in_cluster_from_lat_lon(lat, lon, max_dist_in_cluster=1, scaling_factor=640.0/256):
