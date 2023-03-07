@@ -37,13 +37,12 @@ to 2).
 ###########################################
 
 # preset parameters
-MaxObjectDstFromCam = 25  # Max distance from camera to objects (in meters)
+MaxObjectDstFromCam = 20  # Max distance from camera to objects (in meters)
 MaxDstInCluster = 1  # Maximal size of clusters employed (in meters)
 
 scaling_factor = 640.0/256
 
 # MRF optimization parameters
-ICMiterations = 15		# Number of iterations for ICM
 DepthWeight = 0.2		# weight alpha in Eq.(4)
 ObjectMultiView = 0.2		# weight beta in  Eq.(4)
 StandAlonePrice = max(1 - DepthWeight - ObjectMultiView, 0)  # weight (1-alpha-beta) in Eq. (4)
@@ -86,6 +85,7 @@ def Intersect(Object1, Object2):
     a2 = lonP1 - lonC1
     b2 = lonP2 - lonC2
     c2 = lonC2 - lonC1
+    # d is determinant
     d = a2 * b1 - b2 * a1
     if d:
         y = (a1*c2 - a2*c1) / d
@@ -102,6 +102,8 @@ def Intersect(Object1, Object2):
     mx, my = a1*x+latC1, a2*x+lonC1
     # x and y are the distances of intersection to cameras C1 and C2, respectively,
     # and mx, my are (x, y) coordinate of intersection
+    # if Object1[9] == '926005500131' or Object2[9] == '926005500131':
+    #    print(f'Object1: {Object1[9]}, Object2: {Object2[9]}, {x}, {y}, {mx}, {my}')
     return x, y, mx, my
 
 
@@ -118,6 +120,8 @@ def CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, Object):
             # increase energy by penalizing distance between triangulated distance and depth estimate
             dpthPen = DepthWeight*abs(ObjectsDst[Object, i] - (ObjectsBase[Object])[3])
             Energy += dpthPen
+            # if Object == 63 or Object == 64:
+            #     print(f'object depth: {ObjectsBase[Object][3]}, i: {i}, dist: {ObjectsDst[Object, i]}, dpthPen: {dpthPen}')
             dpth = ObjectsDst[Object, i]
             if dpth < dpthmin:
                 dpthmin = dpth
@@ -191,6 +195,8 @@ def main(inputfilename, outputfilename, output_intersect=False):
             yCP = my + 1.0 * cos(br1) * scaling_factor	 # normalized positions (at 1m distance from camera)
             xCP = mx + 1.0 * sin(br1) * scaling_factor
             latp1, lonp1 = meters_to_lat_lon(xCP, yCP)
+            # if base_img == '926005500021' or base_img == '926005500131':
+            #     print(base_img, latp1, lonp1, bearing, depth, lat, lon, latp, lonp)
             ObjectsBase.append((latp1, lonp1, bearing, depth, 0, lat, lon, latp, lonp, base_img))
 
     print("All detected objects: {0:d}".format(len(ObjectsBase)))
@@ -233,40 +239,30 @@ def main(inputfilename, outputfilename, output_intersect=False):
     #           I C M           #
     #############################
 
-    np.random.seed(int(100000.0 * time.time()) % 1000000000)
-    chngcnt = 0
-    for ICMiter in range(ICMiterations * len(ObjectsBase)):
-        if (ICMiter+1) % (len(ObjectsBase)) == 0:
-            print('Iteration #{}: accepted {} changes'.format((ICMiter + 1) / (len(ObjectsBase)), chngcnt))
-            chngcnt = 0
-        # randomly select a viable pair of intersections testObject <-> testObjectPair
-        testObject = np.random.randint(0, len(ObjectsBase))
+    for testObject in range(len(ObjectsBase)):
+        chngcnt = 0
         if ObjectsConnectivityViableOptions[testObject] == 0:  # no pairing possible (standalone - )
             continue
+        # look at other viable connections to testObject
+        for testObjectPair in range(testObject+1, len(ObjectsBase)):
+            if ObjectsDst[testObject, testObjectPair] > 0:
+                EnergyOld = CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObject)
+                EnergyOld += CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObjectPair)
+                ObjectsConnectivity[testObject, testObjectPair] = 1 - ObjectsConnectivity[testObject, testObjectPair]
+                ObjectsConnectivity[testObjectPair, testObject] = 1 - ObjectsConnectivity[testObjectPair, testObject]
+                EnergyNew = CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObject)
+                EnergyNew += CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObjectPair)
+                if EnergyNew <= EnergyOld:
+                    # keep the connection between testObject and testObjectPair
+                    chngcnt += 1
+                    continue
 
-        randnum = 1 + np.random.randint(0, ObjectsConnectivityViableOptions[testObject])
-        curcnt = 0
-        testObjectPair = 0
-        for i in range(len(ObjectsBase)):
-            if ObjectsDst[testObject, i] > 0:
-                curcnt += 1
-            if curcnt == randnum:
-                testObjectPair = i
-                break
-        EnergyOld = CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObject)
-        EnergyOld += CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObjectPair)
-        ObjectsConnectivity[testObject, testObjectPair] = 1 - ObjectsConnectivity[testObject, testObjectPair]
-        ObjectsConnectivity[testObjectPair, testObject] = 1 - ObjectsConnectivity[testObjectPair, testObject]
-        EnergyNew = CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObject)
-        EnergyNew += CalcEnergyObject(ObjectsDst, ObjectsBase, ObjectsConnectivity, testObjectPair)
-        if EnergyNew <= EnergyOld:
-            # keep the connection between testObject and testObjectPair for this iteration
-            chngcnt += 1
-            continue
+                # revert to the old configuration
+                ObjectsConnectivity[testObject, testObjectPair] = 1 - ObjectsConnectivity[testObject, testObjectPair]
+                ObjectsConnectivity[testObjectPair, testObject] = 1 - ObjectsConnectivity[testObjectPair, testObject]
 
-        # revert to the old configuration
-        ObjectsConnectivity[testObject, testObjectPair] = 1 - ObjectsConnectivity[testObject, testObjectPair]
-        ObjectsConnectivity[testObjectPair, testObject] = 1 - ObjectsConnectivity[testObjectPair, testObject]
+        print(f'accepted {chngcnt} changes in intersections to {testObject}:')
+
     #############################
     #    C L U S T E R I N G    #
     #############################
