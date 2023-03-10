@@ -4,6 +4,7 @@ import os
 import os.path
 import time
 import numpy as np
+import itertools
 from math import radians, cos, sin, asin, sqrt, dist
 from utils import lat_lon_to_meters, meters_to_lat_lon, hierarchical_clustering, \
     get_max_degree_dist_in_cluster_from_lat_lon
@@ -12,7 +13,7 @@ from utils import lat_lon_to_meters, meters_to_lat_lon, hierarchical_clustering,
 ------------------------------------------
 This module contains the adapted implementation of the MRF-based triangulation procedure introduced in
 "Automatic Discovery and Geotagging of Objects from Street View Imagery" https://arxiv.org/abs/1708.08417. 
-See https://github.com/vlkryl/streetview_objectmapping/blob/master/objectmapping.pyfor the original 
+See https://github.com/vlkryl/streetview_objectmapping/blob/master/objectmapping.py for the original 
 implementation and copyright info of the approach.
 
 This object mapping module takes a csv file as input where each line in 
@@ -27,15 +28,14 @@ and a score value for each of these. The score is the number of individual views
 ------------------------------------------
 '''
 
-
 # preset parameters
 MAX_OBJ_DIST_FROM_CAM = 20  # Max distance from camera to objects (in meters)
 MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
 SCALING_FACTOR = 640.0 / 256
 
 # MRF optimization parameters
-DEPTH_WEIGHT = 0.2		# weight alpha in Eq.(4)
-OBJ_MULTI_VIEW = 0.2		# weight beta in  Eq.(4)
+DEPTH_WEIGHT = 0.2  # weight alpha in Eq.(4)
+OBJ_MULTI_VIEW = 0.2  # weight beta in  Eq.(4)
 STANDALONE_PRICE = max(1 - DEPTH_WEIGHT - OBJ_MULTI_VIEW, 0)  # weight (1-alpha-beta) in Eq. (4)
 
 # indices as constants in the input data array
@@ -53,8 +53,8 @@ def haversine(lon1, lat1, lon2, lat2):
     # haversine formula 
     dist_lon = lon2 - lon1
     dist_lat = lat2 - lat1
-    a = sin(dist_lat/2)**2 + cos(lat1) * cos(lat2) * sin(dist_lon/2)**2
-    c = 2 * asin(sqrt(a)) 
+    a = sin(dist_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dist_lon / 2) ** 2
+    c = 2 * asin(sqrt(a))
     m = 6367000. * c
     return m
 
@@ -62,7 +62,6 @@ def haversine(lon1, lat1, lon2, lat2):
 # calculating the intersection point between two rays (specified each by camera position and depth-estimated object
 # location). Refer to https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection where u = y, t = x
 def compute_intersect(obj1, obj2):
-
     lat_c1_x1, lon_c1_y1 = obj1[LAT_C], obj1[LON_C]
     lat_c2_x3, lon_c2_y3 = obj2[LAT_C], obj2[LON_C]
     # normalized object lat/lon which does not take into account input depth
@@ -71,18 +70,18 @@ def compute_intersect(obj1, obj2):
 
     a1, b1, c1 = lat_p1_x2 - lat_c1_x1, lat_p2_x4 - lat_c2_x3, lat_c2_x3 - lat_c1_x1
     a2, b2, c2 = lon_p1_y2 - lon_c1_y1, lon_p2_y4 - lon_c2_y3, lon_c2_y3 - lon_c1_y1
-    
+
     # d is determinant
     d = a2 * b1 - b2 * a1
     if d:
-        y = (a1*c2 - a2*c1) / d
+        y = (a1 * c2 - a2 * c1) / d
     else:
         return -1, -1, 0, 0
-    
+
     if a1 != 0:
-        x = (b1*y+c1) / a1
+        x = (b1 * y + c1) / a1
     else:
-        x = (b2*y+c2) / a2
+        x = (b2 * y + c2) / a2
 
     if (x < 0) or (y < 0):
         return -2, -2, 0, 0
@@ -90,10 +89,10 @@ def compute_intersect(obj1, obj2):
     if (x > MAX_OBJ_DIST_FROM_CAM) or (y > MAX_OBJ_DIST_FROM_CAM):
         return -3, -3, 0, 0
 
-    mx, my = a1*x+lat_c1_x1, a2*x+lon_c1_y1
+    mx, my = a1 * x + lat_c1_x1, a2 * x + lon_c1_y1
     # if obj1[BASE_IMAGE_NAME] == '926005500131' or obj2[BASE_IMAGE_NAME] == '926005500131':
     #    print(f'Object1: {obj1[BASE_IMAGE_NAME]}, Object2: {obj2[BASE_IMAGE_NAME]}, {x}, {y}, {mx}, {my}')
-    
+
     # x and y are the distances of intersection to cameras C1 and C2, respectively,
     # and mx, my are (x, y) coordinate of intersection
     return x, y, mx, my
@@ -110,7 +109,7 @@ def compute_energy(objs_dist, objs, objs_connectivity, obj):
     for i in range(len(objs)):
         if objs_connectivity[obj, i]:
             # increase energy by penalizing distance between triangulated distance and depth estimate
-            depth_pen = DEPTH_WEIGHT*abs(objs_dist[obj, i] - (objs[obj])[DEPTH])
+            depth_pen = DEPTH_WEIGHT * abs(objs_dist[obj, i] - (objs[obj])[DEPTH])
             energy += depth_pen
             # if Object == 63 or Object == 64:
             #     print(f"object depth: {objs[obj][DEPTH]}, i: {i}, dist: {objs_dist[obj, i]}, depth_pen: {depth_pen}")
@@ -133,11 +132,10 @@ def compute_avg_object(intersects, objs_connectivity, obj):
             idx_list.append(i)
             cnt += 1
     if cnt:
-        return res/cnt, idx_list
+        return res / cnt, idx_list
     return res, idx_list
 
 
-# only PAIRWISE intersections
 def main(input_filename, output_filename, output_intersect=False, is_planar=False):
     start = time.time()
     objects_base = []
@@ -153,7 +151,7 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
     # A L L  O B J E C T S        #
     ###############################
     with open(input_filename, 'r') as f:
-        next(f)	 # skip the first line
+        next(f)  # skip the first line
         for line in f:
             nums = line.split(',')
             if len(nums) < 3:
@@ -204,11 +202,12 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
     num_intersects = 0
     objects_dist = np.zeros((len(objects_base), len(objects_base)))
     objects_intersects = np.zeros((len(objects_base), len(objects_base), 2))
+    # compute PAIRWISE intersections
     for i in range(len(objects_base)):
         if i % 1000 == 0 and i > 0:
             print('Parsed {} object entries ({:.2f}%)'.format(i, 100. * i / len(objects_base)))
         objects_dist[i, i] = -5
-        for j in range(i+1, len(objects_base)):
+        for j in range(i + 1, len(objects_base)):
             if not is_planar:
                 cam_dist = haversine(objects_base[i][LON_C], objects_base[i][LAT_C], objects_base[j][LON_C],
                                      objects_base[j][LAT_C])
@@ -244,7 +243,7 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
         if objects_connect_viable_options[test_obj] == 0:  # no pairing possible (standalone - )
             continue
         # look at other viable connections to testObject
-        for test_obj_pair in range(test_obj+1, len(objects_base)):
+        for test_obj_pair in range(test_obj + 1, len(objects_base)):
             if objects_dist[test_obj, test_obj_pair] > 0:
                 energy_old = compute_energy(objects_dist, objects_base, objects_connectivity, test_obj)
                 energy_old += compute_energy(objects_dist, objects_base, objects_connectivity, test_obj_pair)
@@ -277,14 +276,13 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
         max_dist_in_cluster = ((ax - ax1) ** 2 + (ay - ay1) ** 2) ** 0.5
 
     intersect_list = []
-    intersect_images = []
+    intersect_index_pairs = []
     for i in range(len(objects_base)):
         res, id_list = compute_avg_object(objects_intersects, objects_connectivity, i)
         if res[0]:
             intersect_list.append((res[0], res[1]))
-            if output_intersect:
-                for oid in id_list:
-                    intersect_images.append((objects_base[i][BASE_IMAGE_NAME], objects_base[oid][BASE_IMAGE_NAME]))
+            for oid in id_list:
+                intersect_index_pairs.append((i, oid))
 
     print("ICM intersections: {0:d}".format(len(intersect_list)))
     intersect_clusters, ret_clusters = hierarchical_clustering(intersect_list, max_dist_in_cluster)
@@ -293,15 +291,118 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
     with open(output_filename, "w") as inter:
         inter.write("lat,lon,score\n")
         for i in range(num_clusters):
-            inter.write("{0:f},{1:f},{2:d}\n".format(intersect_clusters[i, 0]/intersect_clusters[i, 2],
-                                                     intersect_clusters[i, 1]/intersect_clusters[i, 2],
+            inter.write("{0:f},{1:f},{2:d}\n".format(intersect_clusters[i, 0] / intersect_clusters[i, 2],
+                                                     intersect_clusters[i, 1] / intersect_clusters[i, 2],
                                                      int(intersect_clusters[i, 2])))
     if output_intersect:
         with open(f'{os.path.splitext(output_filename)[0]}_intersect_base_images.txt', "w") as img_fp:
-            for i, item in enumerate(intersect_images):
-                img_fp.write(f"{item} {ret_clusters[i]}\n")
+            for i, item in enumerate(intersect_index_pairs):
+                img_fp.write(f"{item[0]}:{objects_base[item[0]][BASE_IMAGE_NAME]} "
+                             f"{item[1]}:{objects_base[item[1]][BASE_IMAGE_NAME]} "
+                             f"{ret_clusters[i]}\n")
 
     print("Number of output clusters: {0:d}".format(num_clusters))
+    if not is_planar:
+        # make further clustering of objects based on whether the objects detected in the sequence of consecutive
+        # images can be treated as the same object. The decision rule is based on the fact that our images were
+        # collected in sequence when the vehicle with cameras were driven toward the object from farther away to closer.
+        cluster_dict = {}
+        for idx_pair, cluster_idx in zip(intersect_index_pairs, ret_clusters):
+            if cluster_idx not in cluster_dict:
+                cluster_dict[cluster_idx] = list(idx_pair)
+            else:
+                cluster_dict[cluster_idx] += idx_pair
+                # remove potential duplicates
+                cluster_dict[cluster_idx] = list(set(cluster_dict[cluster_idx]))
+
+        clusters = [[objects_base[idx][BASE_IMAGE_NAME], objects_base[idx][BEARING], objects_base[idx][DEPTH],
+                     cluster_idx] for cluster_idx, idx_pairs in cluster_dict.items() for idx in idx_pairs]
+        # sort clusters by base image name
+        clusters.sort()
+        # check whether further clustering can be performed
+        image_idx = 0
+        bearing_idx = 1
+        depth_idx = 2
+        cluster_idx = 3
+        i, item_i = 0, clusters[0]
+        j, item_j = 1, clusters[1]
+        to_be_clustered = []
+        while j < len(clusters) - 1:
+            item_i, item_j = clusters[i], clusters[j]
+            if item_j[cluster_idx] == item_i[cluster_idx]:
+                # already clustered, no need to further cluster
+                i += 1
+                j += 1
+                continue
+            set_i, hour_i, minute_i, second_i, seq_num_i = \
+                item_i[image_idx][:3], item_i[image_idx][3:5], item_i[image_idx][5:7], \
+                int(item_i[image_idx][7:9]), item_i[image_idx][9:11]
+            set_j, hour_j, minute_j, second_j, seq_num_j = \
+                item_j[image_idx][:3], item_j[image_idx][3:5], item_j[image_idx][5:7], \
+                int(item_j[image_idx][7:9]), item_j[image_idx][9:11]
+            if set_j != set_i or hour_j != hour_i or minute_j != minute_i or abs(second_j - second_i) > 2 or \
+                    item_i[depth_idx] < item_j[depth_idx]:
+                # cannot be further clustered
+                i += 1
+                j += 1
+                continue
+            # see if the bearing change is consistent between cluster item i and j and between j and its next
+            # in the same cluster
+            k = j + 1
+            # find the next cluster item which is in the same cluster as item j
+            while k < len(clusters) and clusters[k][cluster_idx] != clusters[j][cluster_idx]:
+                k += 1
+            if k >= len(clusters):
+                # item j is the last item in the cluster with no next item, so cannot be further clustered
+                i += 1
+                j += 1
+                continue
+            item_k = clusters[k]
+            if (item_i[bearing_idx] < item_j[bearing_idx] < item_k[bearing_idx]) or \
+                    (item_i[bearing_idx] > item_j[bearing_idx] > item_k[bearing_idx]):
+                # item_i cluster and item_j cluster can be further clustered
+                if len(to_be_clustered) < 1:
+                    to_be_clustered.append([item_i[cluster_idx], item_j[cluster_idx]])
+                else:
+                    added = False
+                    for idx, sub_cluster in enumerate(to_be_clustered):
+                        if item_i[cluster_idx] in sub_cluster and item_j[cluster_idx] in sub_cluster:
+                            # already in cluster
+                            added = True
+                            break
+                        if item_i[cluster_idx] in sub_cluster:
+                            to_be_clustered[idx].append(item_j[cluster_idx])
+                            added = True
+                            break
+                        elif item_j[cluster_idx] in sub_cluster:
+                            to_be_clustered[idx].append(item_i[cluster_idx])
+                            added = True
+                            break
+                    if not added:
+                        to_be_clustered.append([item_i[cluster_idx], item_j[cluster_idx]])
+            i += 1
+            j += 1
+        if len(to_be_clustered) > 0:
+            updated_cluster_cnt = 0
+            with open(f'{os.path.splitext(output_filename)[0]}_further_clustering.csv', "w") as inter:
+                inter.write("lat,lon,score\n")
+                for i in range(num_clusters):
+                    if i not in itertools.chain.from_iterable(to_be_clustered):
+                        inter.write("{0:f},{1:f},{2:d}\n".format(intersect_clusters[i, 0] / intersect_clusters[i, 2],
+                                                                 intersect_clusters[i, 1] / intersect_clusters[i, 2],
+                                                                 int(intersect_clusters[i, 2])))
+                        updated_cluster_cnt += 1
+                for sub_cluster in to_be_clustered:
+                    lat_sum = lon_sum = count_sum = 0
+                    for idx in sub_cluster:
+                        lat_sum += intersect_clusters[idx, 0]
+                        lon_sum += intersect_clusters[idx, 1]
+                        count_sum += int(intersect_clusters[idx, 2])
+                    inter.write("{0:f},{1:f},{2:d}\n".format(lat_sum / count_sum,
+                                                             lon_sum / count_sum,
+                                                             count_sum))
+                    updated_cluster_cnt += 1
+            print(f"Number of output clusters after further clustering: {updated_cluster_cnt}")
 
     print("Elapsed total time: {0:.2f} seconds.".format(time.time() - start))
 
