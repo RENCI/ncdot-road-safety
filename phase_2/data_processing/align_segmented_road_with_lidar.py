@@ -1,28 +1,11 @@
 import argparse
 import geopandas as gpd
-from math import radians, cos, sin, asin, sqrt
 import numpy as np
 from shapely.geometry import MultiLineString
+from utils import haversine
 
 
 DIST_THRESHOLD = 30  # in meter, which is about 100 feet
-
-
-# haversine distance formula between two points specified by their GPS coordinates
-def haversine(lon1, lat1, geom):
-    """
-    Calculate the great circle distance between two points
-    on the earth (specified in decimal degrees) in meter
-    """
-    lat2 = geom.y
-    lon2 = geom.x
-    # convert decimal degrees to radians
-    lon1, lat1, lon2, lat2 = map(radians, [float(lon1), float(lat1), float(lon2), float(lat2)])
-    # haversine formula
-    dist_lon = lon2 - lon1
-    dist_lat = lat2 - lat1
-    a = sin(dist_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dist_lon / 2) ** 2
-    return 6367000. * 2 * asin(sqrt(a))
 
 
 def compute_geometry(row, ldf):

@@ -1,6 +1,6 @@
 import numpy as np
 from PIL import Image
-import math
+from math import radians, cos, sin, asin, sqrt, atan2, degrees
 
 ROAD = 1
 POLE = 2
@@ -30,10 +30,27 @@ def save_data_to_image(data, output_image_name):
 
 
 def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2):
-    lon_delta_rad = math.radians(lon2-lon1)
-    lat1_rad = math.radians(lat1)
-    lat2_rad = math.radians(lat2)
-    y = math.sin(lon_delta_rad) * math.cos(lat2_rad)
-    x = math.cos(lat1_rad)*math.sin(lat2_rad) - math.sin(lat1_rad)*math.cos(lat2_rad)*math.cos(lon_delta_rad)
-    theta = math.atan2(y, x)
-    return math.degrees(theta)
+    lon_delta_rad = radians(lon2-lon1)
+    lat1_rad = radians(lat1)
+    lat2_rad = radians(lat2)
+    y = sin(lon_delta_rad) * cos(lat2_rad)
+    x = cos(lat1_rad)*sin(lat2_rad) - sin(lat1_rad)*cos(lat2_rad)*cos(lon_delta_rad)
+    theta = atan2(y, x)
+    return degrees(theta)
+
+
+# haversine distance formula between two points specified by their GPS coordinates
+def haversine(lon1, lat1, geom):
+    """
+    Calculate the great circle distance between two points
+    on the earth (specified in decimal degrees) in meter
+    """
+    lat2 = geom.y
+    lon2 = geom.x
+    # convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(radians, [float(lon1), float(lat1), float(lon2), float(lat2)])
+    # haversine formula
+    dist_lon = lon2 - lon1
+    dist_lat = lat2 - lat1
+    a = sin(dist_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dist_lon / 2) ** 2
+    return 6367000. * 2 * asin(sqrt(a))
