@@ -1,6 +1,7 @@
 import argparse
 import pandas as pd
 import geopandas as gpd
+import numpy as np
 import pickle
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping
 
@@ -38,7 +39,9 @@ if __name__ == '__main__':
 
     mapping_df = pd.read_csv(input_sensor_mapping_file_with_path,
                               usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE'], dtype=str)
-    cam_lat, cam_lon, cam_br = get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, input_2d_mapped_image)
+    mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
+    cam_lat, cam_lon, cam_br = get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, input_2d_mapped_image,
+                                                                                    is_degree=False)
     if cam_lat is None:
         # no camera location
         print(f'no camera location found for {input_2d_mapped_image}')
@@ -54,6 +57,16 @@ if __name__ == '__main__':
     proj_cam_x = cam_geom_df.iloc[0].x
     proj_cam_y = cam_geom_df.iloc[0].y
     print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')
+
+    with open(input_3d, 'rb') as f:
+        input_3d_points = pickle.load(f)[0]
+    print(f'input 3d numpy array shape: {input_3d_points.shape}')
+    # Calculate the distance between the proj_cam_x, proj_cam_y point and the first two X, Y columns of input_3d_points
+    distances = np.sqrt((input_3d_points[:, 0] - cam_geom_df.iloc[0].x) ** 2 +
+                        (input_3d_points[:, 1] - cam_geom_df.iloc[0].y) ** 2)
+
+
+
 
 
 

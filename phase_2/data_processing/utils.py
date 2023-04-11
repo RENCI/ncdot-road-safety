@@ -29,17 +29,20 @@ def save_data_to_image(data, output_image_name):
     Image.fromarray(np.uint8(data), 'L').save(output_image_name)
 
 
-def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2):
+def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2, is_degree):
     lon_delta_rad = radians(lon2-lon1)
     lat1_rad = radians(lat1)
     lat2_rad = radians(lat2)
     y = sin(lon_delta_rad) * cos(lat2_rad)
     x = cos(lat1_rad)*sin(lat2_rad) - sin(lat1_rad)*cos(lat2_rad)*cos(lon_delta_rad)
     theta = atan2(y, x)
-    return degrees(theta)
+    if is_degree:
+        return degrees(theta)
+    else:
+        return theta
 
 
-def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_image):
+def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_image, is_degree=True):
     mapped_image_df = mapping_df[mapping_df['MAPPED_IMAGE'] == mapped_image]
     if len(mapped_image_df) != 1:
         # no camera location
@@ -50,7 +53,7 @@ def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_imag
     cam_lat2 = float(mapping_df.iloc[mapped_image_df.index + 1]['LATITUDE'])
     cam_lon2 = float(mapping_df.iloc[mapped_image_df.index + 1]['LONGITUDE'])
     # compute bearing
-    cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2)
+    cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2, is_degree)
     return cam_lat, cam_lon, cam_br
 
 
