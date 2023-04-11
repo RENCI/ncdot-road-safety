@@ -5,7 +5,7 @@ import numpy as np
 from pypfm import PFMLoader
 import skimage.measure
 import cv2
-from utils import ROAD, get_data_from_image, bearing_between_two_latlon_points
+from utils import ROAD, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping
 
 
 SCALING_FACTOR = 25
@@ -26,16 +26,12 @@ width_to_hfov = {
 def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfix, mapped_image, path):
     # compute depth of segmented object taking the 10%-trimmed mean of the depths of its constituent pixels
     # to gain robustness with respect to segmentation errors, in particular along the object borders
-    mapped_image_df = mapping_df[mapping_df['MAPPED_IMAGE'] == mapped_image]
-    if len(mapped_image_df) != 1:
+    cam_lat, cam_lon, cam_br = get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_image)
+    if cam_lat is None:
         # no camera location
         print(f'no camera location found for {mapped_image}')
         return
-    cam_lat = float(mapped_image_df.iloc[0]['LATITUDE'])
-    cam_lon = float(mapped_image_df.iloc[0]['LONGITUDE'])
-    # find the next camera lat/lon for computing bearing
-    cam_lat2 = float(mapping_df.iloc[mapped_image_df.index + 1]['LATITUDE'])
-    cam_lon2 = float(mapping_df.iloc[mapped_image_df.index + 1]['LONGITUDE'])
+
     image_suffix_list = ('5.png', '1.png', '2.png')
     for suffix in image_suffix_list:
         # get camera location for the mapped image
@@ -118,8 +114,6 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
                 if filtered_out:
                     continue
 
-                # compute bearing
-                cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2)
                 if suffix == '1.png':
                     # front view image
                     image_center_x = image_width/2

@@ -39,6 +39,21 @@ def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2):
     return degrees(theta)
 
 
+def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_image):
+    mapped_image_df = mapping_df[mapping_df['MAPPED_IMAGE'] == mapped_image]
+    if len(mapped_image_df) != 1:
+        # no camera location
+        return None, None, None
+    cam_lat = float(mapped_image_df.iloc[0]['LATITUDE'])
+    cam_lon = float(mapped_image_df.iloc[0]['LONGITUDE'])
+    # find the next camera lat/lon for computing bearing
+    cam_lat2 = float(mapping_df.iloc[mapped_image_df.index + 1]['LATITUDE'])
+    cam_lon2 = float(mapping_df.iloc[mapped_image_df.index + 1]['LONGITUDE'])
+    # compute bearing
+    cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2)
+    return cam_lat, cam_lon, cam_br
+
+
 # haversine distance formula between two points specified by their GPS coordinates
 def haversine(lon1, lat1, geom):
     """
