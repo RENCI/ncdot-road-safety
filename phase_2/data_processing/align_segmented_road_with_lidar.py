@@ -3,7 +3,7 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 import pickle
-from utils import get_camera_latlon_and_bearing_for_image_from_mapping
+from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points
 
 
 FOCAL_LENGTH = 1.4
@@ -60,10 +60,23 @@ if __name__ == '__main__':
 
     with open(input_3d, 'rb') as f:
         input_3d_points = pickle.load(f)[0]
+
     print(f'input 3d numpy array shape: {input_3d_points.shape}')
+    input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
+    input_3d_gdf = gpd.GeoDataFrame(input_3d_df, geometry=gpd.points_from_xy(input_3d_df.X, input_3d_df.Y),
+                                    crs='EPSG:6543')
+    input_3d_geom_df = input_3d_gdf.geometry.to_crs(epsg=4326)
+    # geom_df is added as a geometry_y column in lidar_df while the initial geometry column is renamed as geometry_x
+    input_3d_gdf = input_3d_gdf.merge(input_3d_geom_df, left_index=True, right_index=True)
+    input_3d_gdf.X = input_3d_gdf.X - proj_cam_x
+    input_3d_gdf.Y = input_3d_gdf.Y - proj_cam_y
     # Calculate the distance between the proj_cam_x, proj_cam_y point and the first two X, Y columns of input_3d_points
-    distances = np.sqrt((input_3d_points[:, 0] - cam_geom_df.iloc[0].x) ** 2 +
-                        (input_3d_points[:, 1] - cam_geom_df.iloc[0].y) ** 2)
+    input_3d_gdf.Z = np.sqrt(input_3d_gdf.X ** 2 + input_3d_gdf.Y ** 2)
+    # calculate the bearing of each 3D point to the camera
+    input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
+        cam_lat, cam_lon, geom.y,geom.x, is_degree=False))
+    input_3d_gdf['BEARING'] = input_3d_gdf['BEARING'] - cam_br
+
 
 
 
