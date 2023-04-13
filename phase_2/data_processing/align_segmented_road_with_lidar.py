@@ -21,6 +21,8 @@ if __name__ == '__main__':
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
+    parser.add_argument('--image_width', type=int, default=2748, help='image width')
+    parser.add_argument('--image_height', type=int, default=2198, help='image height')
     parser.add_argument('--output_file', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
                                 'oneformer/output/road_alignment_with_lidar.csv',
@@ -31,6 +33,8 @@ if __name__ == '__main__':
     road_input_with_path = args.road_input_with_path
     input_2d_mapped_image = args.input_2d_mapped_image
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
+    image_width = args.image_width
+    image_height = args.image_height
     output_file = args.output_file
 
     with open(road_input_with_path, 'rb') as f:
@@ -76,6 +80,15 @@ if __name__ == '__main__':
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
         cam_lat, cam_lon, geom.y,geom.x, is_degree=False))
     input_3d_gdf['BEARING'] = input_3d_gdf['BEARING'] - cam_br
+    input_3d_gdf.Z = input_3d_gdf.Z * np.cos(input_3d_gdf.BEARING)
+    input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(lambda row: (FOCAL_LENGTH * row['X']) / row['Z'], axis=1)
+    input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(lambda row: (FOCAL_LENGTH * row['Y']) / row['Z'], axis=1)
+    max_x = max(abs(max(input_3d_gdf['PROJ_X'])), abs(min(input_3d_gdf['PROJ_X']))) + 1
+    max_y = max(abs(max(input_3d_gdf['PROJ_Y'])), abs(min(input_3d_gdf['PROJ_Y']))) + 1
+    scale_x = image_width / (2 * max_x)
+    scale_y = image_height / (2 * max_y)
+    input_3d_gdf['PROJ_X'] = input_3d_gdf['PROJ_X'].apply(lambda x: int(x * scale_x + image_width / 2 + 0.5))
+    input_3d_gdf['PROJ_Y'] = input_3d_gdf['PROJ_Y'].apply(lambda y: int(y * scale_y + image_height / 2 + 0.5))
 
 
 
