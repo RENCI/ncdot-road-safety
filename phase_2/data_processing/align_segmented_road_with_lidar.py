@@ -8,6 +8,14 @@ from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_
 
 FOCAL_LENGTH = 1.4
 
+
+def compute_match(x, y, series_x, series_y):
+    # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
+    # (series_x, series_y) pairs has minimal distance to point(x, y)
+    distances = np.sqrt((series_x - x) ** 2 + (series_y - y) ** 2)
+    return distances.idxmin()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_3d', type=str,
@@ -89,6 +97,15 @@ if __name__ == '__main__':
     scale_y = image_height / (2 * max_y)
     input_3d_gdf['PROJ_X'] = input_3d_gdf['PROJ_X'].apply(lambda x: int(x * scale_x + image_width / 2 + 0.5))
     input_3d_gdf['PROJ_Y'] = input_3d_gdf['PROJ_Y'].apply(lambda y: int(y * scale_y + image_height / 2 + 0.5))
+
+    input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
+    input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
+                                                                                input_3d_gdf['PROJ_X'],
+                                                                                input_3d_gdf['PROJ_Y']),
+                                                      axis=1)
+    input_2d_df.drop(columns = ['X', 'Y'], inplace=True)
+    input_2d_df.to_csv(output_file)
+
 
 
 

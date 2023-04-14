@@ -17,7 +17,8 @@ if __name__ == '__main__':
                         default=[35.7137581, -82.7346679],
                         help='camera loc to extract lidar vertices within a set threshold distance from')
     parser.add_argument('--distance_threshold', type=str,
-                        default=385,
+                        #default=385,
+                        default=190,
                         help='distance threshold in meter to filter out lidar vertices')
 
     args = parser.parse_args()

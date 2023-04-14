@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pickle
 import numpy as np
 import pandas as pd
+from collections import OrderedDict
 
 
 SCALING_FACTOR = 400
@@ -12,7 +13,7 @@ ASPECT_RATIO = 2748/2198
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_match_2d_3d_indices', type=str,
-                    default='data/d13_route_40001001011/oneformer/output/matches_2d_3d_indices.csv',
+                    default='data/d13_route_40001001011/oneformer/output/road_alignment_with_lidar.csv',
                     help='2d-3d matched vertex indices')
 parser.add_argument('--input_2d', type=str,
                     default='data/d13_route_40001001011/oneformer/output/input_2d.pkl',
@@ -41,16 +42,19 @@ norm_3d_points = (input_3d_points - min_3d) * SCALING_FACTOR // (max_3d-min_3d)
 
 match_2d_3d_indices = pd.read_csv(input_match_2d_3d_indices, header=None, names=['2d', '3d'], dtype=int)
 print(f'match_2d_3d_indices shape: {match_2d_3d_indices.shape}')
-match_dict = {}
-for val_2d, val3_3d in match_2d_3d_indices.groupby('2d'):
-    match_dict[val_2d] = val3_3d['3d'].tolist()[0]
+match_dict = OrderedDict()
+for val_2d, val_3d in match_2d_3d_indices.groupby('2d'):
+    match_dict[val_2d] = val_3d['3d'].tolist()[0]
 print(f'match_dict size: {len(match_dict)}')
 count = 0
 for key, val in match_dict.items():
-    #if count % 20 == 0:
-    plt.plot([norm_2d_points[key, 0], norm_3d_points[val, 0] + X_OFFSET_3D],
-             [SCALING_FACTOR-norm_2d_points[key, 1], SCALING_FACTOR-norm_3d_points[val, 1]], linewidth=1,
-             color='gray')
+    # curved segment: count < 100
+    # left side of the road: 100 < count < 1500
+    # right side of the road: 100 < count > 2100
+    if count % 20 == 0:
+        plt.plot([norm_2d_points[key, 0], norm_3d_points[val, 0] + X_OFFSET_3D],
+                 [SCALING_FACTOR-norm_2d_points[key, 1], SCALING_FACTOR-norm_3d_points[val, 1]], linewidth=1,
+                 color='gray')
     count += 1
 
 plt.scatter(norm_2d_points[:, 0], SCALING_FACTOR-norm_2d_points[:, 1], s=20)
