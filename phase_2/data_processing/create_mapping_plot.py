@@ -1,14 +1,13 @@
 import argparse
 import matplotlib.pyplot as plt
-import pickle
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
+from utils import load_pickle_data, ASPECT_RATIO
 
 
 SCALING_FACTOR = 400
 X_OFFSET_3D = 500
-ASPECT_RATIO = 2748/2198
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -27,10 +26,8 @@ input_match_2d_3d_indices = args.input_match_2d_3d_indices
 input_2d = args.input_2d
 input_3d = args.input_3d
 
-with open(input_2d, 'rb') as f:
-    input_2d_points = pickle.load(f)[0]
-with open(input_3d, 'rb') as f:
-    input_3d_points = pickle.load(f)[0]
+input_2d_points = load_pickle_data(input_2d)
+input_3d_points = load_pickle_data(input_3d)
 print(f'input 2d numpy array shape: {input_2d_points.shape}, input 3d numpy array shape: {input_3d_points.shape}')
 max_2d = np.amax(input_2d_points, axis=0)
 min_2d = np.amin(input_2d_points, axis=0)
@@ -51,10 +48,10 @@ for key, val in match_dict.items():
     # curved segment: count < 100
     # left side of the road: 100 < count < 1500
     # right side of the road: 100 < count > 2100
-    if count % 20 == 0:
-        plt.plot([norm_2d_points[key, 0], norm_3d_points[val, 0] + X_OFFSET_3D],
-                 [SCALING_FACTOR-norm_2d_points[key, 1], SCALING_FACTOR-norm_3d_points[val, 1]], linewidth=1,
-                 color='gray')
+    # if count % 10 == 0:
+    plt.plot([norm_2d_points[key, 0], norm_3d_points[val, 0] + X_OFFSET_3D],
+             [SCALING_FACTOR-norm_2d_points[key, 1], SCALING_FACTOR-norm_3d_points[val, 1]], linewidth=1,
+             color='gray')
     count += 1
 
 plt.scatter(norm_2d_points[:, 0], SCALING_FACTOR-norm_2d_points[:, 1], s=20)

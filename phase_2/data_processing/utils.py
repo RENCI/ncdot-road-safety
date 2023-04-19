@@ -1,9 +1,13 @@
 import numpy as np
 from PIL import Image
 from math import radians, cos, sin, asin, sqrt, atan2, degrees
+import pickle
 
 ROAD = 1
 POLE = 2
+IMAGE_WIDTH = 2748
+IMAGE_HEIGHT = 2198
+ASPECT_RATIO = IMAGE_WIDTH/IMAGE_HEIGHT
 
 
 def consecutive(data, step_size=1):
@@ -72,3 +76,9 @@ def haversine(lon1, lat1, geom):
     dist_lat = lat2 - lat1
     a = sin(dist_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dist_lon / 2) ** 2
     return 6367000. * 2 * asin(sqrt(a))
+
+
+def load_pickle_data(input_data_file):
+    with open(input_data_file, 'rb') as f:
+        data = pickle.load(f)[0]
+    return data

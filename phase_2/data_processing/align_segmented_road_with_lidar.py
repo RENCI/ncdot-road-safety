@@ -2,11 +2,12 @@ import argparse
 import pandas as pd
 import geopandas as gpd
 import numpy as np
-import pickle
-from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points
+import math
+from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
+    load_pickle_data
 
 
-FOCAL_LENGTH = 1.4
+SCALED_FOCUS_LENGTH = 1.4
 
 
 def compute_match(x, y, series_x, series_y):
@@ -14,6 +15,22 @@ def compute_match(x, y, series_x, series_y):
     # (series_x, series_y) pairs has minimal distance to point(x, y)
     distances = np.sqrt((series_x - x) ** 2 + (series_y - y) ** 2)
     return distances.idxmin()
+
+
+def transform_to_world_coordinate_system(input_df, cam_x, cam_y, cam_bearing):
+    # transform X, Y, Z in LIDAR coordinate system to world coordinate system where the camera is at the origin,
+    # the z-axis is pointing from the camera along the cam_bearing direction, the y-axis is perpendicular to the
+    # z-axis reflecting the elevation Z, and the x-axis is perpendicular to both y-axis and z-axis reflecting X and Y
+    # note that LIDAR world coordinate system origin is located at lower-left corner while screen coordinate system
+    # origin is located at upper-left corner
+    input_df.X = input_df.X - cam_x
+    input_df.Y = input_df.Y - cam_y
+    # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
+    input_df['WORLD_Z'] = np.sqrt(input_df.X ** 2 + input_df.Y ** 2)
+    input_3d_gdf.WORLD_Z = input_3d_gdf.WORLD_Z * np.cos(input_df.BEARING)
+    input_df['WORLD_Y'] = -input_df.Z * np.cos(cam_bearing-math.pi/2)
+    input_df['WORLD_X'] = input_df.X * np.cos(math.pi-cam_bearing)
+    return input_df
 
 
 if __name__ == '__main__':
@@ -35,6 +52,10 @@ if __name__ == '__main__':
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
                                 'oneformer/output/road_alignment_with_lidar.csv',
                         help='output file with path for aligned road info')
+    parser.add_argument('--lidar_project_output_file', type=str,
+                        default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
+                                'oneformer/output/lidar_project_info.csv',
+                        help='output file with path for aligned road info')
 
     args = parser.parse_args()
     input_3d = args.input_3d
@@ -44,9 +65,9 @@ if __name__ == '__main__':
     image_width = args.image_width
     image_height = args.image_height
     output_file = args.output_file
+    lidar_project_output_file = args.lidar_project_output_file
 
-    with open(road_input_with_path, 'rb') as f:
-        input_2d_points = pickle.load(f)[0]
+    input_2d_points = load_pickle_data(road_input_with_path)
     print(f'input 2d numpy array shape: {input_2d_points.shape}')
 
     mapping_df = pd.read_csv(input_sensor_mapping_file_with_path,
@@ -70,8 +91,7 @@ if __name__ == '__main__':
     proj_cam_y = cam_geom_df.iloc[0].y
     print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')
 
-    with open(input_3d, 'rb') as f:
-        input_3d_points = pickle.load(f)[0]
+    input_3d_points = load_pickle_data(input_3d)
 
     print(f'input 3d numpy array shape: {input_3d_points.shape}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
@@ -80,37 +100,37 @@ if __name__ == '__main__':
     input_3d_geom_df = input_3d_gdf.geometry.to_crs(epsg=4326)
     # geom_df is added as a geometry_y column in lidar_df while the initial geometry column is renamed as geometry_x
     input_3d_gdf = input_3d_gdf.merge(input_3d_geom_df, left_index=True, right_index=True)
-    input_3d_gdf.X = input_3d_gdf.X - proj_cam_x
-    input_3d_gdf.Y = input_3d_gdf.Y - proj_cam_y
-    # Calculate the distance between the proj_cam_x, proj_cam_y point and the first two X, Y columns of input_3d_points
-    input_3d_gdf.Z = np.sqrt(input_3d_gdf.X ** 2 + input_3d_gdf.Y ** 2)
     # calculate the bearing of each 3D point to the camera
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
-        cam_lat, cam_lon, geom.y,geom.x, is_degree=False))
+        cam_lat, cam_lon, geom.y, geom.x, is_degree=False))
     input_3d_gdf['BEARING'] = input_3d_gdf['BEARING'] - cam_br
-    input_3d_gdf.Z = input_3d_gdf.Z * np.cos(input_3d_gdf.BEARING)
-    input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(lambda row: (FOCAL_LENGTH * row['X']) / row['Z'], axis=1)
-    input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(lambda row: (FOCAL_LENGTH * row['Y']) / row['Z'], axis=1)
-    max_x = max(abs(max(input_3d_gdf['PROJ_X'])), abs(min(input_3d_gdf['PROJ_X']))) + 1
-    max_y = max(abs(max(input_3d_gdf['PROJ_Y'])), abs(min(input_3d_gdf['PROJ_Y']))) + 1
+
+    input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y, cam_br)
+
+    input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(
+        lambda row: (SCALED_FOCUS_LENGTH * row['WORLD_X']) / (SCALED_FOCUS_LENGTH - row['WORLD_Z']),
+        axis=1)
+    input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
+        lambda row: (SCALED_FOCUS_LENGTH * row['WORLD_Y']) / (SCALED_FOCUS_LENGTH - row['WORLD_Z']),
+        axis=1)
+    # translate lidar road vertices to be centered at the origin along the x-axis
+    min_proj_x = min(input_3d_gdf['PROJ_X'])
+    max_proj_x = max(input_3d_gdf['PROJ_X'])
+    origin_proj_x = min_proj_x + (max_proj_x - min_proj_x) / 2
+    input_3d_gdf['PROJ_X'] = input_3d_gdf['PROJ_X'] - origin_proj_x
+    max_x = max(abs(max(input_3d_gdf['PROJ_X'])), abs(min(input_3d_gdf['PROJ_X'])))
+    max_y = max(abs(max(input_3d_gdf['PROJ_Y'])), abs(min(input_3d_gdf['PROJ_Y'])))
     scale_x = image_width / (2 * max_x)
     scale_y = image_height / (2 * max_y)
-    input_3d_gdf['PROJ_X'] = input_3d_gdf['PROJ_X'].apply(lambda x: int(x * scale_x + image_width / 2 + 0.5))
-    input_3d_gdf['PROJ_Y'] = input_3d_gdf['PROJ_Y'].apply(lambda y: int(y * scale_y + image_height / 2 + 0.5))
+    input_3d_gdf['PROJ_SCREEN_X'] = input_3d_gdf['PROJ_X'].apply(lambda x: int(x * scale_x + image_width / 2 + 0.5))
+    input_3d_gdf['PROJ_SCREEN_Y'] = input_3d_gdf['PROJ_Y'].apply(lambda y: int(y * scale_y + image_height / 2 + 0.5))
 
     input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
     input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
-                                                                                input_3d_gdf['PROJ_X'],
-                                                                                input_3d_gdf['PROJ_Y']),
+                                                                                input_3d_gdf['PROJ_SCREEN_X'],
+                                                                                input_3d_gdf['PROJ_SCREEN_Y']),
                                                       axis=1)
-    input_2d_df.drop(columns = ['X', 'Y'], inplace=True)
-    input_2d_df.to_csv(output_file)
+    input_2d_df.drop(columns=['X', 'Y'], inplace=True)
+    input_2d_df.to_csv(output_file, header=False)
 
-
-
-
-
-
-
-
-
+    input_3d_gdf.to_csv(lidar_project_output_file, index=False)
