@@ -4,10 +4,7 @@ import geopandas as gpd
 import numpy as np
 import math
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
-    load_pickle_data
-
-
-SCALED_FOCUS_LENGTH = 1.4
+    load_pickle_data, IMAGE_HEIGHT
 
 
 def compute_match(x, y, series_x, series_y):
@@ -17,19 +14,19 @@ def compute_match(x, y, series_x, series_y):
     return distances.idxmin()
 
 
-def transform_to_world_coordinate_system(input_df, cam_x, cam_y, cam_bearing):
+def transform_to_world_coordinate_system(input_df, cam_x, cam_y, cam_bearing, cam_z):
     # transform X, Y, Z in LIDAR coordinate system to world coordinate system where the camera is at the origin,
     # the z-axis is pointing from the camera along the cam_bearing direction, the y-axis is perpendicular to the
-    # z-axis reflecting the elevation Z, and the x-axis is perpendicular to both y-axis and z-axis reflecting X and Y
-    # note that LIDAR world coordinate system origin is located at lower-left corner while screen coordinate system
-    # origin is located at upper-left corner
+    # z-axis reflecting the elevation Z pointing upwards, and the x-axis is perpendicular to both y-axis and z-axis
+    # reflecting X and Y. Note that LIDAR world coordinate system origin is located at lower-left corner while
+    # screen coordinate system origin is located at upper-left corner
     input_df.X = input_df.X - cam_x
     input_df.Y = input_df.Y - cam_y
     # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
     input_df['WORLD_Z'] = np.sqrt(input_df.X ** 2 + input_df.Y ** 2)
     input_3d_gdf.WORLD_Z = input_3d_gdf.WORLD_Z * np.cos(input_df.BEARING)
-    input_df['WORLD_Y'] = -input_df.Z * np.cos(cam_bearing-math.pi/2)
-    input_df['WORLD_X'] = input_df.X * np.cos(math.pi-cam_bearing)
+    input_df['WORLD_Y'] = input_df.Z * np.cos(cam_bearing-math.pi/2)
+    input_df['WORLD_X'] = input_df.X * np.cos(math.pi-cam_bearing) - input_df.Y * np.sin(math.pi-cam_bearing)
     return input_df
 
 
@@ -69,6 +66,7 @@ if __name__ == '__main__':
 
     input_2d_points = load_pickle_data(road_input_with_path)
     print(f'input 2d numpy array shape: {input_2d_points.shape}')
+    input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
 
     mapping_df = pd.read_csv(input_sensor_mapping_file_with_path,
                               usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE'], dtype=str)
@@ -105,27 +103,39 @@ if __name__ == '__main__':
         cam_lat, cam_lon, geom.y, geom.x, is_degree=False))
     input_3d_gdf['BEARING'] = input_3d_gdf['BEARING'] - cam_br
 
-    input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y, cam_br)
+    # get the lidar road vertex with closest distance to the camera location
+    nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y']),
+    cam_lidar_z = input_3d_gdf.iloc[nearest_idx].Z
+    print(f'camera Z: {cam_lidar_z}')
+
+    input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y, cam_br, cam_lidar_z)
 
     input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(
-        lambda row: (SCALED_FOCUS_LENGTH * row['WORLD_X']) / (SCALED_FOCUS_LENGTH - row['WORLD_Z']),
+        lambda row: -row['WORLD_X'] / row['WORLD_Z'],
         axis=1)
     input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
-        lambda row: (SCALED_FOCUS_LENGTH * row['WORLD_Y']) / (SCALED_FOCUS_LENGTH - row['WORLD_Z']),
+        lambda row: -row['WORLD_Y'] / row['WORLD_Z'],
         axis=1)
     # translate lidar road vertices to be centered at the origin along the x-axis
     min_proj_x = min(input_3d_gdf['PROJ_X'])
     max_proj_x = max(input_3d_gdf['PROJ_X'])
     origin_proj_x = min_proj_x + (max_proj_x - min_proj_x) / 2
     input_3d_gdf['PROJ_X'] = input_3d_gdf['PROJ_X'] - origin_proj_x
-    max_x = max(abs(max(input_3d_gdf['PROJ_X'])), abs(min(input_3d_gdf['PROJ_X'])))
-    max_y = max(abs(max(input_3d_gdf['PROJ_Y'])), abs(min(input_3d_gdf['PROJ_Y'])))
-    scale_x = image_width / (2 * max_x)
-    scale_y = image_height / (2 * max_y)
-    input_3d_gdf['PROJ_SCREEN_X'] = input_3d_gdf['PROJ_X'].apply(lambda x: int(x * scale_x + image_width / 2 + 0.5))
-    input_3d_gdf['PROJ_SCREEN_Y'] = input_3d_gdf['PROJ_Y'].apply(lambda y: int(y * scale_y + image_height / 2 + 0.5))
 
-    input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
+    min_road_x = min(input_2d_df.X)
+    max_road_x = max(input_2d_df.X)
+    min_road_y = min(input_2d_df.Y)
+    max_road_y = max(input_2d_df.Y)
+    range_x = (max_road_x - min_road_x)
+    range_y = (max_road_y - min_road_y)
+    min_proj_y = min(input_3d_gdf['PROJ_Y'])
+    min_proj_x = min(input_3d_gdf['PROJ_X'])
+    scale_x = range_x / (max(input_3d_gdf['PROJ_X']) - min_proj_x)
+    scale_y = range_y / (max(input_3d_gdf['PROJ_Y']) - min_proj_y)
+    input_3d_gdf['PROJ_SCREEN_X'] = input_3d_gdf['PROJ_X'].apply(
+        lambda x: int((x - min_proj_x) * scale_x + 0.5))
+    input_3d_gdf['PROJ_SCREEN_Y'] = input_3d_gdf['PROJ_Y'].apply(
+        lambda y: int(IMAGE_HEIGHT - (y - min_proj_y) * scale_y + 0.5))
     input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
                                                                                 input_3d_gdf['PROJ_SCREEN_X'],
                                                                                 input_3d_gdf['PROJ_SCREEN_Y']),

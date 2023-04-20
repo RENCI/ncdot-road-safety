@@ -1,6 +1,5 @@
 import argparse
 import matplotlib.pyplot as plt
-from mpl_toolkits import mplot3d
 import pandas as pd
 import numpy as np
 from utils import load_pickle_data
@@ -23,7 +22,7 @@ max_2d = np.amax(input_2d_points, axis=0)
 min_2d = np.amin(input_2d_points, axis=0)
 
 input_3d_proj_df = pd.read_csv(input_3d_proj, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'], dtype=int)
-
+print(max_2d[1])
 plt.scatter(input_2d_points[:, 0], max_2d[1] - input_2d_points[:, 1], s=20)
 plt.scatter(input_3d_proj_df['PROJ_SCREEN_X'], max_2d[1] - input_3d_proj_df['PROJ_SCREEN_Y'], s=20)
 

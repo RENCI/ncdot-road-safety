@@ -35,7 +35,7 @@ ax.scatter(input_3d_proj_df['PROJ_X'].apply(lambda x: x*X_SCALING_FACTOR),
 ax.set_ylabel('Y')
 ax.set_xlabel('X')
 ax.grid(True)
-idx = 10
+idx = 11
 ax3.plot(input_3d_proj_df['WORLD_X'].iloc[idx], input_3d_proj_df['WORLD_Y'].iloc[idx],
          input_3d_proj_df['WORLD_Z'].iloc[idx], 'ro', markersize=6)
 ax.plot(input_3d_proj_df['PROJ_X'].iloc[idx]*X_SCALING_FACTOR, input_3d_proj_df['PROJ_Y'].iloc[idx]*Y_SCALING_FACTOR,
