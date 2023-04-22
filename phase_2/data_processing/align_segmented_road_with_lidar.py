@@ -28,8 +28,7 @@ def transform_to_world_coordinate_system(input_df, cam_x, cam_y, cam_bearing, ca
     input_df['CAM_DIST'] = np.sqrt(input_df.X ** 2 + input_df.Y ** 2)
     input_df['WORLD_Z'] = input_df.CAM_DIST * np.cos(input_df.BEARING)
     input_df['WORLD_Y'] = (input_df.Z - cam_z) * np.cos(math.pi - cam_bearing)
-    # input_df['WORLD_X'] = input_df.CAM_DIST * np.sin(input_df.BEARING)
-    input_df['WORLD_X'] = input_df.X * np.cos(math.pi - cam_bearing) - input_df.Y * np.sin(math.pi - cam_bearing) - 6
+    input_df['WORLD_X'] = -input_df.CAM_DIST * np.sin(input_df.BEARING) - 6
     return input_df
 
 
@@ -119,11 +118,12 @@ if __name__ == '__main__':
     input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y, cam_br, cam_lidar_z)
 
     input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(
-        lambda row: FOCUS_LENGTH * row['WORLD_X'] / (FOCUS_LENGTH - row['WORLD_Z']),
+        lambda row: -FOCUS_LENGTH * row['WORLD_X'] / row['WORLD_Z'],
         axis=1)
     input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
-        lambda row: FOCUS_LENGTH * row['WORLD_Y'] / (FOCUS_LENGTH - row['WORLD_Z']),
+        lambda row: -FOCUS_LENGTH * row['WORLD_Y'] / row['WORLD_Z'],
         axis=1)
+
     # translate lidar road vertices to be centered at the origin along the x-axis
     min_proj_x = min(input_3d_gdf['PROJ_X'])
     max_proj_x = max(input_3d_gdf['PROJ_X'])
