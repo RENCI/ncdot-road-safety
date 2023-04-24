@@ -2,12 +2,12 @@ import argparse
 import pandas as pd
 import geopandas as gpd
 import numpy as np
-import math
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     load_pickle_data, IMAGE_HEIGHT
 
 FOCUS_LENGTH = 0.001
 CAMERA_LIDAR_Z_OFFSET = 5
+
 
 def compute_match(x, y, series_x, series_y):
     # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
@@ -25,10 +25,10 @@ def transform_to_world_coordinate_system(input_df, cam_x, cam_y, cam_bearing, ca
     input_df.X = input_df.X - cam_x
     input_df.Y = input_df.Y - cam_y
     # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
-    input_df['CAM_DIST'] = np.sqrt(input_df.X ** 2 + input_df.Y ** 2)
+    input_df['CAM_DIST'] = np.sqrt(np.square(input_df.X) + np.square(input_df.Y))
     input_df['WORLD_Z'] = input_df.CAM_DIST * np.cos(input_df.BEARING)
-    input_df['WORLD_Y'] = (input_df.Z - cam_z) * np.cos(math.pi - cam_bearing)
-    input_df['WORLD_X'] = -input_df.CAM_DIST * np.sin(input_df.BEARING) - 6
+    input_df['WORLD_Y'] = input_df.Z - cam_z
+    input_df['WORLD_X'] = input_df.CAM_DIST * np.sin(input_df.BEARING) + 6
     return input_df
 
 
@@ -117,11 +117,12 @@ if __name__ == '__main__':
 
     input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y, cam_br, cam_lidar_z)
 
+    # project to 2D camera coordinate system
     input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(
-        lambda row: -FOCUS_LENGTH * row['WORLD_X'] / row['WORLD_Z'],
+        lambda row: FOCUS_LENGTH * row['WORLD_X'] / row['WORLD_Z'],
         axis=1)
     input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
-        lambda row: -FOCUS_LENGTH * row['WORLD_Y'] / row['WORLD_Z'],
+        lambda row: FOCUS_LENGTH * row['WORLD_Y'] / row['WORLD_Z'],
         axis=1)
 
     # translate lidar road vertices to be centered at the origin along the x-axis
@@ -129,6 +130,10 @@ if __name__ == '__main__':
     max_proj_x = max(input_3d_gdf['PROJ_X'])
     origin_proj_x = min_proj_x + (max_proj_x - min_proj_x) / 2
     input_3d_gdf['PROJ_X'] = input_3d_gdf['PROJ_X'] - origin_proj_x
+
+    # project to screen coordinate system. Note camera coordinate system origin is at lower-left while screen
+    # coordinate system origin is at upper-left, so need to mirror Y values along the x-axis
+    input_3d_gdf['PROJ_Y'] = - input_3d_gdf['PROJ_Y']
 
     min_road_x = min(input_2d_df.X)
     max_road_x = max(input_2d_df.X)
@@ -140,6 +145,7 @@ if __name__ == '__main__':
     min_proj_x = min(input_3d_gdf['PROJ_X'])
     scale_x = range_x / (max(input_3d_gdf['PROJ_X']) - min_proj_x)
     scale_y = range_y / (max(input_3d_gdf['PROJ_Y']) - min_proj_y)
+
     input_3d_gdf['PROJ_SCREEN_X'] = input_3d_gdf['PROJ_X'].apply(
         lambda x: int((x - min_proj_x) * scale_x))
     input_3d_gdf['PROJ_SCREEN_Y'] = input_3d_gdf['PROJ_Y'].apply(

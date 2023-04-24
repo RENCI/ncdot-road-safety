@@ -47,15 +47,15 @@ count = 0
 for key, val in match_dict.items():
     # curved segment: count < 100
     # left side of the road: 100 < count < 1500
-    # right side of the road: 100 < count > 2100
-    # if count % 10 == 0:
+    # right side of the road: count > 2100
+    # if count % 20 == 0:
     plt.plot([norm_2d_points[key, 0], norm_3d_points[val, 0] + X_OFFSET_3D],
-             [SCALING_FACTOR-norm_2d_points[key, 1], SCALING_FACTOR-norm_3d_points[val, 1]], linewidth=1,
+             [SCALING_FACTOR-norm_2d_points[key, 1], norm_3d_points[val, 1]], linewidth=1,
              color='gray')
     count += 1
 
 plt.scatter(norm_2d_points[:, 0], SCALING_FACTOR-norm_2d_points[:, 1], s=20)
-plt.scatter(norm_3d_points[:, 0] + X_OFFSET_3D, SCALING_FACTOR-norm_3d_points[:, 1], s=10)
+plt.scatter(norm_3d_points[:, 0] + X_OFFSET_3D, norm_3d_points[:, 1], s=10)
 
 plt.title('2D road vertices and 3D road vertices mapping')
 plt.ylabel('Y')
