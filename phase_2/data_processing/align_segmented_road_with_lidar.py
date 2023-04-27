@@ -151,10 +151,10 @@ if __name__ == '__main__':
 
     # project to 2D camera coordinate system
     input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(
-        lambda row: FOCAL_LENGTH * row['WORLD_X'] / row['WORLD_Z'],
+        lambda row: FOCAL_LENGTH * row['WORLD_X'] / (row['WORLD_Z'] - FOCAL_LENGTH),
         axis=1)
     input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
-        lambda row: FOCAL_LENGTH * row['WORLD_Y'] / row['WORLD_Z'],
+        lambda row: FOCAL_LENGTH * row['WORLD_Y'] / (row['WORLD_Z'] - FOCAL_LENGTH),
         axis=1)
 
     # translate lidar road vertices to be centered at the origin along the x-axis
