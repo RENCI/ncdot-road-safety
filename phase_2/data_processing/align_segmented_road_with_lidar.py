@@ -2,12 +2,32 @@ import argparse
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+from math import dist, radians
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     load_pickle_data, IMAGE_HEIGHT
 
 FOCAL_LENGTH = 0.001
-CAMERA_LIDAR_Z_OFFSET = 5
+# camera translation to move camera along X axis in world coordinate system
 CAMERA_LIDAR_X_OFFSET = 6
+CAMERA_LIDAR_Z_OFFSET = 4
+CAMERA_YAW = 0  # camera angle of rotation around Z (bearing) axis in the 3D world coordinate system
+CAMERA_PITCH = 0  # camera angle of rotation around Y axis in the 3D world coordinate system
+CAMERA_ROLL = -30  # camera angle of rotation around X axis in the 3D world coordinate system
+
+
+def rotate_point_series(x, y, angle):
+    angle = radians(angle)
+    new_x = x * np.cos(angle) - y * np.sin(angle)
+    new_y = x * np.sin(angle) + y * np.cos(angle)
+    return new_x, new_y
+
+
+def interpolate_camera_z(p1_z, p2_z, p1_dist, p2_dist):
+    """
+    interpolate camera z value based on camera's closet points on one side of the road, (p1_dist, p1_z) and
+    (p2_dist, p2_z) where p_dist is the distance from the point to camera and p_z is the LIDAR Z value
+    """
+    return p1_z - p1_dist * (p2_z - p1_z) / (p2_dist - p1_dist)
 
 
 def compute_match(x, y, series_x, series_y):
@@ -30,6 +50,12 @@ def transform_to_world_coordinate_system(input_df, cam_x, cam_y, cam_z):
     input_df['WORLD_Z'] = input_df.CAM_DIST * np.cos(input_df.BEARING)
     input_df['WORLD_Y'] = input_df.Z - cam_z
     input_df['WORLD_X'] = input_df.CAM_DIST * np.sin(input_df.BEARING) + CAMERA_LIDAR_X_OFFSET
+    input_df['WORLD_X'], input_df['WORLD_Y'] = rotate_point_series(input_df['WORLD_X'], input_df['WORLD_Y'], CAMERA_YAW)
+    input_df['WORLD_X'], input_df['WORLD_Z'] = rotate_point_series(input_df['WORLD_X'], input_df['WORLD_Z'],
+                                                                   CAMERA_PITCH)
+    input_df['WORLD_Y'], input_df['WORLD_Z'] = rotate_point_series(input_df['WORLD_Y'], input_df['WORLD_Z'],
+                                                                   CAMERA_ROLL)
+
     return input_df
 
 
@@ -108,12 +134,17 @@ if __name__ == '__main__':
 
     # get the lidar road vertex with closest distance to the camera location
     nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y'])
+    # find the next lidar road edge vertex index on the same side of the road as nearest_idx
+    next_idx = nearest_idx - 1 \
+        if abs(input_3d_gdf.iloc[nearest_idx-1].BEARING) < abs(input_3d_gdf.iloc[nearest_idx+1].BEARING) \
+        else nearest_idx + 1
 
-    # approximate lidar z for camera location
-    if input_3d_gdf.iloc[nearest_idx+1].Z > input_3d_gdf.iloc[nearest_idx].Z:
-        cam_lidar_z = input_3d_gdf.iloc[nearest_idx].Z - CAMERA_LIDAR_Z_OFFSET
-    else:
-        cam_lidar_z = input_3d_gdf.iloc[nearest_idx].Z + CAMERA_LIDAR_Z_OFFSET
+    cam_lidar_z = interpolate_camera_z(input_3d_gdf.iloc[nearest_idx].Z, input_3d_gdf.iloc[next_idx].Z,
+                                       dist([input_3d_gdf.iloc[nearest_idx].X, input_3d_gdf.iloc[nearest_idx].Y],
+                                            [proj_cam_x, proj_cam_y]),
+                                       dist([input_3d_gdf.iloc[next_idx].X, input_3d_gdf.iloc[next_idx].Y],
+                                            [proj_cam_x, proj_cam_y])) - CAMERA_LIDAR_Z_OFFSET
+
     print(f'camera Z: {cam_lidar_z}')
 
     input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y, cam_lidar_z)
