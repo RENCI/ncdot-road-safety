@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 import pandas as pd
 import geopandas as gpd
 import numpy as np
@@ -72,13 +73,16 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     to have lidar projection info for each input image
     :return:
     """
-    img_width, img_height, input_list = get_image_road_boundary_points(image_name_with_path)
-    print(image_name_with_path)
-    input_2d_points = input_list[0]
-    print(f'input 2d numpy array shape: {input_2d_points.shape}')
-    input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
     # get input image base name
+
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
+    img_width, img_height, input_list = get_image_road_boundary_points(image_name_with_path)
+    # output 2d road boundary points for showing alignment overlay plot
+    with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
+        pickle.dump(input_list, f)
+    input_2d_points = input_list[0]
+    print(f'input 2d numpy array shape: {input_2d_mapped_image}: {input_2d_points.shape}')
+    input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
     cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2 = get_camera_latlon_and_bearing_for_image_from_mapping(
         mdf, input_2d_mapped_image, is_degree=False)
     if cam_lat is None:
