@@ -7,15 +7,25 @@ from utils import get_data_from_image
 import pickle
 
 
-def get_image_road_boundary_points(seg_img):
+def get_image_road_boundary_points(image_file_name):
+    image_width, image_height, seg_img = get_data_from_image(image_file_name)
     # seg_img is labeled segmented image data with road labeled as 1 and object labeled as 2
     seg_img[seg_img == 2] = 0
     labeled_data, count = skimage.measure.label(seg_img, connectivity=2, return_num=True)
     labeled_data = labeled_data.astype('uint8')
 
+    # segmented road could have many disconnected road segments, only use the largest one
+    max_len = 0
+    max_lbl = 0
+    for i in range(1, len(np.unique(labeled_data))):
+        seg_len = len(labeled_data[labeled_data == i])
+        if seg_len > max_len:
+            max_len = seg_len
+            max_lbl = i
+
     binary_data = np.copy(labeled_data)
     # label road boundary pixels as 255 and other pixels as 0
-    binary_data[binary_data == 1] = 255
+    binary_data[binary_data == max_lbl] = 255
     binary_data[binary_data != 255] = 0
 
     # Apply Canny edge detection
@@ -35,7 +45,7 @@ def get_image_road_boundary_points(seg_img):
         if maxy - miny > 15:
             contour_shape = contours[i].shape
             updated_contours.append(np.reshape(contours[i], (contour_shape[0], contour_shape[2])))
-    return updated_contours
+    return image_width, image_height, updated_contours
 
 
 if __name__ == '__main__':
@@ -53,8 +63,7 @@ if __name__ == '__main__':
     for image in os.listdir(input_data_path):
         if not image.endswith('1.png'):
             continue
-        image_width, image_height, input_data = get_data_from_image(os.path.join(input_data_path, image))
-        road_contours = get_image_road_boundary_points(input_data)
+        _, _, road_contours = get_image_road_boundary_points(os.path.join(input_data_path, image))
         print(f"Number of updated contours found = {len(road_contours)} for {image}")
         print(f"the first contour shape: {road_contours[0].shape} for {image}")
         # binary_data[binary_data != 0] = 0

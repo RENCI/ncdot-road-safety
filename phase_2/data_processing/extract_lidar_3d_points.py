@@ -36,7 +36,8 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_shp_with_path', type=str,
-                        default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/RoadEdge_40001001011_vertices.shp',
+                        default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
+                                'RoadEdge_40001001011_vertices.shp',
                         help='input shp file that contains road x, y, z vertices from lidar')
     parser.add_argument('--output_file', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'

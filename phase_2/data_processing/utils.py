@@ -58,7 +58,7 @@ def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_imag
     cam_lon2 = float(mapping_df.iloc[mapped_image_df.index + 1]['LONGITUDE'])
     # compute bearing
     cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2, is_degree)
-    return cam_lat, cam_lon, cam_br
+    return cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2
 
 
 # haversine distance formula between two points specified by their GPS coordinates
