@@ -1,7 +1,7 @@
 import cv2
 import os
 import numpy as np
-import skimage.measure
+from skimage import morphology, measure
 import argparse
 from utils import get_data_from_image
 import pickle
@@ -11,26 +11,15 @@ def get_image_road_boundary_points(image_file_name):
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
     # seg_img is labeled segmented image data with road labeled as 1 and object labeled as 2
     seg_img[seg_img == 2] = 0
-    labeled_data, count = skimage.measure.label(seg_img, connectivity=2, return_num=True)
+    seg_img[seg_img == 1] = 255
+    cleaned_mask = morphology.remove_small_objects(seg_img, min_size=1000)
+    labeled_data, count = measure.label(cleaned_mask, connectivity=2, return_num=True)
     labeled_data = labeled_data.astype('uint8')
 
-    # segmented road could have many disconnected road segments, only use the largest one
-    max_len = 0
-    max_lbl = 0
-    for i in range(1, len(np.unique(labeled_data))):
-        seg_len = len(labeled_data[labeled_data == i])
-        if seg_len > max_len:
-            max_len = seg_len
-            max_lbl = i
-
     binary_data = np.copy(labeled_data)
-    # label road boundary pixels as 255 and other pixels as 0
-    binary_data[binary_data == max_lbl] = 255
-    binary_data[binary_data != 255] = 0
-
+    binary_data[binary_data > 0] = 255
     # Apply Canny edge detection
     edges = cv2.Canny(binary_data, 100, 200)
-
     # Dilate edges to connect any broken lines
     dilated_edges = cv2.dilate(edges, None, iterations=1)
 
@@ -43,9 +32,24 @@ def get_image_road_boundary_points(image_file_name):
         miny = min_xy[0][1]
         maxy = max_xy[0][1]
         if maxy - miny > 15:
-            contour_shape = contours[i].shape
-            updated_contours.append(np.reshape(contours[i], (contour_shape[0], contour_shape[2])))
-    return image_width, image_height, updated_contours
+            cshape = contours[i].shape
+            cont_len = len(updated_contours)
+            if cont_len < 1:
+                updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
+            elif cshape[0] < updated_contours[-1].shape[0]:
+                updated_contours.insert(cont_len-1, np.reshape(contours[i], (cshape[0], cshape[2])))
+            else:
+                updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
+
+    if len(updated_contours) > 1:
+        if updated_contours[-2].shape[0] > 800:
+            return_contours = [np.concatenate(updated_contours[-2:], axis=0)]
+        else:
+            return_contours = [updated_contours[-1]]
+    else:
+        return_contours = updated_contours
+
+    return image_width, image_height, return_contours
 
 
 if __name__ == '__main__':
