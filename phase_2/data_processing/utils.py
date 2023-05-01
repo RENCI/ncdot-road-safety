@@ -1,6 +1,6 @@
 import numpy as np
 from PIL import Image
-from math import radians, cos, sin, asin, sqrt, atan2, degrees
+from math import radians, cos, sin, asin, sqrt, atan2, degrees, pi
 import pickle
 
 ROAD = 1
@@ -40,6 +40,10 @@ def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2, is_degree):
     y = sin(lon_delta_rad) * cos(lat2_rad)
     x = cos(lat1_rad)*sin(lat2_rad) - sin(lat1_rad)*cos(lat2_rad)*cos(lon_delta_rad)
     theta = atan2(y, x)
+    # normalize angle to be between 0 and 360
+    if theta < 0:
+        theta += 2 * pi
+    theta = theta % (2 * pi)
     if is_degree:
         return degrees(theta)
     else:
