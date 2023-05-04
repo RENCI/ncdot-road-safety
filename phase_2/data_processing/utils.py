@@ -10,6 +10,29 @@ IMAGE_HEIGHT = 2198
 ASPECT_RATIO = IMAGE_WIDTH/IMAGE_HEIGHT
 
 
+def next_location(lat, lon, bearing, distance, is_degree=True):
+    # Convert degrees to radians
+    if is_degree:
+        lat = radians(lat)
+        lon = radians(lon)
+        bearing = radians(bearing)
+
+    # Earth's radius in meters
+    radius = 6378137
+
+    # Calculate the next latitude and longitude
+    lat2 = asin(sin(lat) * cos(distance / radius) + cos(lat) * sin(distance / radius) * cos(bearing))
+    lon2 = lon + atan2(sin(bearing) * sin(distance / radius) * cos(lat),
+                            cos(distance / radius) - sin(lat) * sin(lat2))
+
+    if is_degree:
+        # Convert radians back to degrees
+        lat2 = degrees(lat2)
+        lon2 = degrees(lon2)
+
+    return lat2, lon2
+
+
 def consecutive(data, step_size=1):
     split_indices = np.where(np.diff(data) > step_size)[0]
     return split_indices, np.split(data, split_indices+1)
@@ -58,10 +81,21 @@ def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_imag
     cam_lat = float(mapped_image_df.iloc[0]['LATITUDE'])
     cam_lon = float(mapped_image_df.iloc[0]['LONGITUDE'])
     # find the next camera lat/lon for computing bearing
-    cam_lat2 = float(mapping_df.iloc[mapped_image_df.index + 1]['LATITUDE'])
-    cam_lon2 = float(mapping_df.iloc[mapped_image_df.index + 1]['LONGITUDE'])
-    # compute bearing
-    cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2, is_degree)
+    next_row = mapping_df.iloc[mapped_image_df.index + 1]
+    if next_row.iloc[0]['ROUTEID'] != mapped_image_df.iloc[0]['ROUTEID']:
+        # this image is the end of the route, use the previous camera location to compute bearing instead
+        cam_lat2 = float(mapping_df.iloc[mapped_image_df.index - 1]['LATITUDE'])
+        cam_lon2 = float(mapping_df.iloc[mapped_image_df.index - 1]['LONGITUDE'])
+        # compute bearing
+        cam_br = bearing_between_two_latlon_points(cam_lat2, cam_lon2, cam_lat, cam_lon, is_degree)
+        # compute next interpolated camera location based on cam_br
+        cam_lat2, cam_lon2 = next_location(cam_lat, cam_lon, cam_br, 8, is_degree)
+    else:
+        cam_lat2 = float(next_row.iloc[0]['LATITUDE'])
+        cam_lon2 = float(next_row.iloc[0]['LONGITUDE'])
+        # compute bearing
+        cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2, is_degree)
+
     return cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2
 
 
