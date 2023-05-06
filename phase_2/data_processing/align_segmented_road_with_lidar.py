@@ -13,7 +13,10 @@ from get_road_boundary_points import get_image_road_boundary_points
 FOCAL_LENGTH = 0.001
 # camera translation to move camera along X axis in world coordinate system
 CAMERA_LIDAR_X_OFFSET = 6
-CAMERA_LIDAR_Z_OFFSET = 4
+# camera translation to move camera along Y axis in world coordinate system
+CAMERA_LIDAR_Y_OFFSET = 4
+# camera translation to move camera along Z axis in world coordinate system
+CAMERA_LIDAR_Z_OFFSET = 0
 CAMERA_YAW = 0  # camera angle of rotation around Z (bearing) axis in the 3D world coordinate system
 CAMERA_PITCH = 0  # camera angle of rotation around Y axis in the 3D world coordinate system
 CAMERA_ROLL = -30  # camera angle of rotation around X axis in the 3D world coordinate system
@@ -51,8 +54,8 @@ def transform_to_world_coordinate_system(input_df, cam_x, cam_y, cam_z):
     input_df.Y = input_df.Y - cam_y
     # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
     input_df['CAM_DIST'] = np.sqrt(np.square(input_df.X) + np.square(input_df.Y))
-    input_df['WORLD_Z'] = input_df.CAM_DIST * np.cos(input_df.BEARING)
-    input_df['WORLD_Y'] = input_df.Z - cam_z
+    input_df['WORLD_Z'] = input_df.CAM_DIST * np.cos(input_df.BEARING) + CAMERA_LIDAR_Z_OFFSET
+    input_df['WORLD_Y'] = input_df.Z - cam_z + CAMERA_LIDAR_Y_OFFSET
     input_df['WORLD_X'] = input_df.CAM_DIST * np.sin(input_df.BEARING) + CAMERA_LIDAR_X_OFFSET
     input_df['WORLD_X'], input_df['WORLD_Y'] = rotate_point_series(input_df['WORLD_X'], input_df['WORLD_Y'], CAMERA_YAW)
     input_df['WORLD_X'], input_df['WORLD_Z'] = rotate_point_series(input_df['WORLD_X'], input_df['WORLD_Z'],
@@ -131,7 +134,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
                                        dist([input_3d_gdf.iloc[nearest_idx].X, input_3d_gdf.iloc[nearest_idx].Y],
                                             [proj_cam_x, proj_cam_y]),
                                        dist([input_3d_gdf.iloc[next_idx].X, input_3d_gdf.iloc[next_idx].Y],
-                                            [proj_cam_x, proj_cam_y])) - CAMERA_LIDAR_Z_OFFSET
+                                            [proj_cam_x, proj_cam_y]))
 
     print(f'camera Z: {cam_lidar_z}')
 
