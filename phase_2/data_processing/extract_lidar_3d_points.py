@@ -1,7 +1,7 @@
 import argparse
 import geopandas as gpd
 import pickle
-from utils import haversine, bearing_between_two_latlon_points
+from utils import haversine, bearing_between_two_latlon_points, get_next_road_index
 import math
 
 
@@ -19,7 +19,7 @@ def get_lidar_data_from_shp(lidar_shp_file_path):
     return df.merge(geom_df, left_index=True, right_index=True)
 
 
-def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190):
+def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, end_of_route=False):
     clat, clon = cam_loc
     next_clat, next_clon = next_cam_loc
     df['distance'] = df.apply(lambda row: haversine(clon, clat, row['geometry_y']), axis=1)
@@ -27,10 +27,22 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190):
     df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
         clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
     print(df.shape)
+    if end_of_route:
+        # use lidar road edge as camera bearing direction instead since next_cam_loc is interpolated and does not
+        # accurately reflect camera bearing direction
+        lidx = df['distance'].idxmin()
+        nidx = get_next_road_index(lidx, df, 'bearing_diff')
+        cam_bearing = bearing_between_two_latlon_points(df.iloc[lidx]['geometry_y'].y,
+                                                        df.iloc[lidx]['geometry_y'].x,
+                                                        df.iloc[nidx]['geometry_y'].y,
+                                                        df.iloc[nidx]['geometry_y'].x,
+                                                        is_degree=False)
+        df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
+            clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
     df = df[(df['distance'] < dist_th) & (df['bearing_diff'] < math.pi / 3)]
     print(df.shape)
     df = df.drop(columns=['Id', 'ORIG_FID', 'geometry_y', 'geometry_x', 'distance', 'bearing_diff'])
-    return [df.to_numpy()]
+    return [df.to_numpy()], cam_bearing
 
 
 if __name__ == '__main__':
@@ -61,7 +73,7 @@ if __name__ == '__main__':
     next_camera_loc = args.next_camera_loc
     distance_threshold = args.distance_threshold
     lidar_df = get_lidar_data_from_shp(input_lidar_shp_with_path)
-    vertices = extract_lidar_3d_points_for_camera(lidar_df, camera_loc, next_camera_loc)
+    vertices, _ = extract_lidar_3d_points_for_camera(lidar_df, camera_loc, next_camera_loc)
 
     with open(output_file, 'wb') as f:
         pickle.dump(vertices, f)

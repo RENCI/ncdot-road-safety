@@ -33,6 +33,18 @@ def next_location(lat, lon, bearing, distance, is_degree=True):
     return lat2, lon2
 
 
+def get_next_road_index(input_idx, input_df, input_df_bearing_field):
+    # find the next lidar road edge vertex index on the same side of the road as nearest_idx
+    if input_idx == 0:
+        next_idx = input_idx + 1
+    elif input_idx == len(input_df) - 1:
+        next_idx = input_idx - 1
+    else:
+        next_idx = input_idx - 1 if abs(input_df.iloc[input_idx - 1][input_df_bearing_field]) < \
+                                    abs(input_df.iloc[input_idx + 1][input_df_bearing_field]) else input_idx + 1
+    return next_idx
+
+
 def consecutive(data, step_size=1):
     split_indices = np.where(np.diff(data) > step_size)[0]
     return split_indices, np.split(data, split_indices+1)
@@ -90,13 +102,15 @@ def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_imag
         cam_br = bearing_between_two_latlon_points(cam_lat2, cam_lon2, cam_lat, cam_lon, is_degree)
         # compute next interpolated camera location based on cam_br
         cam_lat2, cam_lon2 = next_location(cam_lat, cam_lon, cam_br, 8, is_degree)
+        end_of_route = True
     else:
         cam_lat2 = float(next_row.iloc[0]['LATITUDE'])
         cam_lon2 = float(next_row.iloc[0]['LONGITUDE'])
         # compute bearing
         cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2, is_degree)
+        end_of_route = False
 
-    return cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2
+    return cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, end_of_route
 
 
 # haversine distance formula between two points specified by their GPS coordinates

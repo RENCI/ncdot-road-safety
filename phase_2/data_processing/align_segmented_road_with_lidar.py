@@ -5,7 +5,8 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 from math import dist, radians
-from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points
+from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
+    get_next_road_index
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_boundary_points
 
@@ -86,7 +87,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     input_2d_points = input_list[0]
     print(f'input 2d numpy array shape: {input_2d_mapped_image}: {input_2d_points.shape}')
     input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
-    cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2 = get_camera_latlon_and_bearing_for_image_from_mapping(
+    cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, eor = get_camera_latlon_and_bearing_for_image_from_mapping(
         mdf, input_2d_mapped_image, is_degree=False)
     if cam_lat is None:
         # no camera location
@@ -104,7 +105,8 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     proj_cam_y = cam_geom_df.iloc[0].y
     print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')
 
-    vertices = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2])
+    vertices, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
+                                                          end_of_route=eor)
     input_3d_points = vertices[0]
     print(f'input 3d numpy array shape: {input_3d_points.shape}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
@@ -120,16 +122,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
 
     # get the lidar road vertex with closest distance to the camera location
     nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y'])
-    # find the next lidar road edge vertex index on the same side of the road as nearest_idx
-    if nearest_idx == 0:
-        next_idx = nearest_idx + 1
-    elif nearest_idx == len(input_3d_gdf) - 1:
-        next_idx = nearest_idx - 1
-    else:
-        next_idx = nearest_idx - 1 \
-            if abs(input_3d_gdf.iloc[nearest_idx - 1].BEARING) < abs(input_3d_gdf.iloc[nearest_idx + 1].BEARING) \
-            else nearest_idx + 1
-
+    next_idx = get_next_road_index(nearest_idx, input_3d_gdf, 'BEARING')
     cam_lidar_z = interpolate_camera_z(input_3d_gdf.iloc[nearest_idx].Z, input_3d_gdf.iloc[next_idx].Z,
                                        dist([input_3d_gdf.iloc[nearest_idx].X, input_3d_gdf.iloc[nearest_idx].Y],
                                             [proj_cam_x, proj_cam_y]),

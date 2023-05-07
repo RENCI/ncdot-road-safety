@@ -26,7 +26,7 @@ width_to_hfov = {
 def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfix, mapped_image, path):
     # compute depth of segmented object taking the 10%-trimmed mean of the depths of its constituent pixels
     # to gain robustness with respect to segmentation errors, in particular along the object borders
-    cam_lat, cam_lon, cam_br, _, _ = get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_image)
+    cam_lat, cam_lon, cam_br, _, _, _ = get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_image)
     if cam_lat is None:
         # no camera location
         print(f'no camera location found for {mapped_image}')
