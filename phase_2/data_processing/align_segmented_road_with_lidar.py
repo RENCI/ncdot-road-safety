@@ -11,16 +11,17 @@ from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_po
 from get_road_boundary_points import get_image_road_boundary_points
 
 
-FOCAL_LENGTH = 0.001
+FOCAL_LENGTH_X = 1.4
+FOCAL_LENGTH_Y = 1
 # camera translation to move camera along X axis in world coordinate system
 CAMERA_LIDAR_X_OFFSET = 6
 # camera translation to move camera along Y axis in world coordinate system
-CAMERA_LIDAR_Y_OFFSET = 4
+CAMERA_LIDAR_Y_OFFSET = 20
 # camera translation to move camera along Z axis in world coordinate system
-CAMERA_LIDAR_Z_OFFSET = 0
-CAMERA_YAW = 0  # camera angle of rotation around Z (bearing) axis in the 3D world coordinate system
-CAMERA_PITCH = 0  # camera angle of rotation around Y axis in the 3D world coordinate system
-CAMERA_ROLL = -30  # camera angle of rotation around X axis in the 3D world coordinate system
+CAMERA_LIDAR_Z_OFFSET = 8
+CAMERA_YAW = 5  # camera angle of rotation around Z (bearing) axis in the 3D world coordinate system
+CAMERA_PITCH = -2  # camera angle of rotation around Y axis in the 3D world coordinate system
+CAMERA_ROLL = -2  # camera angle of rotation around X axis in the 3D world coordinate system
 
 
 def rotate_point_series(x, y, angle):
@@ -120,7 +121,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
         cam_lat, cam_lon, geom.y, geom.x, is_degree=False))
     input_3d_gdf['BEARING'] = input_3d_gdf['BEARING'] - cam_br
 
-    # get the lidar road vertex with closest distance to the camera location
+    # get the lidar road vertex with the closest distance to the camera location
     nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y'])
     next_idx = get_next_road_index(nearest_idx, input_3d_gdf, 'BEARING')
     cam_lidar_z = interpolate_camera_z(input_3d_gdf.iloc[nearest_idx].Z, input_3d_gdf.iloc[next_idx].Z,
@@ -135,37 +136,18 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
 
     # project to 2D camera coordinate system
     input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(
-        lambda row: FOCAL_LENGTH * row['WORLD_X'] / (row['WORLD_Z'] - FOCAL_LENGTH),
+        lambda row: FOCAL_LENGTH_X * row['WORLD_X'] / (row['WORLD_Z'] - FOCAL_LENGTH_X),
         axis=1)
     input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
-        lambda row: FOCAL_LENGTH * row['WORLD_Y'] / (row['WORLD_Z'] - FOCAL_LENGTH),
+        lambda row: FOCAL_LENGTH_Y * row['WORLD_Y'] / (row['WORLD_Z'] - FOCAL_LENGTH_Y),
         axis=1)
 
-    # translate lidar road vertices to be centered at the origin along the x-axis
-    min_proj_x = min(input_3d_gdf['PROJ_X'])
-    max_proj_x = max(input_3d_gdf['PROJ_X'])
-    origin_proj_x = min_proj_x + (max_proj_x - min_proj_x) / 2
-    input_3d_gdf['PROJ_X'] = input_3d_gdf['PROJ_X'] - origin_proj_x
-
-    # project to screen coordinate system. Note camera coordinate system origin is at lower-left while screen
-    # coordinate system origin is at upper-left, so need to mirror Y values along the x-axis
-    input_3d_gdf['PROJ_Y'] = - input_3d_gdf['PROJ_Y']
-
-    min_road_x = min(input_2d_df.X)
-    max_road_x = max(input_2d_df.X)
-    min_road_y = min(input_2d_df.Y)
-    max_road_y = max(input_2d_df.Y)
-    range_x = (max_road_x - min_road_x)
-    range_y = (max_road_y - min_road_y)
-    min_proj_y = min(input_3d_gdf['PROJ_Y'])
-    min_proj_x = min(input_3d_gdf['PROJ_X'])
-    scale_x = range_x / (max(input_3d_gdf['PROJ_X']) - min_proj_x)
-    scale_y = range_y / (max(input_3d_gdf['PROJ_Y']) - min_proj_y)
-
+    half_width = img_width / 2
+    half_height = img_height / 2
     input_3d_gdf['PROJ_SCREEN_X'] = input_3d_gdf['PROJ_X'].apply(
-        lambda x: int((x - min_proj_x) * scale_x))
+        lambda x: int((x + 1) * half_width))
     input_3d_gdf['PROJ_SCREEN_Y'] = input_3d_gdf['PROJ_Y'].apply(
-        lambda y: int(img_height - (y - min_proj_y) * scale_y))
+        lambda y: int((y + 1) * half_height))
     input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
                                                                                 input_3d_gdf['PROJ_SCREEN_X'],
                                                                                 input_3d_gdf['PROJ_SCREEN_Y']),
@@ -193,12 +175,12 @@ if __name__ == '__main__':
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--output_file_base', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/route_batch/road_alignment_with_lidar',
+                                'oneformer/output/test_route_batch/road_alignment_with_lidar',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have an alignment output file for each input image')
     parser.add_argument('--lidar_proj_output_file_base', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/route_batch/lidar_project_info',
+                                'oneformer/output/test_route_batch/lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
 
