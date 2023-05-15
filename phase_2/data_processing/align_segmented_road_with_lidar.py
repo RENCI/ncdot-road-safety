@@ -175,12 +175,12 @@ if __name__ == '__main__':
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--output_file_base', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/test_route_batch/road_alignment_with_lidar',
+                                'oneformer/output/route_batch/road_alignment_with_lidar',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have an alignment output file for each input image')
     parser.add_argument('--lidar_proj_output_file_base', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/test_route_batch/lidar_project_info',
+                                'oneformer/output/route_batch/lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
 
