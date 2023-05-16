@@ -141,6 +141,24 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
         lambda row: FOCAL_LENGTH_Y * row['WORLD_Y'] / (row['WORLD_Z'] - FOCAL_LENGTH_Y),
         axis=1)
+    max_x = max(input_3d_gdf['PROJ_X'])
+    min_x = min(input_3d_gdf['PROJ_X'])
+    if max_x > 1 or min_x < -1:
+        # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
+        max_val = max(max_x, -min_x)
+        update_focal_length = FOCAL_LENGTH_X / max_val
+        input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(
+            lambda row: update_focal_length * row['WORLD_X'] / row['WORLD_Z'],
+            axis=1)
+    max_y = max(input_3d_gdf['PROJ_Y'])
+    min_y = min(input_3d_gdf['PROJ_Y'])
+    if max_y > 1 or min_y < -1:
+        # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
+        max_val = max(max_y, -min_y)
+        update_focal_length = FOCAL_LENGTH_Y / max_val
+        input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
+            lambda row: update_focal_length * row['WORLD_Y'] / row['WORLD_Z'],
+            axis=1)
 
     half_width = img_width / 2
     half_height = img_height / 2
