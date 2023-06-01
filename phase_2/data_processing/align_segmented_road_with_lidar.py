@@ -11,17 +11,14 @@ from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_po
 from get_road_boundary_points import get_image_road_boundary_points
 
 
-FOCAL_LENGTH_X = 1.4
-FOCAL_LENGTH_Y = 1
-# camera translation to move camera along X axis in world coordinate system
-CAMERA_LIDAR_X_OFFSET = 6
-# camera translation to move camera along Y axis in world coordinate system
-CAMERA_LIDAR_Y_OFFSET = 20
-# camera translation to move camera along Z axis in world coordinate system
-CAMERA_LIDAR_Z_OFFSET = 8
-CAMERA_YAW = 5  # camera angle of rotation around Z (bearing) axis in the 3D world coordinate system
-CAMERA_PITCH = -2  # camera angle of rotation around Y axis in the 3D world coordinate system
-CAMERA_ROLL = -2  # camera angle of rotation around X axis in the 3D world coordinate system
+# indices as constants in the input camera parameter list where CAMERA_LIDAR_X/Y/Z_OFFSET indicate camera
+# translation to move camera along X/Y/Z axis in world coordinate system, CMAERA_YAM, CAMERA_PITCH, CAMERA_ROLL
+# indicate camera angle of rotation around Z (bearing) axis, Y axis, and X axis, respectively, in the 3D world
+# coordinate system
+FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
+    CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
+# initial camera parameter list for optimization
+INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, -2, -2]
 
 
 def rotate_point_series(x, y, angle):
@@ -46,25 +43,68 @@ def compute_match(x, y, series_x, series_y):
     return distances.idxmin()
 
 
-def transform_to_world_coordinate_system(input_df, cam_x, cam_y, cam_z):
+def transform_to_world_coordinate_system(df, cam_x, cam_y, cam_z, cam_params):
     # transform X, Y, Z in LIDAR coordinate system to world coordinate system where the camera is at the origin,
     # the z-axis is pointing from the camera along the cam_bearing direction, the y-axis is perpendicular to the
     # z-axis reflecting the elevation Z pointing upwards, and the x-axis is perpendicular to both y-axis and z-axis
     # reflecting X and Y. Note that LIDAR world coordinate system origin is located at lower-left corner while
     # screen coordinate system origin is located at upper-left corner
-    input_df.X = input_df.X - cam_x
-    input_df.Y = input_df.Y - cam_y
+    df.X = df.X - cam_x
+    df.Y = df.Y - cam_y
     # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
-    input_df['CAM_DIST'] = np.sqrt(np.square(input_df.X) + np.square(input_df.Y))
-    input_df['WORLD_Z'] = input_df.CAM_DIST * np.cos(input_df.BEARING) + CAMERA_LIDAR_Z_OFFSET
-    input_df['WORLD_Y'] = input_df.Z - cam_z + CAMERA_LIDAR_Y_OFFSET
-    input_df['WORLD_X'] = input_df.CAM_DIST * np.sin(input_df.BEARING) + CAMERA_LIDAR_X_OFFSET
-    input_df['WORLD_X'], input_df['WORLD_Y'] = rotate_point_series(input_df['WORLD_X'], input_df['WORLD_Y'], CAMERA_YAW)
-    input_df['WORLD_X'], input_df['WORLD_Z'] = rotate_point_series(input_df['WORLD_X'], input_df['WORLD_Z'],
-                                                                   CAMERA_PITCH)
-    input_df['WORLD_Y'], input_df['WORLD_Z'] = rotate_point_series(input_df['WORLD_Y'], input_df['WORLD_Z'],
-                                                                   CAMERA_ROLL)
-    return input_df
+    df['CAM_DIST'] = np.sqrt(np.square(df.X) + np.square(df.Y))
+    df['WORLD_Z'] = df.CAM_DIST * np.cos(df.BEARING) + cam_params[CAMERA_LIDAR_Z_OFFSET]
+    df['WORLD_Y'] = df.Z - cam_z + cam_params[CAMERA_LIDAR_Y_OFFSET]
+    df['WORLD_X'] = df.CAM_DIST * np.sin(df.BEARING) + cam_params[CAMERA_LIDAR_X_OFFSET]
+    df['WORLD_X'], df['WORLD_Y'] = rotate_point_series(df['WORLD_X'], df['WORLD_Y'],
+                                                       cam_params[CAMERA_YAW])
+    df['WORLD_X'], df['WORLD_Z'] = rotate_point_series(df['WORLD_X'], df['WORLD_Z'],
+                                                       cam_params[CAMERA_PITCH])
+    df['WORLD_Y'], df['WORLD_Z'] = rotate_point_series(df['WORLD_Y'], df['WORLD_Z'],
+                                                       cam_params[CAMERA_ROLL])
+    return df
+
+
+def transform_3d_points(df, cam_params, cam_x, cam_y, cam_z, img_width, img_hgt):
+    df = transform_to_world_coordinate_system(df, cam_x, cam_y, cam_z, cam_params)
+
+    # project to 2D camera coordinate system
+    df['PROJ_X'] = df.apply(
+        lambda row: cam_params[FOCAL_LENGTH_X] * row['WORLD_X'] / (row['WORLD_Z'] - cam_params[FOCAL_LENGTH_X]),
+        axis=1)
+    df['PROJ_Y'] = df.apply(
+        lambda row: cam_params[FOCAL_LENGTH_Y] * row['WORLD_Y'] / (row['WORLD_Z'] - cam_params[FOCAL_LENGTH_Y]),
+        axis=1)
+    max_x = max(df['PROJ_X'])
+    min_x = min(df['PROJ_X'])
+    if max_x > 1 or min_x < -1:
+        # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
+        max_val = max(max_x, -min_x)
+        update_focal_length = cam_params[FOCAL_LENGTH_X] / max_val
+        print(f'min_x-max_x: {min_x}-{max_x}, reduced focal length from {cam_params[FOCAL_LENGTH_X]} to '
+              f'{update_focal_length}')
+        df['PROJ_X'] = df.apply(
+            lambda row: update_focal_length * row['WORLD_X'] / row['WORLD_Z'],
+            axis=1)
+    max_y = max(df['PROJ_Y'])
+    min_y = min(df['PROJ_Y'])
+    if max_y > 1 or min_y < -1:
+        # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
+        max_val = max(max_y, -min_y)
+        update_focal_length = cam_params[FOCAL_LENGTH_Y] / max_val
+        print(f'min_y-max_y: {min_y}-{max_y}, reduced focal length from {cam_params[FOCAL_LENGTH_Y]} to '
+              f'{update_focal_length}')
+        df['PROJ_Y'] = df.apply(
+            lambda row: update_focal_length * row['WORLD_Y'] / row['WORLD_Z'],
+            axis=1)
+
+    half_width = img_width / 2
+    half_height = img_hgt / 2
+    df['PROJ_SCREEN_X'] = df['PROJ_X'].apply(
+        lambda x: int((x + 1) * half_width))
+    df['PROJ_SCREEN_Y'] = df['PROJ_Y'].apply(
+        lambda y: int((y + 1) * half_height))
+    return df
 
 
 def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_proj_file):
@@ -132,40 +172,8 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
 
     print(f'camera Z: {cam_lidar_z}')
 
-    input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y, cam_lidar_z)
-
-    # project to 2D camera coordinate system
-    input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(
-        lambda row: FOCAL_LENGTH_X * row['WORLD_X'] / (row['WORLD_Z'] - FOCAL_LENGTH_X),
-        axis=1)
-    input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
-        lambda row: FOCAL_LENGTH_Y * row['WORLD_Y'] / (row['WORLD_Z'] - FOCAL_LENGTH_Y),
-        axis=1)
-    max_x = max(input_3d_gdf['PROJ_X'])
-    min_x = min(input_3d_gdf['PROJ_X'])
-    if max_x > 1 or min_x < -1:
-        # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
-        max_val = max(max_x, -min_x)
-        update_focal_length = FOCAL_LENGTH_X / max_val
-        input_3d_gdf['PROJ_X'] = input_3d_gdf.apply(
-            lambda row: update_focal_length * row['WORLD_X'] / row['WORLD_Z'],
-            axis=1)
-    max_y = max(input_3d_gdf['PROJ_Y'])
-    min_y = min(input_3d_gdf['PROJ_Y'])
-    if max_y > 1 or min_y < -1:
-        # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
-        max_val = max(max_y, -min_y)
-        update_focal_length = FOCAL_LENGTH_Y / max_val
-        input_3d_gdf['PROJ_Y'] = input_3d_gdf.apply(
-            lambda row: update_focal_length * row['WORLD_Y'] / row['WORLD_Z'],
-            axis=1)
-
-    half_width = img_width / 2
-    half_height = img_height / 2
-    input_3d_gdf['PROJ_SCREEN_X'] = input_3d_gdf['PROJ_X'].apply(
-        lambda x: int((x + 1) * half_width))
-    input_3d_gdf['PROJ_SCREEN_Y'] = input_3d_gdf['PROJ_Y'].apply(
-        lambda y: int((y + 1) * half_height))
+    input_3d_gdf = transform_3d_points(input_3d_gdf, INIT_CAMERA_PARAMS, proj_cam_x, proj_cam_y, cam_lidar_z,
+                                       img_width, img_height)
     input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
                                                                                 input_3d_gdf['PROJ_SCREEN_X'],
                                                                                 input_3d_gdf['PROJ_SCREEN_Y']),
