@@ -4,6 +4,7 @@ import pickle
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+from scipy.optimize import minimize
 from math import dist, radians
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index
@@ -19,6 +20,10 @@ FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CA
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, -2, -2]
+# gradient descent hyperparameters
+LEARNING_RATE = 0.01
+NUM_ITERATIONS = 100
+align_errors = []
 
 
 def rotate_point_series(x, y, angle):
@@ -40,7 +45,8 @@ def compute_match(x, y, series_x, series_y):
     # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
     # (series_x, series_y) pairs has minimal distance to point(x, y)
     distances = np.sqrt((series_x - x) ** 2 + (series_y - y) ** 2)
-    return distances.idxmin()
+    min_idx = distances.idxmin()
+    return [min_idx, distances[min_idx]]
 
 
 def transform_to_world_coordinate_system(df, cam_x, cam_y, cam_z, cam_params):
@@ -75,28 +81,28 @@ def transform_3d_points(df, cam_params, cam_x, cam_y, cam_z, img_width, img_hgt)
     df['PROJ_Y'] = df.apply(
         lambda row: cam_params[FOCAL_LENGTH_Y] * row['WORLD_Y'] / (row['WORLD_Z'] - cam_params[FOCAL_LENGTH_Y]),
         axis=1)
-    max_x = max(df['PROJ_X'])
-    min_x = min(df['PROJ_X'])
-    if max_x > 1 or min_x < -1:
-        # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
-        max_val = max(max_x, -min_x)
-        update_focal_length = cam_params[FOCAL_LENGTH_X] / max_val
-        print(f'min_x-max_x: {min_x}-{max_x}, reduced focal length from {cam_params[FOCAL_LENGTH_X]} to '
-              f'{update_focal_length}')
-        df['PROJ_X'] = df.apply(
-            lambda row: update_focal_length * row['WORLD_X'] / row['WORLD_Z'],
-            axis=1)
-    max_y = max(df['PROJ_Y'])
-    min_y = min(df['PROJ_Y'])
-    if max_y > 1 or min_y < -1:
-        # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
-        max_val = max(max_y, -min_y)
-        update_focal_length = cam_params[FOCAL_LENGTH_Y] / max_val
-        print(f'min_y-max_y: {min_y}-{max_y}, reduced focal length from {cam_params[FOCAL_LENGTH_Y]} to '
-              f'{update_focal_length}')
-        df['PROJ_Y'] = df.apply(
-            lambda row: update_focal_length * row['WORLD_Y'] / row['WORLD_Z'],
-            axis=1)
+    # max_x = max(df['PROJ_X'])
+    # min_x = min(df['PROJ_X'])
+    # if max_x > 1 or min_x < -1:
+    #     # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
+    #     max_val = max(max_x, -min_x)
+    #     update_focal_length = cam_params[FOCAL_LENGTH_X] / max_val
+    #     print(f'min_x-max_x: {min_x}-{max_x}, reduced focal length from {cam_params[FOCAL_LENGTH_X]} to '
+    #           f'{update_focal_length}')
+    #     df['PROJ_X'] = df.apply(
+    #         lambda row: update_focal_length * row['WORLD_X'] / row['WORLD_Z'],
+    #         axis=1)
+    # max_y = max(df['PROJ_Y'])
+    # min_y = min(df['PROJ_Y'])
+    # if max_y > 1 or min_y < -1:
+    #     # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
+    #     max_val = max(max_y, -min_y)
+    #     update_focal_length = cam_params[FOCAL_LENGTH_Y] / max_val
+    #     print(f'min_y-max_y: {min_y}-{max_y}, reduced focal length from {cam_params[FOCAL_LENGTH_Y]} to '
+    #           f'{update_focal_length}')
+    #     df['PROJ_Y'] = df.apply(
+    #         lambda row: update_focal_length * row['WORLD_Y'] / row['WORLD_Z'],
+    #         axis=1)
 
     half_width = img_width / 2
     half_height = img_hgt / 2
@@ -105,6 +111,18 @@ def transform_3d_points(df, cam_params, cam_x, cam_y, cam_z, img_width, img_hgt)
     df['PROJ_SCREEN_Y'] = df['PROJ_Y'].apply(
         lambda y: int((y + 1) * half_height))
     return df
+
+
+def objective_function(cam_params, df_3d, df_2d, p_cam_x, p_cam_y, cam_z, img_wd, img_ht):
+    # compute alignment error corresponding to the cam_params using the sum of squared distances between
+    df_3d = transform_3d_points(df_3d, cam_params, p_cam_x, p_cam_y, cam_z, img_wd, img_ht)
+    df_2d['MATCH_3D_DIST'] = df_2d.apply(lambda row: compute_match(row['X'], row['Y'],
+                                                                   df_3d['PROJ_SCREEN_X'], df_3d['PROJ_SCREEN_Y'])[1],
+                                         axis=1)
+    alignment_error = df_2d['MATCH_3D_DIST'].sum()
+    print(cam_params)
+    align_errors.append(alignment_error)
+    return alignment_error
 
 
 def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_proj_file):
@@ -162,7 +180,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     input_3d_gdf['BEARING'] = input_3d_gdf['BEARING'] - cam_br
 
     # get the lidar road vertex with the closest distance to the camera location
-    nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y'])
+    nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y'])[0]
     next_idx = get_next_road_index(nearest_idx, input_3d_gdf, 'BEARING')
     cam_lidar_z = interpolate_camera_z(input_3d_gdf.iloc[nearest_idx].Z, input_3d_gdf.iloc[next_idx].Z,
                                        dist([input_3d_gdf.iloc[nearest_idx].X, input_3d_gdf.iloc[nearest_idx].Y],
@@ -172,11 +190,21 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
 
     print(f'camera Z: {cam_lidar_z}')
 
-    input_3d_gdf = transform_3d_points(input_3d_gdf, INIT_CAMERA_PARAMS, proj_cam_x, proj_cam_y, cam_lidar_z,
+    # result = minimize(objective_function, INIT_CAMERA_PARAMS,
+    #                   args=(input_3d_gdf, input_2d_df, proj_cam_x, proj_cam_y, cam_lidar_z, img_width, img_height,),
+    #                   method='BFGS', options={'maxiter': NUM_ITERATIONS, 'disp': True})
+    result = minimize(objective_function, INIT_CAMERA_PARAMS,
+                      args=(input_3d_gdf, input_2d_df, proj_cam_x, proj_cam_y, cam_lidar_z, img_width, img_height,),
+                      method='BFGS', options={'disp': True})
+    optimized_cam_params = result.x
+    print(result)
+    print(f'alignment errors: {align_errors}')
+    print(f'optimized_cam_params: {optimized_cam_params}')
+    input_3d_gdf = transform_3d_points(input_3d_gdf, optimized_cam_params, proj_cam_x, proj_cam_y, cam_lidar_z,
                                        img_width, img_height)
     input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
                                                                                 input_3d_gdf['PROJ_SCREEN_X'],
-                                                                                input_3d_gdf['PROJ_SCREEN_Y']),
+                                                                                input_3d_gdf['PROJ_SCREEN_Y'])[0],
                                                       axis=1)
     input_2d_df.drop(columns=['X', 'Y'], inplace=True)
     input_2d_df.to_csv(out_match_file, header=False)
