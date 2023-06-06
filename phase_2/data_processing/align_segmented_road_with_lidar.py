@@ -21,9 +21,7 @@ FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CA
 # initial camera parameter list for optimization
 INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, -2, -2]
 # gradient descent hyperparameters
-LEARNING_RATE = 0.01
 NUM_ITERATIONS = 100
-align_errors = []
 
 
 def rotate_point_series(x, y, angle):
@@ -113,7 +111,7 @@ def transform_3d_points(df, cam_params, cam_x, cam_y, cam_z, img_width, img_hgt)
     return df
 
 
-def objective_function(cam_params, df_3d, df_2d, p_cam_x, p_cam_y, cam_z, img_wd, img_ht):
+def objective_function(cam_params, df_3d, df_2d, p_cam_x, p_cam_y, cam_z, img_wd, img_ht, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between
     df_3d = transform_3d_points(df_3d, cam_params, p_cam_x, p_cam_y, cam_z, img_wd, img_ht)
     # df_3d['MATCH_2D_INDEX'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
@@ -129,7 +127,7 @@ def objective_function(cam_params, df_3d, df_2d, p_cam_x, p_cam_y, cam_z, img_wd
                                          axis=1)
     alignment_error = df_3d['MATCH_2D_DIST'].sum()/len(df_3d)
     align_errors.append(alignment_error)
-    print(f'cam_params: {cam_params}, alignment error: {alignment_error}')
+    # print(f'cam_params: {cam_params}, alignment error: {alignment_error}')
     # compute gradients
     # der = np.zeros_like(cam_params)
     # half_width = img_wd / 2
@@ -196,7 +194,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
         pickle.dump(input_list, f)
     input_2d_points = input_list[0]
-    print(f'input 2d numpy array shape: {input_2d_mapped_image}: {input_2d_points.shape}')
+    # print(f'input 2d numpy array shape: {input_2d_mapped_image}: {input_2d_points.shape}')
     input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
     cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, eor = get_camera_latlon_and_bearing_for_image_from_mapping(
         mdf, input_2d_mapped_image, is_degree=False)
@@ -214,12 +212,12 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     cam_geom_df = mapped_image_gdf.geometry.to_crs(epsg=6543)
     proj_cam_x = cam_geom_df.iloc[0].x
     proj_cam_y = cam_geom_df.iloc[0].y
-    print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')
+    # print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')
 
     vertices, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                           end_of_route=eor)
     input_3d_points = vertices[0]
-    print(f'input 3d numpy array shape: {input_3d_points.shape}')
+    # print(f'input 3d numpy array shape: {input_3d_points.shape}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
     input_3d_gdf = gpd.GeoDataFrame(input_3d_df, geometry=gpd.points_from_xy(input_3d_df.X, input_3d_df.Y),
                                     crs='EPSG:6543')
@@ -240,13 +238,18 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
                                        dist([input_3d_gdf.iloc[next_idx].X, input_3d_gdf.iloc[next_idx].Y],
                                             [proj_cam_x, proj_cam_y]))
 
-    print(f'camera Z: {cam_lidar_z}')
-
+    # print(f'camera Z: {cam_lidar_z}')
+    align_errors = []
+    # terminate if gradient norm is less than gtol
+    gtol = 1e-6
+    # eps specifies the absolute step size used for numerical approximation of the jacobian via forward differences
+    eps = 0.01
     result = minimize(objective_function, INIT_CAMERA_PARAMS,
-                      args=(input_3d_gdf, input_2d_df, proj_cam_x, proj_cam_y, cam_lidar_z, img_width, img_height,),
-                      method='BFGS', options={'maxiter': NUM_ITERATIONS, 'disp': True})
+                      args=(input_3d_gdf, input_2d_df, proj_cam_x, proj_cam_y, cam_lidar_z, img_width, img_height,
+                            align_errors),
+                      method='BFGS', options={'gtol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
     optimized_cam_params = result.x
-    print(result)
+    print(f'optimizing result for image {input_2d_mapped_image}: {result}')
     print(f'alignment errors: {align_errors}')
     print(f'optimized_cam_params: {optimized_cam_params}')
     input_3d_gdf = transform_3d_points(input_3d_gdf, optimized_cam_params, proj_cam_x, proj_cam_y, cam_lidar_z,
