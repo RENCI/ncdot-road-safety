@@ -44,7 +44,7 @@ def interpolate_camera_z(p1_z, p2_z, p1_dist, p2_dist):
 def compute_match(x, y, series_x, series_y):
     # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
     # (series_x, series_y) pairs has minimal distance to point(x, y)
-    distances = np.sqrt((series_x - x) ** 2 + (series_y - y) ** 2)
+    distances = (series_x - x) ** 2 + (series_y - y) ** 2
     min_idx = distances.idxmin()
     return [min_idx, distances[min_idx]]
 
@@ -55,10 +55,10 @@ def transform_to_world_coordinate_system(df, cam_x, cam_y, cam_z, cam_params):
     # z-axis reflecting the elevation Z pointing upwards, and the x-axis is perpendicular to both y-axis and z-axis
     # reflecting X and Y. Note that LIDAR world coordinate system origin is located at lower-left corner while
     # screen coordinate system origin is located at upper-left corner
-    df.X = df.X - cam_x
-    df.Y = df.Y - cam_y
+    df['UPDATE_X'] = df.X - cam_x
+    df['UPDATE_Y'] = df.Y - cam_y
     # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
-    df['CAM_DIST'] = np.sqrt(np.square(df.X) + np.square(df.Y))
+    df['CAM_DIST'] = np.sqrt(np.square(df.UPDATE_X) + np.square(df.UPDATE_Y))
     df['WORLD_Z'] = df.CAM_DIST * np.cos(df.BEARING) + cam_params[CAMERA_LIDAR_Z_OFFSET]
     df['WORLD_Y'] = df.Z - cam_z + cam_params[CAMERA_LIDAR_Y_OFFSET]
     df['WORLD_X'] = df.CAM_DIST * np.sin(df.BEARING) + cam_params[CAMERA_LIDAR_X_OFFSET]
@@ -116,12 +116,64 @@ def transform_3d_points(df, cam_params, cam_x, cam_y, cam_z, img_width, img_hgt)
 def objective_function(cam_params, df_3d, df_2d, p_cam_x, p_cam_y, cam_z, img_wd, img_ht):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between
     df_3d = transform_3d_points(df_3d, cam_params, p_cam_x, p_cam_y, cam_z, img_wd, img_ht)
-    df_2d['MATCH_3D_DIST'] = df_2d.apply(lambda row: compute_match(row['X'], row['Y'],
-                                                                   df_3d['PROJ_SCREEN_X'], df_3d['PROJ_SCREEN_Y'])[1],
+    # df_3d['MATCH_2D_INDEX'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
+    #                                                                 df_2d['X'], df_2d['Y']),
+    #                                       axis=1)
+    # df_3d['MATCH_2D_X_DIST'] = df_3d.apply(lambda row: (row['PROJ_SCREEN_X'] -
+    #                                                     df_2d.iloc[row['MATCH_2D_INDEX']]['X']) ** 2, axis=1)
+    # df_3d['MATCH_2D_Y_DIST'] = df_3d.apply(lambda row: (row['PROJ_SCREEN_Y'] -
+    #                                                     df_2d.iloc[row['MATCH_2D_INDEX']]['Y']) ** 2, axis=1)
+    # df_3d['MATCH_2D_DIST'] = df_3d['MATCH_2D_X_DIST'] + df_3d['MATCH_2D_Y_DIST']
+    df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
+                                                                   df_2d['X'], df_2d['Y'])[1],
                                          axis=1)
-    alignment_error = df_2d['MATCH_3D_DIST'].sum()
-    print(cam_params)
+    alignment_error = df_3d['MATCH_2D_DIST'].sum()/len(df_3d)
     align_errors.append(alignment_error)
+    print(f'cam_params: {cam_params}, alignment error: {alignment_error}')
+    # compute gradients
+    # der = np.zeros_like(cam_params)
+    # half_width = img_wd / 2
+    # half_ht = img_ht / 2
+    # ratio = 2 / len(df_3d)
+    # der[FOCAL_LENGTH_X] = ratio * np.sum(half_width * df_3d['WORLD_X'] * df_3d['PROJ_SCREEN_X'] *
+    #                                      df_3d['MATCH_2D_X_DIST'] / df_3d['WORLD_Z'])
+    #der[FOCAL_LENGTH_Y] = ratio * np.sum(half_ht * df_3d['WORLD_Y'] * df_3d['PROJ_SCREEN_Y'] *
+    #                                     df_3d['MATCH_2D_Y_DIST'] / df_3d['WORLD_Z'])
+    # der[CAMERA_LIDAR_X_OFFSET] = ratio * np.sum((half_width * cam_params[FOCAL_LENGTH_X] *
+    #                                              np.cos(radians(cam_params[CAMERA_PITCH])) *
+    #                                              df_3d['MATCH_2D_X_DIST']) / df_3d['WORLD_Z'])
+    #der[CAMERA_LIDAR_X_OFFSET] = ratio * np.sum((half_width * cam_params[FOCAL_LENGTH_X] *
+    #                                             np.cos(radians(-2)) *
+    #                                             df_3d['MATCH_2D_X_DIST']) / df_3d['WORLD_Z'])
+    # der[CAMERA_LIDAR_Y_OFFSET] = ratio * np.sum((half_ht * cam_params[FOCAL_LENGTH_Y] *
+    #                                      np.cos(radians(cam_params[CAMERA_ROLL])) *
+    #                                              df_3d['MATCH_2D_Y_DIST']) / df_3d['WORLD_Z'])
+    #der[CAMERA_LIDAR_Y_OFFSET] = ratio * np.sum((half_ht * cam_params[FOCAL_LENGTH_Y] *
+    #                                             np.cos(radians(-2)) *
+    #                                             df_3d['MATCH_2D_Y_DIST']) / df_3d['WORLD_Z'])
+    # use quotient role to compute derivative of cost function relative to CAMERA_LIDAR_Z_OFFSET reflected in WORLD_Z
+    # constants_num = half_width * cam_params[FOCAL_LENGTH_X] * df_3d['WORLD_X'] * \
+    #     np.cos(radians(cam_params[CAMERA_ROLL])) * np.cos(radians(cam_params[CAMERA_PITCH]))
+    # constants_dem = (df_3d['WORLD_Y'] * np.sin(radians(cam_params[CAMERA_ROLL])) + \
+    #                 np.cos(radians(cam_params[CAMERA_ROLL])) * \
+    #                 (df_3d['WORLD_X'] * np.sin(radians(cam_params[CAMERA_PITCH])) +
+    #                  (df_3d['CAM_DIST'] * df_3d['BEARING'] + cam_params['CAMERA_LIDAR_Z_OFFSET']) *
+    #                  np.cos(radians(cam_params[CAMERA_PITCH])))) ** 2
+    #constants_num = half_width * cam_params[FOCAL_LENGTH_X] * df_3d['WORLD_X'] * \
+    #                np.cos(radians(-2)) * np.cos(radians(-2))
+    #constants_dem = (df_3d['WORLD_Y'] * np.sin(radians(-2)) + \
+    #                 np.cos(radians(-2)) * \
+    #                 (df_3d['WORLD_X'] * np.sin(radians(-2)) +
+    #                  (df_3d['CAM_DIST'] * df_3d['BEARING'] + cam_params[CAMERA_LIDAR_Z_OFFSET]) *
+    #                  np.cos(radians(-2)))) ** 2
+    #der[CAMERA_LIDAR_Z_OFFSET] = ratio * np.sum(df_3d['MATCH_2D_X_DIST'] * (constants_num / constants_dem))
+    #der[CAMERA_YAW] = ratio * np.sum(df_3d['MATCH_2D_X_DIST'] *
+    #                                 (-half_width * cam_params[FOCAL_LENGTH_X] *
+    #                                  (df_3d['WORLD_X'] * np.sin(radians(cam_params[CAMERA_YAW])) +
+    #                                   df_3d['WORLD_Y'] * np.cos(radians(cam_params[CAMERA_YAW])))) +
+    #                                 df_3d['MATCH_2D_Y_DIST'] * half_ht * cam_params[FOCAL_LENGTH_Y] *
+    #                                 (df_3d['WORLD_X'] * np.cos(radians(cam_params[CAMERA_YAW])) -
+    #                                  df_3d['WORLD_Y'] * np.sin(radians(cam_params[CAMERA_YAW]))))
     return alignment_error
 
 
@@ -190,12 +242,9 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
 
     print(f'camera Z: {cam_lidar_z}')
 
-    # result = minimize(objective_function, INIT_CAMERA_PARAMS,
-    #                   args=(input_3d_gdf, input_2d_df, proj_cam_x, proj_cam_y, cam_lidar_z, img_width, img_height,),
-    #                   method='BFGS', options={'maxiter': NUM_ITERATIONS, 'disp': True})
     result = minimize(objective_function, INIT_CAMERA_PARAMS,
                       args=(input_3d_gdf, input_2d_df, proj_cam_x, proj_cam_y, cam_lidar_z, img_width, img_height,),
-                      method='BFGS', options={'disp': True})
+                      method='BFGS', options={'maxiter': NUM_ITERATIONS, 'disp': True})
     optimized_cam_params = result.x
     print(result)
     print(f'alignment errors: {align_errors}')
