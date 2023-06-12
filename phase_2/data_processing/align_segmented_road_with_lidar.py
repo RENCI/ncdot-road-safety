@@ -113,13 +113,14 @@ def transform_3d_points(df, cam_params, cam_x, cam_y, cam_z, img_width, img_hgt)
 
 
 def objective_function(cam_params, df_3d, df_2d, p_cam_x, p_cam_y, cam_z, img_wd, img_ht, align_errors):
-    # compute alignment error corresponding to the cam_params using the sum of squared distances between
+    # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
+    # LIDAR vertices and the road boundary pixels
     df_3d = transform_3d_points(df_3d, cam_params, p_cam_x, p_cam_y, cam_z, img_wd, img_ht)
     df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
                                                                    df_2d['X'], df_2d['Y'])[1],
                                          axis=1)
     # df_3d['MATCH_2D_INDEX'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-    #                                                                 df_2d['X'], df_2d['Y']),
+    #                                                                 df_2d['X'], df_2d['Y'])[0],
     #                                       axis=1)
     # df_3d['MATCH_2D_X_DIST'] = df_3d.apply(lambda row: (row['PROJ_SCREEN_X'] -
     #                                                     df_2d.iloc[row['MATCH_2D_INDEX']]['X']) ** 2, axis=1)
@@ -265,18 +266,21 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
                       # method='CG',
                       # jac=True,
                       options={'gtol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
-
     optimized_cam_params = result.x
-    if optimized_cam_params[0] < 0.2 or optimized_cam_params[1] < 0.2:
+    updated_eps = eps
+    while (optimized_cam_params[0] < INIT_CAMERA_PARAMS[0]/2 or optimized_cam_params[1] < INIT_CAMERA_PARAMS[1]/2) \
+            and (updated_eps > 1e-8):
         # if focal length along X and/or Y is too small, the result is not acceptable, reducing eps and trying again
-        print(f'focal length too small: {optimized_cam_params}, reduce eps and try again.')
+        print(f'focal length too small: {optimized_cam_params} for image {input_2d_mapped_image}, '
+              f'reduce eps and try again.')
+        updated_eps = updated_eps/10.0
         result = minimize(objective_function, INIT_CAMERA_PARAMS,
                           args=(input_3d_gdf, input_2d_df, proj_cam_x, proj_cam_y, cam_lidar_z, img_width, img_height,
                                 align_errors),
                           method='BFGS',
                           # method='CG',
                           # jac=True,
-                          options={'gtol': gtol, 'eps': eps/10.0, 'maxiter': NUM_ITERATIONS, 'disp': True})
+                          options={'gtol': gtol, 'eps': updated_eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
         optimized_cam_params = result.x
     print(f'optimizing result for image {input_2d_mapped_image}: {result}')
     print(f'alignment errors: {align_errors}')
