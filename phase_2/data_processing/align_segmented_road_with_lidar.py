@@ -48,19 +48,28 @@ def compute_match(x, y, series_x, series_y):
     return [min_idx, distances[min_idx]]
 
 
-def transform_to_world_coordinate_system(df, cam_x, cam_y, cam_z, cam_params):
+def init_transform_from_lidar_to_world_coordinate_system(df, cam_x, cam_y, cam_z):
+    # transform LIDAR points from LIDAR projection coordinate system to world coordinate system without
+    # considering camera pose parameters
+    df['UPDATE_X'] = df.X - cam_x
+    df['UPDATE_Y'] = df.Y - cam_y
+    # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
+    df['CAM_DIST'] = np.sqrt(np.square(df.UPDATE_X) + np.square(df.UPDATE_Y))
+    df['INITIAL_WORLD_Z'] = df.CAM_DIST * np.cos(df.BEARING)
+    df['INITIAL_WORLD_Y'] = df.Z - cam_z
+    df['INITIAL_WORLD_X'] = df.CAM_DIST * np.sin(df.BEARING)
+    return df
+
+
+def transform_to_world_coordinate_system(df, cam_params):
     # transform X, Y, Z in LIDAR coordinate system to world coordinate system where the camera is at the origin,
     # the z-axis is pointing from the camera along the cam_bearing direction, the y-axis is perpendicular to the
     # z-axis reflecting the elevation Z pointing upwards, and the x-axis is perpendicular to both y-axis and z-axis
     # reflecting X and Y. Note that LIDAR world coordinate system origin is located at lower-left corner while
     # screen coordinate system origin is located at upper-left corner
-    df['UPDATE_X'] = df.X - cam_x
-    df['UPDATE_Y'] = df.Y - cam_y
-    # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
-    df['CAM_DIST'] = np.sqrt(np.square(df.UPDATE_X) + np.square(df.UPDATE_Y))
-    df['WORLD_Z'] = df.CAM_DIST * np.cos(df.BEARING) + cam_params[CAMERA_LIDAR_Z_OFFSET]
-    df['WORLD_Y'] = df.Z - cam_z + cam_params[CAMERA_LIDAR_Y_OFFSET]
-    df['WORLD_X'] = df.CAM_DIST * np.sin(df.BEARING) + cam_params[CAMERA_LIDAR_X_OFFSET]
+    df['WORLD_Z'] = df['INITIAL_WORLD_Z'] + cam_params[CAMERA_LIDAR_Z_OFFSET]
+    df['WORLD_Y'] = df['INITIAL_WORLD_Y'] + cam_params[CAMERA_LIDAR_Y_OFFSET]
+    df['WORLD_X'] = df['INITIAL_WORLD_X'] + cam_params[CAMERA_LIDAR_X_OFFSET]
     df['WORLD_X'], df['WORLD_Y'] = rotate_point_series(df['WORLD_X'], df['WORLD_Y'],
                                                        cam_params[CAMERA_YAW])
     df['WORLD_X'], df['WORLD_Z'] = rotate_point_series(df['WORLD_X'], df['WORLD_Z'],
@@ -70,8 +79,8 @@ def transform_to_world_coordinate_system(df, cam_x, cam_y, cam_z, cam_params):
     return df
 
 
-def transform_3d_points(df, cam_params, cam_x, cam_y, cam_z, img_width, img_hgt):
-    df = transform_to_world_coordinate_system(df, cam_x, cam_y, cam_z, cam_params)
+def transform_3d_points(df, cam_params, img_width, img_hgt):
+    df = transform_to_world_coordinate_system(df, cam_params)
 
     # project to 2D camera coordinate system
     df['PROJ_X'] = df.apply(
@@ -112,10 +121,10 @@ def transform_3d_points(df, cam_params, cam_x, cam_y, cam_z, img_width, img_hgt)
     return df
 
 
-def objective_function(cam_params, df_3d, df_2d, p_cam_x, p_cam_y, cam_z, img_wd, img_ht, align_errors):
+def objective_function(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
-    df_3d = transform_3d_points(df_3d, cam_params, p_cam_x, p_cam_y, cam_z, img_wd, img_ht)
+    df_3d = transform_3d_points(df_3d, cam_params, img_wd, img_ht)
     df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
                                                                    df_2d['X'], df_2d['Y'])[1],
                                          axis=1)
@@ -205,11 +214,17 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
 
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
     img_width, img_height, input_list = get_image_road_boundary_points(image_name_with_path)
-    # output 2d road boundary points for showing alignment overlay plot
-    with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
-        pickle.dump(input_list, f)
+
     input_2d_points = input_list[0]
     # print(f'input 2d numpy array shape: {input_2d_mapped_image}: {input_2d_points.shape}')
+    if output_2d_3d_points_for_external_alignment:
+        np.savetxt(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}1.csv'),
+                   input_2d_points, delimiter=',', header='X,Y', comments='', fmt='%d')
+    else:
+        # output 2d road boundary points for showing alignment overlay plot
+        with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
+            pickle.dump(input_list, f)
+
     input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
     cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, eor = get_camera_latlon_and_bearing_for_image_from_mapping(
         mdf, input_2d_mapped_image, is_degree=False)
@@ -232,6 +247,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     vertices, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                           end_of_route=eor)
     input_3d_points = vertices[0]
+    print(f'len(input_3d_points): {len(input_3d_points)}')
     # print(f'input 3d numpy array shape: {input_3d_points.shape}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
     input_3d_gdf = gpd.GeoDataFrame(input_3d_df, geometry=gpd.points_from_xy(input_3d_df.X, input_3d_df.Y),
@@ -254,14 +270,15 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
                                             [proj_cam_x, proj_cam_y]))
 
     # print(f'camera Z: {cam_lidar_z}')
+    input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
+                                                                        cam_lidar_z)
     align_errors = []
     # terminate if gradient norm is less than gtol
     gtol = 1e-6
     # eps specifies the absolute step size used for numerical approximation of the jacobian via forward differences
     eps = 0.01
     result = minimize(objective_function, INIT_CAMERA_PARAMS,
-                      args=(input_3d_gdf, input_2d_df, proj_cam_x, proj_cam_y, cam_lidar_z, img_width, img_height,
-                            align_errors),
+                      args=(input_3d_gdf, input_2d_df, img_width, img_height, align_errors),
                       method='BFGS',
                       # method='CG',
                       # jac=True,
@@ -275,8 +292,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
               f'reduce eps and try again.')
         updated_eps = updated_eps/10.0
         result = minimize(objective_function, INIT_CAMERA_PARAMS,
-                          args=(input_3d_gdf, input_2d_df, proj_cam_x, proj_cam_y, cam_lidar_z, img_width, img_height,
-                                align_errors),
+                          args=(input_3d_gdf, input_2d_df, img_width, img_height, align_errors),
                           method='BFGS',
                           # method='CG',
                           # jac=True,
@@ -285,15 +301,22 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     print(f'optimizing result for image {input_2d_mapped_image}: {result}')
     print(f'alignment errors: {align_errors}')
     print(f'optimized_cam_params: {optimized_cam_params}')
-    input_3d_gdf = transform_3d_points(input_3d_gdf, optimized_cam_params, proj_cam_x, proj_cam_y, cam_lidar_z,
-                                       img_width, img_height)
+    input_3d_gdf = transform_3d_points(input_3d_gdf, optimized_cam_params, img_width, img_height)
     input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
                                                                                 input_3d_gdf['PROJ_SCREEN_X'],
                                                                                 input_3d_gdf['PROJ_SCREEN_Y'])[0],
                                                       axis=1)
     input_2d_df.drop(columns=['X', 'Y'], inplace=True)
-    input_2d_df.to_csv(out_match_file, header=False)
-    input_3d_gdf.to_csv(out_proj_file, index=False)
+    if output_2d_3d_points_for_external_alignment:
+        input_3d_gdf.to_csv(out_proj_file,
+                            columns=['X', 'Y', 'Z', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
+                                     'WORLD_X', 'WORLD_Y', 'WORLD_Z', 'PROJ_X', 'PROJ_Y',
+                                     'PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
+                            float_format='%.3f',
+                            index=False)
+    else:
+        input_2d_df.to_csv(out_match_file, header=False)
+        input_3d_gdf.to_csv(out_proj_file, index=False)
 
 
 if __name__ == '__main__':
@@ -322,6 +345,9 @@ if __name__ == '__main__':
                                 'oneformer/output/route_batch/lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
+    parser.add_argument('--output_2d_3d_points_for_external_alignment', action="store_true",
+                        help='output 2d road edge boundary pixels and 3d lidar points in world coordinate system for '
+                             'alignment using external tools')
 
     args = parser.parse_args()
     input_lidar_shp_with_path = args.input_lidar_shp_with_path
@@ -330,6 +356,7 @@ if __name__ == '__main__':
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
     output_file_base = args.output_file_base
     lidar_proj_output_file_base = args.lidar_proj_output_file_base
+    output_2d_3d_points_for_external_alignment = args.output_2d_3d_points_for_external_alignment
 
     lidar_df = get_lidar_data_from_shp(input_lidar_shp_with_path)
 
