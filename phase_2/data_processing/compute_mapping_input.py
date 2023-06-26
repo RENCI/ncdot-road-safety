@@ -5,7 +5,8 @@ import numpy as np
 from pypfm import PFMLoader
 import skimage.measure
 import cv2
-from utils import ROAD, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping
+from utils import ROAD, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
+    get_depth_data, get_depth_of_pixel
 
 
 SCALING_FACTOR = 25
@@ -49,19 +50,14 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
             object_features = skimage.measure.regionprops(labeled_data)
             loader = PFMLoader((image_width, image_height), color=False, compress=False)
             input_image_base_name = os.path.basename(os.path.splitext(input_image_name)[0])
-            image_pfm = loader.load_pfm(os.path.join(input_depth_image_path,
-                                                     f'{input_image_base_name}{depth_image_postfix}.pfm'))
-            image_pfm = np.flipud(image_pfm)
+            image_pfm = get_depth_data(loader, os.path.join(input_depth_image_path,
+                                                            f'{input_image_base_name}{depth_image_postfix}.pfm'))
             # print(f'image_pfm shape: {image_pfm.shape}')
             min_depth = image_pfm.min()
             max_depth = image_pfm.max()
             # input_data[input_data == POLE] = 255
             # updated_image = Image.fromarray(input_data)
             # updated_image.save(os.path.join(path, f'updated_{mapped_image}{suffix}'))
-
-            def get_depth(cy, cx):
-                return (1 - (image_pfm[int(cy + 0.5), int(cx + 0.5)] - min_depth) / (max_depth - min_depth)) \
-                       * SCALING_FACTOR
 
             obj_cnt = 0
             for i in range(count):
@@ -73,7 +69,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
                     continue
 
                 y0, x0 = object_features[i].centroid
-                depth = get_depth(y0, x0)
+                depth = get_depth_of_pixel(y0, x0, image_pfm, min_depth, max_depth, scaling=SCALING_FACTOR)
 
                 if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                     major_axis_len = object_features[i].major_axis_length
@@ -101,7 +97,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
                     # need to recompute properties of the object
                     updated_object_features = skimage.measure.regionprops(obj_only)
                     y0, x0 = updated_object_features[0].centroid
-                    depth = get_depth(y0, x0)
+                    depth = get_depth_of_pixel(y0, x0, image_pfm, min_depth, max_depth, scaling=SCALING_FACTOR)
                     object_features[i] = updated_object_features[0]
 
                 # apply depth-height filtering

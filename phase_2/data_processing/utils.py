@@ -134,3 +134,13 @@ def load_pickle_data(input_data_file):
     with open(input_data_file, 'rb') as f:
         data = pickle.load(f)[0]
     return data
+
+
+def get_depth_data(loader, input_file):
+    pfm = loader.load_pfm(input_file)
+    # flip columns since they are inverse depth maps
+    return np.flipud(pfm)
+
+
+def get_depth_of_pixel(y, x, pfm_data, min_depth, max_depth, scaling=1):
+    return (1 - (pfm_data[int(y + 0.5), int(x + 0.5)] - min_depth) / (max_depth - min_depth)) * scaling
