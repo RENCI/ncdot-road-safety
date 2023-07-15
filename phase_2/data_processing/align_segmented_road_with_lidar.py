@@ -5,10 +5,11 @@ import pickle
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+from pypfm import PFMLoader
 from scipy.optimize import minimize
 from math import dist, radians
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
-    get_next_road_index
+    get_next_road_index, get_depth_data, get_depth_of_pixel
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_boundary_points
 
@@ -23,6 +24,7 @@ FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CA
 INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, -2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
+DEPTH_SCALING_FACTOR = 50
 
 
 def rotate_point_series(x, y, angle):
@@ -44,6 +46,14 @@ def compute_match(x, y, series_x, series_y):
     # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
     # (series_x, series_y) pairs has minimal distance to point(x, y)
     distances = (series_x - x) ** 2 + (series_y - y) ** 2
+    min_idx = distances.idxmin()
+    return [min_idx, distances[min_idx]]
+
+
+def compute_match_3d(x, y, z, series_x, series_y, series_z):
+    # compute match indices in (series_x, series_y, series_z) based on which point in all points represented in
+    # (series_x, series_y, series_z) has minimal distance to point(x, y, z)
+    distances = (series_x - x) ** 2 + (series_y - y) ** 2 + (series_z - z) ** 2
     min_idx = distances.idxmin()
     return [min_idx, distances[min_idx]]
 
@@ -121,7 +131,7 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     return df
 
 
-def objective_function(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
+def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     df_3d = transform_3d_points(df_3d, cam_params, img_wd, img_ht)
@@ -199,7 +209,22 @@ def objective_function(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
     return alignment_error
 
 
-def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_proj_file):
+def transform_2d_points_to_3d(df, cam_params, img_width, img_hgt):
+    cx = img_width // 2
+    cy = img_hgt // 2
+    # project to 2D camera coordinate system
+    df['X_3D'] = df.apply(
+        lambda row:  (row['X'] - cx) * row['Z'] / (cx * cam_params[FOCAL_LENGTH_X]),
+        axis=1)
+    df['Y_3D'] = df.apply(
+        lambda row: (row['Y'] - cy) * row['Z'] / (cy * cam_params[FOCAL_LENGTH_Y]),
+        axis=1)
+
+    return df
+
+
+def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_proj_file, to_output_csv, align_in_3d,
+                         input_depth_filename_pattern):
     """
     :param image_name_with_path: image file name with whole path
     :param ldf: lidar 3D point geodataframe
@@ -208,6 +233,8 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     have an alignment output file for each input image
     :param out_proj_file: output file base with path for aligned road info which will be appended with image name
     to have lidar projection info for each input image
+    :param to_output_csv: whether to output data in csv format for external alignment
+    :param align_in_3d: whether to align road in 3D world coordinate system or in 2D screen coordinate system
     :return:
     """
     # get input image base name
@@ -217,7 +244,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
 
     input_2d_points = input_list[0]
     # print(f'input 2d numpy array shape: {input_2d_mapped_image}: {input_2d_points.shape}')
-    if output_2d_3d_points_for_external_alignment:
+    if to_output_csv:
         np.savetxt(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}1.csv'),
                    input_2d_points, delimiter=',', header='X,Y', comments='', fmt='%d')
     else:
@@ -272,51 +299,72 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     # print(f'camera Z: {cam_lidar_z}')
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
-    align_errors = []
-    # terminate if gradient norm is less than gtol
-    gtol = 1e-6
-    # eps specifies the absolute step size used for numerical approximation of the jacobian via forward differences
-    eps = 0.01
-    result = minimize(objective_function, INIT_CAMERA_PARAMS,
-                      args=(input_3d_gdf, input_2d_df, img_width, img_height, align_errors),
-                      method='BFGS',
-                      # method='CG',
-                      # jac=True,
-                      options={'gtol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
-    optimized_cam_params = result.x
-    updated_eps = eps
-    while (optimized_cam_params[0] < INIT_CAMERA_PARAMS[0]/2 or optimized_cam_params[1] < INIT_CAMERA_PARAMS[1]/2) \
-            and (updated_eps > 1e-8):
-        # if focal length along X and/or Y is too small, the result is not acceptable, reducing eps and trying again
-        print(f'focal length too small: {optimized_cam_params} for image {input_2d_mapped_image}, '
-              f'reduce eps and try again.')
-        updated_eps = updated_eps/10.0
-        result = minimize(objective_function, INIT_CAMERA_PARAMS,
+    if align_in_3d:
+        input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, INIT_CAMERA_PARAMS)
+        loader = PFMLoader((img_width, img_height), color=False, compress=False)
+        input_pfm = get_depth_data(loader, input_depth_filename_pattern.format(
+            image_base_name=f'{input_2d_mapped_image}1'))
+        min_depth = input_pfm.min()
+        max_depth = input_pfm.max()
+        input_2d_df['Z'] = input_2d_df.apply(lambda row: get_depth_of_pixel(row['Y'], row['X'],
+                                                                            input_pfm, min_depth, max_depth,
+                                                                            scaling=DEPTH_SCALING_FACTOR), axis=1)
+        input_2d_df = transform_2d_points_to_3d(input_2d_df, INIT_CAMERA_PARAMS, img_width, img_height)
+        input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match_3d(row['X_3D'], row['Y_3D'],
+                                                                                       row['Z'],
+                                                                                       input_3d_gdf['WORLD_X'],
+                                                                                       input_3d_gdf['WORLD_Y'],
+                                                                                       input_3d_gdf['WORLD_Z'])[0],
+                                                          axis=1)
+        input_2d_df.to_csv(out_match_file)
+        input_3d_gdf.to_csv(out_proj_file, index=False)
+    else:
+        align_errors = []
+        # terminate if gradient norm is less than gtol
+        gtol = 1e-6
+        # eps specifies the absolute step size used for numerical approximation of the jacobian via forward differences
+        eps = 0.01
+        result = minimize(objective_function_2d, INIT_CAMERA_PARAMS,
                           args=(input_3d_gdf, input_2d_df, img_width, img_height, align_errors),
                           method='BFGS',
                           # method='CG',
                           # jac=True,
-                          options={'gtol': gtol, 'eps': updated_eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
+                          options={'gtol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
         optimized_cam_params = result.x
-    print(f'optimizing result for image {input_2d_mapped_image}: {result}')
-    print(f'alignment errors: {align_errors}')
-    print(f'optimized_cam_params: {optimized_cam_params}')
-    input_3d_gdf = transform_3d_points(input_3d_gdf, optimized_cam_params, img_width, img_height)
-    input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
-                                                                                input_3d_gdf['PROJ_SCREEN_X'],
-                                                                                input_3d_gdf['PROJ_SCREEN_Y'])[0],
-                                                      axis=1)
-    input_2d_df.drop(columns=['X', 'Y'], inplace=True)
-    if output_2d_3d_points_for_external_alignment:
-        input_3d_gdf.to_csv(out_proj_file,
-                            columns=['X', 'Y', 'Z', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
-                                     'WORLD_X', 'WORLD_Y', 'WORLD_Z', 'PROJ_X', 'PROJ_Y',
-                                     'PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
-                            float_format='%.3f',
-                            index=False)
-    else:
-        input_2d_df.to_csv(out_match_file, header=False)
-        input_3d_gdf.to_csv(out_proj_file, index=False)
+        updated_eps = eps
+        while (optimized_cam_params[0] < INIT_CAMERA_PARAMS[0]/2 or optimized_cam_params[1] < INIT_CAMERA_PARAMS[1]/2) \
+                and (updated_eps > 1e-8):
+            # if focal length along X and/or Y is too small, the result is not acceptable, reducing eps and trying again
+            print(f'focal length too small: {optimized_cam_params} for image {input_2d_mapped_image}, '
+                  f'reduce eps and try again.')
+            updated_eps = updated_eps/10.0
+            result = minimize(objective_function_2d, INIT_CAMERA_PARAMS,
+                              args=(input_3d_gdf, input_2d_df, img_width, img_height, align_errors),
+                              method='BFGS',
+                              # method='CG',
+                              # jac=True,
+                              options={'gtol': gtol, 'eps': updated_eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
+            optimized_cam_params = result.x
+        print(f'optimizing result for image {input_2d_mapped_image}: {result}')
+        print(f'alignment errors: {align_errors}')
+        print(f'optimized_cam_params: {optimized_cam_params}')
+        input_3d_gdf = transform_3d_points(input_3d_gdf, optimized_cam_params, img_width, img_height)
+
+        input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
+                                                                                    input_3d_gdf['PROJ_SCREEN_X'],
+                                                                                    input_3d_gdf['PROJ_SCREEN_Y'])[0],
+                                                          axis=1)
+        input_2d_df.drop(columns=['X', 'Y'], inplace=True)
+        if to_output_csv:
+            input_3d_gdf.to_csv(out_proj_file,
+                                columns=['X', 'Y', 'Z', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
+                                         'WORLD_X', 'WORLD_Y', 'WORLD_Z', 'PROJ_X', 'PROJ_Y',
+                                         'PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
+                                float_format='%.3f',
+                                index=False)
+        else:
+            input_2d_df.to_csv(out_match_file, header=False)
+            input_3d_gdf.to_csv(out_proj_file, index=False)
 
 
 if __name__ == '__main__':
@@ -337,17 +385,23 @@ if __name__ == '__main__':
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--output_file_base', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/route_batch/road_alignment_with_lidar',
+                                'oneformer/output/route_batch_3d/road_alignment_with_lidar',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have an alignment output file for each input image')
     parser.add_argument('--lidar_proj_output_file_base', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/route_batch/lidar_project_info',
+                                'oneformer/output/route_batch_3d/lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
     parser.add_argument('--output_2d_3d_points_for_external_alignment', action="store_true",
                         help='output 2d road edge boundary pixels and 3d lidar points in world coordinate system for '
                              'alignment using external tools')
+    parser.add_argument('--input_depth_image_filename_pattern', type=str,
+                        help='the image pfm depth file pattern with image_base_name to be passed in via string format',
+                        default='../midas/images/output/d13_route_40001001011/{image_base_name}-dpt_beit_large_512.pfm')
+    parser.add_argument('--align_road_in_3d', action="store_false",
+                        help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
+                             'world coordinate system using predicted depth')
 
     args = parser.parse_args()
     input_lidar_shp_with_path = args.input_lidar_shp_with_path
@@ -357,6 +411,8 @@ if __name__ == '__main__':
     output_file_base = args.output_file_base
     lidar_proj_output_file_base = args.lidar_proj_output_file_base
     output_2d_3d_points_for_external_alignment = args.output_2d_3d_points_for_external_alignment
+    align_road_in_3d = args.align_road_in_3d
+    input_depth_image_filename_pattern = args.input_depth_image_filename_pattern
 
     lidar_df = get_lidar_data_from_shp(input_lidar_shp_with_path)
 
@@ -376,5 +432,8 @@ if __name__ == '__main__':
                                                                      lidar_df,
                                                                      mapping_df,
                                                                      f'{output_file_base}_{img}.csv',
-                                                                     f'{lidar_proj_output_file_base}_{img}.csv'))
+                                                                     f'{lidar_proj_output_file_base}_{img}.csv',
+                                                                     output_2d_3d_points_for_external_alignment,
+                                                                     align_road_in_3d,
+                                                                     input_depth_image_filename_pattern))
     print(f'execution time: {time.time() - start_time}')
