@@ -22,9 +22,10 @@ FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CA
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, -2, -2]
+INIT_CAMERA_PARAMS_3D = [0.8, 0.6, 6, 20, 8, 5, -2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
-DEPTH_SCALING_FACTOR = 50
+DEPTH_SCALING_FACTOR = 57
 
 
 def rotate_point_series(x, y, angle):
@@ -217,7 +218,7 @@ def transform_2d_points_to_3d(df, cam_params, img_width, img_hgt):
         lambda row:  (row['X'] - cx) * row['Z'] / (cx * cam_params[FOCAL_LENGTH_X]),
         axis=1)
     df['Y_3D'] = df.apply(
-        lambda row: (row['Y'] - cy) * row['Z'] / (cy * cam_params[FOCAL_LENGTH_Y]),
+        lambda row: -(row['Y'] - cy) * row['Z'] / (cy * cam_params[FOCAL_LENGTH_Y]),
         axis=1)
 
     return df
@@ -300,7 +301,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
     if align_in_3d:
-        input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, INIT_CAMERA_PARAMS)
+        input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, INIT_CAMERA_PARAMS_3D)
         loader = PFMLoader((img_width, img_height), color=False, compress=False)
         input_pfm = get_depth_data(loader, input_depth_filename_pattern.format(
             image_base_name=f'{input_2d_mapped_image}1'))
@@ -309,7 +310,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
         input_2d_df['Z'] = input_2d_df.apply(lambda row: get_depth_of_pixel(row['Y'], row['X'],
                                                                             input_pfm, min_depth, max_depth,
                                                                             scaling=DEPTH_SCALING_FACTOR), axis=1)
-        input_2d_df = transform_2d_points_to_3d(input_2d_df, INIT_CAMERA_PARAMS, img_width, img_height)
+        input_2d_df = transform_2d_points_to_3d(input_2d_df, INIT_CAMERA_PARAMS_3D, img_width, img_height)
         input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match_3d(row['X_3D'], row['Y_3D'],
                                                                                        row['Z'],
                                                                                        input_3d_gdf['WORLD_X'],
