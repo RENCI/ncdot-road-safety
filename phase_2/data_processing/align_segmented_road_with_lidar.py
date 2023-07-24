@@ -22,7 +22,6 @@ FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CA
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, -2, -2]
-INIT_CAMERA_PARAMS_3D = [0.8, 0.6, 6, 20, 8, 5, -2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 57
@@ -210,15 +209,15 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
     return alignment_error
 
 
-def transform_2d_points_to_3d(df, cam_params, img_width, img_hgt):
+def transform_2d_points_to_3d(df, fl_x, fl_y, img_width, img_hgt, x_header='X', y_header='Y', z_header='Z'):
     cx = img_width // 2
     cy = img_hgt // 2
     # project to 2D camera coordinate system
     df['X_3D'] = df.apply(
-        lambda row:  (row['X'] - cx) * row['Z'] / (cx * cam_params[FOCAL_LENGTH_X]),
+        lambda row:  (row[x_header] - cx) * row[z_header] / (cx * fl_x),
         axis=1)
     df['Y_3D'] = df.apply(
-        lambda row: -(row['Y'] - cy) * row['Z'] / (cy * cam_params[FOCAL_LENGTH_Y]),
+        lambda row: (row[y_header] - cy) * row[z_header] / (cy * fl_y),
         axis=1)
 
     return df
@@ -301,7 +300,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
     if align_in_3d:
-        input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, INIT_CAMERA_PARAMS_3D)
+        input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, INIT_CAMERA_PARAMS)
         loader = PFMLoader((img_width, img_height), color=False, compress=False)
         input_pfm = get_depth_data(loader, input_depth_filename_pattern.format(
             image_base_name=f'{input_2d_mapped_image}1'))
@@ -310,14 +309,15 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
         input_2d_df['Z'] = input_2d_df.apply(lambda row: get_depth_of_pixel(row['Y'], row['X'],
                                                                             input_pfm, min_depth, max_depth,
                                                                             scaling=DEPTH_SCALING_FACTOR), axis=1)
-        input_2d_df = transform_2d_points_to_3d(input_2d_df, INIT_CAMERA_PARAMS_3D, img_width, img_height)
+        input_2d_df = transform_2d_points_to_3d(input_2d_df, INIT_CAMERA_PARAMS[FOCAL_LENGTH_X],
+                                                INIT_CAMERA_PARAMS[FOCAL_LENGTH_Y], img_width, img_height)
         input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match_3d(row['X_3D'], row['Y_3D'],
                                                                                        row['Z'],
                                                                                        input_3d_gdf['WORLD_X'],
                                                                                        input_3d_gdf['WORLD_Y'],
                                                                                        input_3d_gdf['WORLD_Z'])[0],
                                                           axis=1)
-        input_2d_df.to_csv(out_match_file)
+        input_2d_df.to_csv(out_match_file, index=False)
         input_3d_gdf.to_csv(out_proj_file, index=False)
     else:
         align_errors = []
@@ -349,7 +349,8 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
         print(f'optimizing result for image {input_2d_mapped_image}: {result}')
         print(f'alignment errors: {align_errors}')
         print(f'optimized_cam_params: {optimized_cam_params}')
-        input_3d_gdf = transform_3d_points(input_3d_gdf, optimized_cam_params, img_width, img_height)
+        # input_3d_gdf = transform_3d_points(input_3d_gdf, optimized_cam_params, img_width, img_height)
+        input_3d_gdf = transform_3d_points(input_3d_gdf, INIT_CAMERA_PARAMS, img_width, img_height)
 
         input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
                                                                                     input_3d_gdf['PROJ_SCREEN_X'],
@@ -400,7 +401,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_depth_image_filename_pattern', type=str,
                         help='the image pfm depth file pattern with image_base_name to be passed in via string format',
                         default='../midas/images/output/d13_route_40001001011/{image_base_name}-dpt_beit_large_512.pfm')
-    parser.add_argument('--align_road_in_3d', action="store_false",
+    parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
 
