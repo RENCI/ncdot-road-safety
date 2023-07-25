@@ -22,8 +22,10 @@ if __name__ == '__main__':
                         help='input file containing predicted depth for projected 3D LIDAR data')
     parser.add_argument('--depth_scaling_factor', type=int, default=57, help='depth scaling factor corresponding to '
                                                                              'the input_depth_file_3d input')
-    parser.add_argument('--show_scatter_plot', action="store_false",
+    parser.add_argument('--show_scatter_plot', action="store_true",
                         help='show scatter plot to see relationship between Y and Z')
+    parser.add_argument('--show_3d_plot', action="store_true",
+                        help='show 3D plot to see relationship between X, Y and Z')
 
     args = parser.parse_args()
     input_data_filename = args.input_data_filename
@@ -32,6 +34,7 @@ if __name__ == '__main__':
     input_depth_file_3d = args.input_depth_file_3d
     dsf = args.depth_scaling_factor
     show_scatter_plot = args.show_scatter_plot
+    show_3d_plot = args.show_3d_plot
 
     if not os.path.isfile(output_file):
         input_2d_points = load_pickle_data(input_data_filename)
@@ -48,15 +51,27 @@ if __name__ == '__main__':
             df_3d = pd.read_csv(input_depth_file_3d)
 
     if show_scatter_plot:
-        plt.scatter(df['Y'], df['Z'], s=20)
-        if input_depth_file_3d:
-            plt.scatter(df_3d['PROJ_SCREEN_Y'], df_3d['Z'] / dsf, s=20)
-            plt.title('Scatter plot of Z vs Y for segmented road edges (blue) and '
+        if show_3d_plot:
+            fig = plt.figure(figsize=(10, 8))
+            ax = fig.add_subplot(111, projection='3d')
+            ax.scatter3D(df['X'], df['Y'], df['Z'])
+            ax.scatter3D(df_3d['PROJ_SCREEN_X'], df_3d['PROJ_SCREEN_Y'], df_3d['Z'] / dsf)
+            ax.set_xlabel('X')
+            ax.set_ylabel('Y')
+            ax.set_zlabel('Z')
+            plt.title('Scatter plot of Z vs Y and X for segmented road edges (blue) and '
                       'projected LIDAR road edges (orange) in image 926005420241')
+            ax.grid(True)
         else:
-            plt.title('Scatter plot of Z vs Y for segmented road edges in image 926005420241')
-        plt.ylabel('Normalized depth Z')
-        plt.xlabel('Y')
-        plt.grid(True)
+            plt.scatter(df['Y'], df['Z'], s=20)
+            if input_depth_file_3d:
+                plt.scatter(df_3d['PROJ_SCREEN_Y'], df_3d['Z'] / dsf, s=20)
+                plt.title('Scatter plot of Z vs Y for segmented road edges (blue) and '
+                          'projected LIDAR road edges (orange) in image 926005420241')
+            else:
+                plt.title('Scatter plot of Z vs Y for segmented road edges in image 926005420241')
+            plt.ylabel('Normalized depth Z')
+            plt.xlabel('Y')
+            plt.grid(True)
         # plt.legend(loc='lower left')
         plt.show()
