@@ -19,7 +19,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--image_base_name', type=str, default='926005420241', help='image base name to use to replace '
                                                                         'input_depth_image_filename_pattern pattern')
-    parser.add_argument('--depth_scaling_factor', type=int, default=57, help='depth scaling factor')
+    parser.add_argument('--depth_scaling_factor', type=int, default=189, help='depth scaling factor')
     parser.add_argument('--input_3d', type=str,
                         default='data/d13_route_40001001011/oneformer/output/route_batch_3d/'
                                 'lidar_project_info_926005420241.csv',
@@ -52,7 +52,6 @@ if __name__ == '__main__':
     show_3d_plot = args.show_3d_plot
 
     df_2d = pd.read_csv(input_2d)
-    df_2d = df_2d[df_2d.Z > 2]
     df_3d = pd.read_csv(input_3d)
     if show_lidar_proj:
         loader = PFMLoader((IMAGE_WIDTH, IMAGE_HEIGHT), color=False, compress=False)

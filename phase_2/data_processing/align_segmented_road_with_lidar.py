@@ -24,7 +24,7 @@ FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CA
 INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, -2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
-DEPTH_SCALING_FACTOR = 57
+DEPTH_SCALING_FACTOR = 189
 
 
 def rotate_point_series(x, y, angle):

@@ -20,8 +20,8 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001011/oneformer/output/route_batch_3d/'
                                 'lidar_project_info_926005420241_depth.csv',
                         help='input file containing predicted depth for projected 3D LIDAR data')
-    parser.add_argument('--depth_scaling_factor', type=int, default=57, help='depth scaling factor corresponding to '
-                                                                             'the input_depth_file_3d input')
+    parser.add_argument('--depth_scaling_factor', type=int, default=189, help='depth scaling factor corresponding to '
+                                                                              'the input_depth_file_3d input')
     parser.add_argument('--show_scatter_plot', action="store_true",
                         help='show scatter plot to see relationship between Y and Z')
     parser.add_argument('--show_3d_plot', action="store_true",
