@@ -59,4 +59,4 @@ if __name__ == '__main__':
     plane_params, best_fit_pts = fit_plane_lmeds(input_data)
     print("Fitted Plane Normal:", plane_params)
     print("best_fit_pts length:", len(best_fit_pts))
-    np.savetxt(output_plane_param_file, best_fit_pts, header=['X', 'Y', 'Z'])
+    np.savetxt(output_plane_param_file, best_fit_pts, fmt='%.3f',  header='X, Y, Z', comments='')
