@@ -1,5 +1,4 @@
 import argparse
-import os
 
 import numpy as np
 from scipy.linalg import svd
@@ -45,10 +44,13 @@ def fit_plane_lmeds(points, num_iterations=2000, inlier_threshold=0.1):
             break
 
     # Step 6: Refit the plane using all inliers
+    print(f'length of best_inliers: {len(best_inliers)}')
     A = np.vstack([best_inliers[:, 0], best_inliers[:, 1], best_inliers[:, 2]]).T
+    # A = np.vstack([points[:, 0], points[:, 1], points[:, 2]]).T
     _, _, v = svd(A)
     best_plane_params = v[-1, :]
     best_plane_params /= np.linalg.norm(best_plane_params)
+
     # Calculate d from the fitted plane parameters
     d = -np.dot(best_plane_params, best_inliers[0])
     return np.append(best_plane_params, d), best_inliers
@@ -69,28 +71,67 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001011/oneformer/output/route_batch_3d/'
                                 'fit_depth_plane_pts_926005420241.csv',
                         help='output file for fit plane parameters of the input 3D depth map')
+    parser.add_argument('--use_test_data', action='store_true',
+                        help='use synthetically generated data to test plane fitting code or use real data')
 
     args = parser.parse_args()
     input_depth_map = args.input_depth_map
     input_lidar_depth_map = args.input_lidar_depth_map
     output_plane_param_file = args.output_plane_param_file
-    df = pd.read_csv(input_depth_map, usecols=['X_3D', 'Y_3D', 'Z'])
-    df = df[['X_3D', 'Y_3D', 'Z']]
-    df_lidar = pd.read_csv(input_lidar_depth_map, usecols=['X_3D', 'Y_3D', 'Z', 'WORLD_Z'])
-    input_data = df.to_numpy()
+    use_test_data = args.use_test_data
 
-    # Fit the plane using LMedS
-    plane_params, best_fit_pts = fit_plane_lmeds(input_data)
-    print(plane_params)
-    print(len(best_fit_pts), df.shape)
-    a, b, c, d = plane_params
-    np.savetxt(output_plane_param_file, best_fit_pts, fmt='%.3f',  header='X, Y, Z', comments='')
-    np.savetxt(f'{os.path.splitext(output_plane_param_file)[0]}_params.csv', [plane_params], fmt='%.3f',  header='a, b, c, d', comments='')
+    np.random.seed(0)
+
+    if use_test_data:
+        # Generate some example 3D points lying on a plane
+        a, b, c, d = 1, 2, 3, 4
+        num_points = 100
+        x = np.random.rand(num_points) * 10 - 5
+        y = np.random.rand(num_points) * 10 - 5
+        # z = (-a * x - b * y - d) / c + np.random.randn(num_points) * 0.1
+        z = (-a * x - b * y - d) / c
+        input_data = np.stack((x, y, z), axis=1)
+    else:
+        df = pd.read_csv(input_depth_map, usecols=['X_3D', 'Y_3D', 'Z'])
+        df = df[['X_3D', 'Y_3D', 'Z']]
+        df_lidar = pd.read_csv(input_lidar_depth_map, usecols=['X_3D', 'Y_3D', 'Z', 'WORLD_Z'])
+        input_data = df.to_numpy()
+        # df_lidar = df_lidar[['X_3D', 'Y_3D', 'WORLD_Z']]
+        # input_data = df_lidar.to_numpy()
+
+    if use_test_data:
+        d = 1
+        coefficients, _, _, _ = np.linalg.lstsq(input_data, -np.ones(num_points),
+                                                rcond=None)
+        a, b, c = coefficients
+        print(a, b, c)
+
+        # plane_params, best_fit_pts = fit_plane_lmeds(input_data)
+        # a, b, c, d = plane_params
+        # print(a, b, c, d)
+        # print(len(best_fit_pts))
+    else:
+        # Fit the plane using LMedS
+        # plane_params, best_fit_pts = fit_plane_lmeds(input_data)
+        # a, b, c, d = plane_params
+        # print(plane_params)
+        # print(len(best_fit_pts), df.shape)
+        d = 1
+        coefficients, _, _, _ = np.linalg.lstsq(input_data, -np.ones(len(input_data)),
+                                               rcond=None)
+        a, b, c = coefficients
+        print(a, b, c, d)
+        # np.savetxt(output_plane_param_file, best_fit_pts, fmt='%.3f',  header='X, Y, Z', comments='')
+        # np.savetxt(f'{os.path.splitext(output_plane_param_file)[0]}_params.csv', [plane_params], fmt='%.3f',
+        # header='a, b, c, d', comments='')
     # plot raw data
     plt.figure()
     ax = plt.subplot(111, projection='3d')
-    ax.scatter(df['X_3D'], df['Y_3D'], df['Z'], color='b')
-    ax.scatter(df_lidar['X_3D'], df_lidar['Y_3D'], df_lidar['Z'], color='r')
+    if use_test_data:
+        ax.scatter(input_data[:, 0], input_data[:, 1], input_data[:, 2], color='b')
+    else:
+        ax.scatter(df['X_3D'], df['Y_3D'], df['Z'], color='b')
+        ax.scatter(df_lidar['X_3D'], df_lidar['Y_3D'], df_lidar['WORLD_Z'], color='r')
     # plot plane
     x_lim = ax.get_xlim()
     y_lim = ax.get_ylim()
@@ -101,7 +142,7 @@ if __name__ == '__main__':
         for col in range(x.shape[1]):
             z[row, col] = (-a * x[row, col] - b * y[row, col] - d) / c
     ax.plot_wireframe(x, y, z, rstride=10, cstride=10, color='k')
-
+    # ax.plot_wireframe(x, y, z, color='k')
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
