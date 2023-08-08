@@ -73,7 +73,7 @@ if __name__ == '__main__':
     next_camera_loc = args.next_camera_loc
     distance_threshold = args.distance_threshold
     lidar_df = get_lidar_data_from_shp(input_lidar_shp_with_path)
-    vertices, _ = extract_lidar_3d_points_for_camera(lidar_df, camera_loc, next_camera_loc)
+    vertices, _ = extract_lidar_3d_points_for_camera(lidar_df, camera_loc, next_camera_loc, dist_th=distance_threshold)
 
     with open(output_file, 'wb') as f:
         pickle.dump(vertices, f)

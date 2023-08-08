@@ -25,7 +25,7 @@ INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, -2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
-
+LIDAR_DIST_THRESHOLD = 60
 
 def rotate_point_series(x, y, angle):
     angle = radians(angle)
@@ -272,6 +272,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     # print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')
 
     vertices, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
+                                                          dist_th=LIDAR_DIST_THRESHOLD,
                                                           end_of_route=eor)
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}')
