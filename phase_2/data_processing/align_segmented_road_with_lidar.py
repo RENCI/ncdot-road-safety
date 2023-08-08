@@ -11,7 +11,7 @@ from math import dist, radians
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
-from get_road_boundary_points import get_image_road_boundary_points
+from get_road_boundary_points import get_image_road_points
 
 
 # indices as constants in the input camera parameter list where CAMERA_LIDAR_X/Y/Z_OFFSET indicate camera
@@ -240,7 +240,7 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     # get input image base name
 
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
-    img_width, img_height, input_list = get_image_road_boundary_points(image_name_with_path)
+    img_width, img_height, input_list = get_image_road_points(image_name_with_path)
 
     input_2d_points = input_list[0]
     # print(f'input 2d numpy array shape: {input_2d_mapped_image}: {input_2d_points.shape}')
