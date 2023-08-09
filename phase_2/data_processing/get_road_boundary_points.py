@@ -18,42 +18,77 @@ def get_image_road_points(image_file_name, boundary_only=True):
 
     binary_data = np.copy(labeled_data)
     binary_data[binary_data > 0] = 255
-    if boundary_only:
-        # Apply Canny edge detection
-        edges = cv2.Canny(binary_data, 100, 200)
-        # Dilate edges to connect any broken lines
-        dilated_edges = cv2.dilate(edges, None, iterations=1)
 
-        # Find contours of the dilated edges
-        contours, _ = cv2.findContours(dilated_edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        updated_contours = []
-        for i in range(len(contours)):
-            min_xy = np.min(contours[i], axis=0)
-            max_xy = np.max(contours[i], axis=0)
-            miny = min_xy[0][1]
-            maxy = max_xy[0][1]
-            if maxy - miny > 15:
-                cshape = contours[i].shape
-                cont_len = len(updated_contours)
-                if cont_len < 1:
-                    updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
-                elif cshape[0] < updated_contours[-1].shape[0]:
-                    updated_contours.insert(cont_len-1, np.reshape(contours[i], (cshape[0], cshape[2])))
-                else:
-                    updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
+    # Apply Canny edge detection
+    edges = cv2.Canny(binary_data, 100, 200)
+    # Dilate edges to connect any broken lines
+    dilated_edges = cv2.dilate(edges, None, iterations=1)
 
-        if len(updated_contours) > 1:
-            if updated_contours[-2].shape[0] > 800:
-                return_contours = [np.concatenate(updated_contours[-2:], axis=0)]
+    # Find contours of the dilated edges
+    contours, _ = cv2.findContours(dilated_edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    updated_contours = []
+    for i in range(len(contours)):
+        min_xy = np.min(contours[i], axis=0)
+        max_xy = np.max(contours[i], axis=0)
+        miny = min_xy[0][1]
+        maxy = max_xy[0][1]
+        if maxy - miny > 15:
+            cshape = contours[i].shape
+            cont_len = len(updated_contours)
+            if cont_len < 1:
+                updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
+            elif cshape[0] < updated_contours[-1].shape[0]:
+                updated_contours.insert(cont_len - 1, np.reshape(contours[i], (cshape[0], cshape[2])))
             else:
-                return_contours = [updated_contours[-1]]
-        else:
-            return_contours = updated_contours
+                updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
 
+    if len(updated_contours) > 1:
+        if updated_contours[-2].shape[0] > 800:
+            return_contours = [np.concatenate(updated_contours[-2:], axis=0)]
+        else:
+            return_contours = [updated_contours[-1]]
+    else:
+        return_contours = updated_contours
+
+    if boundary_only:
         return image_width, image_height, return_contours
     else:
-        indices = np.argwhere(binary_data == 255)
-        return image_width, image_height, [indices[:, [1, 0]]]
+        boundary_contours = return_contours[0]
+        # Determine the minimum and maximum y coordinates of the polygon
+        y_min = int(np.min(boundary_contours[:, 1]))
+        y_max = int(np.max(boundary_contours[:, 1]))
+
+        # Create an empty list to store the points within the boundary contour
+        filled_points = []
+        prev_line_x_intersect_first = prev_line_x_intersect_last = None
+        for y in range(y_min, y_max + 1):
+            # Find intersections of the scanline with each edge, y_range is a list of indices of the vertices that
+            # intersect the scanline
+            y_range = np.where((boundary_contours[:, 1] <= y) & (np.roll(boundary_contours, 1, axis=0)[:, 1] > y))[0]
+            # boundary_contours[y_range, 0] are the x-coordinates of those intersecting vertices
+            # boundary_contours[y_range, 1] are the y-coordinates of those intersecting vertices
+            # intersections = x1 + (x2-x1) * (y-y1)/(y2-y1)
+            intersections = boundary_contours[y_range, 0] + (y - boundary_contours[y_range, 1]) * \
+                (np.roll(boundary_contours, 1, axis=0)[y_range, 0] - boundary_contours[y_range, 0]) / \
+                (np.roll(boundary_contours, 1, axis=0)[y_range, 1] - boundary_contours[y_range, 1])
+            # Sort intersection points
+            intersections.sort()
+
+            if y > 1900 and len(intersections) >= 1:
+                if intersections[0] > 2000 and prev_line_x_intersect_first is not None:
+                    intersections = np.insert(intersections, 0, prev_line_x_intersect_first)
+                elif intersections[-1] < 100 and prev_line_x_intersect_last is not None:
+                    intersections = np.append(intersections, prev_line_x_intersect_last)
+
+            # Fill points between pairs of intersections
+            for i in range(0, len(intersections) - 1, 2):
+                x_start = int(intersections[i])
+                x_end = int(intersections[i + 1]) + 1
+                filled_points.extend([[x, y] for x in range(x_start, x_end)])
+            if len(intersections) > 0:
+                prev_line_x_intersect_first = intersections[0]
+                prev_line_x_intersect_last = intersections[-1]
+        return image_width, image_height, [filled_points]
 
 
 if __name__ == '__main__':
