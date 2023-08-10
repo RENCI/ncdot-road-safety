@@ -157,7 +157,7 @@ if __name__ == '__main__':
     if use_test_data:
         ax.scatter(input_data[:, 0], input_data[:, 1], input_data[:, 2], color='b')
     else:
-        if df_lidar:
+        if df_lidar is not None:
             ax.scatter(df['X_3D'], df['Y_3D'], df['Z'], color='b')
             ax.scatter(df_lidar['X_3D'], df_lidar['Y_3D'], df_lidar['WORLD_Z'], color='r')
         else:
@@ -174,7 +174,8 @@ if __name__ == '__main__':
     for row in range(x.shape[0]):
         for col in range(x.shape[1]):
             z[row, col] = (-a * x[row, col] - b * y[row, col] - d) / c
-    ax.plot_wireframe(x, y, z, rstride=100, cstride=100, color='k')
+    # ax.plot_wireframe(x, y, z, rstride=100, cstride=100, color='k')
+    ax.plot_wireframe(x, y, z, color='k')
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
