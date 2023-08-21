@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 from pypfm import PFMLoader
 from get_road_boundary_points import get_image_road_points
 from utils import get_depth_data, get_depth_of_pixel
-
+from align_segmented_road_with_lidar import transform_2d_points_to_3d, INIT_CAMERA_PARAMS, \
+    FOCAL_LENGTH_X, FOCAL_LENGTH_Y
 
 DEPTH_SCALING_FACTOR = 189
 
@@ -65,9 +66,9 @@ def fit_plane_lmeds(points, num_iterations=2000, inlier_threshold=0.1):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_depth_map', type=str,
-                        # default='data/d13_route_40001001011/oneformer/output/route_batch_3d/'
-                        #         'road_alignment_with_lidar_926005420241.csv',
-                        default='data/d13_route_40001001011/oneformer/input/926005420241.png',
+                        default='data/d13_route_40001001011/oneformer/output/route_batch_3d/'
+                                 'road_alignment_with_lidar_926005420241.csv',
+                        # default='data/d13_route_40001001011/oneformer/input/926005420241.png',
                         help='input csv file that contains reverse-projected segmented road boundary x, y, z vertices '
                              'with z as the predicted depth or the road pixel depth map in an png image file')
     parser.add_argument('--input_depth_image_filename_pattern', type=str,
@@ -83,6 +84,9 @@ if __name__ == '__main__':
                         help='output file for fit plane parameters of the input 3D depth map')
     parser.add_argument('--use_test_data', action='store_true',
                         help='use synthetically generated data to test plane fitting code or use real data')
+    parser.add_argument('--fit_lidar_road_edge', action='store_false',
+                        help='fit lidar road edge or reverse-projected road boundary vertices in the '
+                             'intermediate world/camera coordinate system')
 
     args = parser.parse_args()
     input_depth_map = args.input_depth_map
@@ -90,6 +94,7 @@ if __name__ == '__main__':
     input_depth_image_filename_pattern = args.input_depth_image_filename_pattern
     output_plane_param_file = args.output_plane_param_file
     use_test_data = args.use_test_data
+    fit_lidar_road_edge = args.fit_lidar_road_edge
 
     np.random.seed(0)
 
@@ -105,12 +110,17 @@ if __name__ == '__main__':
     else:
         ext = os.path.splitext(input_depth_map)[1]
         if ext == '.csv':
-            df = pd.read_csv(input_depth_map, usecols=['X_3D', 'Y_3D', 'Z'])
+            df = pd.read_csv(input_depth_map, usecols=['X', 'Y', 'X_3D', 'Y_3D', 'Z'])
             df = df[['X_3D', 'Y_3D', 'Z']]
-            input_data = df.to_numpy()
-            df_lidar = pd.read_csv(input_lidar_depth_map, usecols=['X_3D', 'Y_3D', 'Z', 'WORLD_Z'])
-            # df_lidar = df_lidar[['X_3D', 'Y_3D', 'WORLD_Z']]
-            # input_data = df_lidar.to_numpy()
+            # df = df[['X', 'Y', 'Z']]
+            df_lidar = pd.read_csv(input_lidar_depth_map, usecols=['X_3D', 'Y_3D', 'Z', 'INITIAL_WORLD_Z', 'WORLD_Z'])
+            df_lidar = df_lidar[df_lidar['INITIAL_WORLD_Z'] < 200]
+            print(df_lidar.shape)
+            if fit_lidar_road_edge:
+                df_lidar = df_lidar[['X_3D', 'Y_3D', 'Z']]
+                input_data = df_lidar.to_numpy()
+            else:
+                input_data = df.to_numpy()
         elif ext == '.png':
             image_width, image_height, road_contours = get_image_road_points(input_depth_map, boundary_only=True)
             base_img_file_name = os.path.splitext(input_depth_map)[0].split('/')[-1]
@@ -119,38 +129,32 @@ if __name__ == '__main__':
                 image_base_name=f'{base_img_file_name}'))
             min_depth = input_pfm.min()
             max_depth = input_pfm.max()
-            df = pd.DataFrame(road_contours[0], columns=['X_3D', 'Y_3D'])
-            df['Z'] = df.apply(lambda row: get_depth_of_pixel(row['Y_3D'], row['X_3D'],
+            df = pd.DataFrame(road_contours[0], columns=['X', 'Y'])
+
+            df['Z'] = df.apply(lambda row: get_depth_of_pixel(row['Y'], row['X'],
                                                               input_pfm, min_depth, max_depth,
                                                               scaling=DEPTH_SCALING_FACTOR), axis=1)
             input_data = df.to_numpy()
+            df = transform_2d_points_to_3d(df, INIT_CAMERA_PARAMS[FOCAL_LENGTH_X],
+                                           INIT_CAMERA_PARAMS[FOCAL_LENGTH_Y], image_width, image_height)
+            # df = df[['X_3D', 'Y_3D', 'Z']]
+            # input_data = df.to_numpy()
+            df.to_csv('data/d13_route_40001001011/oneformer/output/route_batch_3d/road_boundary_project_info.csv', index=False)
             df_lidar = None
 
-    if use_test_data:
-        d = 1
-        coefficients, _, _, _ = np.linalg.lstsq(input_data, -np.ones(num_points),
-                                                rcond=None)
-        a, b, c = coefficients
-        print(a, b, c)
+    xy = input_data[:, 0:2]
+    z = input_data[:, 2]
+    xy_augmented = np.hstack((xy, np.ones((xy.shape[0], 1))))
+    coefficients, _, _, _ = np.linalg.lstsq(xy_augmented, z,
+                                            rcond=None)
+    a, b, d = coefficients
+    print(a, b, d)
+    c = -1
+    # plane_params, best_fit_pts = fit_plane_lmeds(input_data)
+    # a, b, c, d = plane_params
+    # print(a, b, c, d)
+    # print(len(best_fit_pts))
 
-        # plane_params, best_fit_pts = fit_plane_lmeds(input_data)
-        # a, b, c, d = plane_params
-        # print(a, b, c, d)
-        # print(len(best_fit_pts))
-    else:
-        # Fit the plane using LMedS
-        # plane_params, best_fit_pts = fit_plane_lmeds(input_data)
-        # a, b, c, d = plane_params
-        # print(plane_params)
-        # print(len(best_fit_pts), df.shape)
-        d = 1
-        coefficients, _, _, _ = np.linalg.lstsq(input_data, -np.ones(len(input_data)),
-                                               rcond=None)
-        a, b, c = coefficients
-        print(a, b, c, d)
-        # np.savetxt(output_plane_param_file, best_fit_pts, fmt='%.3f',  header='X, Y, Z', comments='')
-        # np.savetxt(f'{os.path.splitext(output_plane_param_file)[0]}_params.csv', [plane_params], fmt='%.3f',
-        # header='a, b, c, d', comments='')
     # plot raw data
     plt.figure()
     ax = plt.subplot(111, projection='3d')
@@ -158,13 +162,15 @@ if __name__ == '__main__':
         ax.scatter(input_data[:, 0], input_data[:, 1], input_data[:, 2], color='b')
     else:
         if df_lidar is not None:
-            ax.scatter(df['X_3D'], df['Y_3D'], df['Z'], color='b')
-            ax.scatter(df_lidar['X_3D'], df_lidar['Y_3D'], df_lidar['WORLD_Z'], color='r')
+            # ax.scatter(df['X'], df['Y'], df['Z'], color='b')
+            # ax.scatter(df['X_3D'], df['Y_3D'], df['Z'], color='b')
+            ax.scatter(df_lidar['X_3D'], df_lidar['Y_3D'], df_lidar['Z'], color='r')
         else:
             # draw fit plane for each 10 road pixel
             # df_filtered = df.iloc[::1000]
-            df_filtered = df
-            ax.scatter(df_filtered['X_3D'], df_filtered['Y_3D'], df_filtered['Z'], color='b')
+            # ax.scatter(df_filtered['X_3D'], df_filtered['Y_3D'], df_filtered['Z'], color='b')
+            ax.scatter(df['X_3D'], df['Y_3D'], df['Z'], color='b')
+
     # plot plane
     x_lim = ax.get_xlim()
     y_lim = ax.get_ylim()
@@ -174,7 +180,7 @@ if __name__ == '__main__':
     for row in range(x.shape[0]):
         for col in range(x.shape[1]):
             z[row, col] = (-a * x[row, col] - b * y[row, col] - d) / c
-    # ax.plot_wireframe(x, y, z, rstride=100, cstride=100, color='k')
+    # ax.plot_wireframe(x, y, z, rstride=10, cstride=10, color='k')
     ax.plot_wireframe(x, y, z, color='k')
     ax.set_xlabel('x')
     ax.set_ylabel('y')
