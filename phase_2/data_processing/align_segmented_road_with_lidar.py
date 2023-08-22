@@ -27,6 +27,7 @@ NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
 LIDAR_DIST_THRESHOLD = 60
 
+
 def rotate_point_series(x, y, angle):
     angle = radians(angle)
     new_x = x * np.cos(angle) - y * np.sin(angle)
@@ -94,10 +95,10 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
 
     # project to 2D camera coordinate system
     df['PROJ_X'] = df.apply(
-        lambda row: cam_params[FOCAL_LENGTH_X] * row['WORLD_X'] / (row['WORLD_Z'] - cam_params[FOCAL_LENGTH_X]),
+        lambda row: cam_params[FOCAL_LENGTH_X] * row['WORLD_X'] / row['WORLD_Z'],
         axis=1)
     df['PROJ_Y'] = df.apply(
-        lambda row: cam_params[FOCAL_LENGTH_Y] * row['WORLD_Y'] / (row['WORLD_Z'] - cam_params[FOCAL_LENGTH_Y]),
+        lambda row: cam_params[FOCAL_LENGTH_Y] * row['WORLD_Y'] / row['WORLD_Z'],
         axis=1)
     # max_x = max(df['PROJ_X'])
     # min_x = min(df['PROJ_X'])
@@ -357,7 +358,6 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
                                                                                     input_3d_gdf['PROJ_SCREEN_X'],
                                                                                     input_3d_gdf['PROJ_SCREEN_Y'])[0],
                                                           axis=1)
-        input_2d_df.drop(columns=['X', 'Y'], inplace=True)
         if to_output_csv:
             input_3d_gdf.to_csv(out_proj_file,
                                 columns=['X', 'Y', 'Z', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
@@ -366,7 +366,9 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
                                 float_format='%.3f',
                                 index=False)
         else:
-            input_2d_df.to_csv(out_match_file, header=False)
+            input_2d_df.drop(columns=['X', 'Y'], inplace=True)
+            base, ext = os.path.splitext(out_match_file)
+            input_2d_df.to_csv(f'{base}_2d{ext}', header=False)
             input_3d_gdf.to_csv(out_proj_file, index=False)
 
 

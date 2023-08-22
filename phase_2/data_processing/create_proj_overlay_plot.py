@@ -22,7 +22,7 @@ if __name__ == '__main__':
     parser.add_argument('--depth_scaling_factor', type=int, default=189, help='depth scaling factor')
     parser.add_argument('--input_3d', type=str,
                         default='data/d13_route_40001001011/oneformer/output/route_batch_3d/'
-                                'lidar_project_info_926005420241.csv',
+                                'lidar_project_info_926005420241_depth.csv',
                         help='3d vertices')
     parser.add_argument('--input_2d', type=str,
                         default='data/d13_route_40001001011/oneformer/output/route_batch_3d/'
@@ -38,7 +38,7 @@ if __name__ == '__main__':
                              'leave it blank')
     parser.add_argument('--show_lidar_proj', action="store_true",
                         help='show lidar projection overlay or segmented road boundary pixel overlay')
-    parser.add_argument('--show_3d_plot', action="store_false",
+    parser.add_argument('--show_3d_plot', action="store_true",
                         help='show 3D X-Y-Z plot or show 2D plot')
 
     args = parser.parse_args()
@@ -69,19 +69,26 @@ if __name__ == '__main__':
         ax = fig.add_subplot(111, projection='3d')
         if show_lidar_proj:
             ax.scatter3D(df_3d['WORLD_X'], df_3d['WORLD_Y'], df_3d['WORLD_Z'])
-            ax.scatter3D(df_3d['X_3D'], df_3d['Y_3D'], df_3d['Z'])
+            ax.scatter3D(df_3d['X_3D'], df_3d['Y_3D'], df_3d['WORLD_Z'])
             # ax.scatter3D(df_3d['WORLD_X'], df_3d['WORLD_Y'], df_3d['Z'])
         else:
-            ax.scatter3D(df_3d['WORLD_X'], df_3d['WORLD_Y'], df_3d['WORLD_Z'])
+            # ax.scatter3D(df_3d['WORLD_X'], df_3d['WORLD_Y'], df_3d['WORLD_Z'])
+            ax.scatter3D(df_3d['X_3D'], df_3d['Y_3D'], df_3d['Z'])
             ax.scatter3D(df_2d['X_3D'], df_2d['Y_3D'], df_2d['Z'])
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
     else:
         ax = fig.add_subplot(111)
-        ax.scatter(df_3d['WORLD_X'], df_3d['WORLD_Z'])
-        ax.scatter(df_3d['WORLD_X'], df_3d['Z'])
-        ax.set_xlabel('X')
-        ax.set_ylabel('Z')
+        if show_lidar_proj:
+            # ax.scatter(df_3d['PROJ_SCREEN_X'], df_3d['WORLD_Z'])
+            ax.scatter(df_3d['Y_3D'], df_3d['WORLD_Z'])
+            ax.set_xlabel('Y_3D')
+            ax.set_ylabel('LIDAR Transformed Z')
+        else:
+            ax.scatter(df_2d['Y_3D'], df_2d['Z'])
+            ax.scatter(df_3d['Y_3D'], df_3d['Z'])
+            ax.set_xlabel('Y_3D')
+            ax.set_ylabel('Z')
     ax.grid(True)
     plt.show()
