@@ -131,7 +131,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
 
                 br_angle = (cam_br - hangle) if minus_bearing else (cam_br + hangle)
                 br_angle = (br_angle + 360) % 360
-                img_input_list.append([input_image_base_name, cam_lat, cam_lon, br_angle, depth])
+                img_input_list.append([input_image_base_name, cam_lat, cam_lon, x0, y0, br_angle, depth])
                 # if input_image_base_name == '926005420241':
                 #    labeled_data[labeled_data == 1 ] = 255
                 #    save_data_to_image(labeled_data, f'{input_image_base_name}_processed.png')
@@ -189,5 +189,5 @@ if __name__ == '__main__':
     img_input_list = []
     df.apply(lambda row: compute_mapping_input(mapping_df, input_depth_image_path, input_depth_image_postfix,
                                                row['MAPPED_IMAGE'], row[model_col_header]), axis=1)
-    out_df = pd.DataFrame(img_input_list, columns=["ImageBaseName", "lat", "lon", "bearing", "Depth"])
+    out_df = pd.DataFrame(img_input_list, columns=["ImageBaseName", "lat", "lon", "x", "y", "bearing", "Depth"])
     out_df.to_csv(output_file, index=False)
