@@ -144,3 +144,13 @@ def get_depth_data(loader, input_file):
 
 def get_depth_of_pixel(y, x, pfm_data, min_depth, max_depth, scaling=1):
     return (1 - (pfm_data[int(y + 0.5), int(x + 0.5)] - min_depth) / (max_depth - min_depth)) * scaling
+
+
+def get_zoe_depth_data(image_name):
+    depth_img = Image.open(image_name)
+    return np.asarray(depth_img, dtype='uint32')
+
+
+def get_zoe_depth_of_pixel(y, x, depth_data):
+    # get depth of a pixel in feet
+    return depth_data[y, x] * 3.28084 / 256.0
