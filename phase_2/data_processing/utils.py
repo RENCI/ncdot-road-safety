@@ -2,6 +2,8 @@ import numpy as np
 from PIL import Image
 from math import radians, cos, sin, asin, sqrt, atan2, degrees, pi
 import pickle
+import geopandas as gpd
+from shapely.geometry import Point
 
 ROAD = 1
 POLE = 2
@@ -154,3 +156,21 @@ def get_zoe_depth_data(image_name):
 def get_zoe_depth_of_pixel(y, x, depth_data):
     # get depth of a pixel in feet
     return depth_data[y, x] * 3.28084 / 256.0
+
+
+def get_aerial_lidar_road_geo_df(input_file, road_only=True):
+    gdf = gpd.read_file(input_file)
+    gdf.X = gdf.X.astype(float)
+    gdf.Y = gdf.Y.astype(float)
+    gdf.Z = gdf.Z.astype(float)
+    gdf.C = gdf.C.astype(int)
+    if road_only:
+        # 13 is LIDAR classification code for road
+        gdf = gdf[gdf['C'] == 13]
+    # Create a new geometry column with Point objects
+    gdf.geometry = [Point(x, y, z) for x, y, z in zip(gdf['X'], gdf['Y'], gdf['Z'])]
+    gdf.crs = 'epsg:6543'
+    convert_geom_df = gdf.geometry.to_crs(epsg=4326)
+    # geom_df is added as a geometry_y column in lidar_df while the initial geometry column is renamed as geometry_x
+    gdf = gdf.merge(convert_geom_df, left_index=True, right_index=True)
+    return gdf

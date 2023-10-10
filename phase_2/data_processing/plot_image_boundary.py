@@ -1,7 +1,6 @@
 import argparse
 import matplotlib.pyplot as plt
 from utils import get_data_from_image
-import numpy as np
 from get_road_boundary_points import get_image_road_points
 
 
@@ -22,6 +21,6 @@ if __name__ == '__main__':
     if boundary_only:
         plt.plot(road_contours[0][:, 0], road_contours[0][:, 1], 'r-', linewidth=2)
     else:
-        road_data = np.array(road_contours[0])
+        road_data = road_contours[0]
         plt.scatter(road_data[:, 0], road_data[:, 1], s=1, c='r')
     plt.show()

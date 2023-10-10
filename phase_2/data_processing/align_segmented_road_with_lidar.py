@@ -9,7 +9,8 @@ from pypfm import PFMLoader
 from scipy.optimize import minimize
 from math import dist, radians
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
-    get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel
+    get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
+    get_aerial_lidar_road_geo_df
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points
 
@@ -21,7 +22,7 @@ from get_road_boundary_points import get_image_road_points
 FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
-INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, -2, -2]
+INIT_CAMERA_PARAMS = [2.3, 1.4, 6, 20, 0, 5, -2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
@@ -224,12 +225,50 @@ def transform_2d_points_to_3d(df, fl_x, fl_y, img_width, img_hgt, x_header='X', 
     return df
 
 
-def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_proj_file, to_output_csv, align_in_3d,
-                         input_depth_filename_pattern, is_optimize):
+def get_mapping_data(input_file, input_image_name):
+    df = pd.read_csv(input_file,
+                             usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE'], dtype=str)
+    df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
+
+    cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, eor = get_camera_latlon_and_bearing_for_image_from_mapping(
+        df, input_image_name, is_degree=False)
+    if cam_lat is None:
+        # no camera location
+        print(f'no camera location found for {input_image_name}')
+        exit(1)
+    # LIDAR road vertices in input_3d is in NAD83(2011) / North Carolina (ftUS) CRS with EPSG:6543, and
+    # the cam_lat/cam_lon is in WGS84 CRS with EPSG:4326, need to transform cam_lat/cam_lon to the same CRS as
+    # input_3d
+    mapped_image_df = df[df['MAPPED_IMAGE'] == input_image_name]
+    mapped_image_gdf = gpd.GeoDataFrame(mapped_image_df, geometry=gpd.points_from_xy(mapped_image_df.LONGITUDE,
+                                                                                     mapped_image_df.LATITUDE),
+                                        crs='EPSG:4326')
+    cam_geom_df = mapped_image_gdf.geometry.to_crs(epsg=6543)
+    proj_cam_x = cam_geom_df.iloc[0].x
+    proj_cam_y = cam_geom_df.iloc[0].y
+    print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')
+
+    return cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor
+
+
+def get_input_file_with_images(input_file):
+    # load input file to get the image names for alignment
+    df = pd.read_csv(input_file, usecols=['imageBaseName'], dtype=str)
+    # make sure only use the front image (ending with 1) for alignment
+    df['imageBaseName'] = df['imageBaseName'].str[:-1] + '1'
+    print(f'input df shape: {df.shape}')
+    df.drop_duplicates(subset=['imageBaseName'], inplace=True)
+    print(f'input df shape after removing duplicates: {df.shape}')
+    return df
+
+
+def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_match_file, out_proj_file, to_output_csv,
+                         align_in_3d, input_depth_filename_pattern, is_optimize, is_road_boundary_only):
     """
     :param image_name_with_path: image file name with whole path
     :param ldf: lidar 3D point geodataframe
-    :param mdf: mapping df to extract camera location and its next camera location for determining bearing direction
+    :param input_mapping_file: input_mapping_file to read and extract camera location and its next camera location
+    for determining bearing direction
     :param out_match_file: file base name for aligned road info which will be appended with image name to
     have an alignment output file for each input image
     :param out_proj_file: output file base with path for aligned road info which will be appended with image name
@@ -239,11 +278,12 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
     :param input_depth_filename_pattern: input depth filename pattern which could end with either pfm indicating
     MiDAS model depth prediction file or png indicating ZoeDepth prediction file
     :param is_optimize: whether to optimize camera parameter or not
+    :param is_road_boundary_only: whether to only use road boundary only for alignment
     :return:
     """
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
-    img_width, img_height, input_list = get_image_road_points(image_name_with_path)
+    img_width, img_height, input_list = get_image_road_points(image_name_with_path, boundary_only=is_road_boundary_only)
 
     input_2d_points = input_list[0]
 
@@ -256,23 +296,9 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
             pickle.dump(input_list, f)
 
     input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
-    cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, eor = get_camera_latlon_and_bearing_for_image_from_mapping(
-        mdf, input_2d_mapped_image, is_degree=False)
-    if cam_lat is None:
-        # no camera location
-        print(f'no camera location found for {input_2d_mapped_image}')
-        exit(1)
-    # LIDAR road vertices in input_3d is in NAD83(2011) / North Carolina (ftUS) CRS with EPSG:6543, and
-    # the cam_lat/cam_lon is in WGS84 CRS with EPSG:4326, need to transform cam_lat/cam_lon to the same CRS as
-    # input_3d
-    mapped_image_df = mdf[mdf['MAPPED_IMAGE'] == input_2d_mapped_image]
-    mapped_image_gdf = gpd.GeoDataFrame(mapped_image_df, geometry=gpd.points_from_xy(mapped_image_df.LONGITUDE,
-                                                                                     mapped_image_df.LATITUDE),
-                                        crs='EPSG:4326')
-    cam_geom_df = mapped_image_gdf.geometry.to_crs(epsg=6543)
-    proj_cam_x = cam_geom_df.iloc[0].x
-    proj_cam_y = cam_geom_df.iloc[0].y
-    # print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')
+
+    cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = get_mapping_data(
+        input_mapping_file, input_2d_mapped_image)
 
     vertices, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                           dist_th=LIDAR_DIST_THRESHOLD,
@@ -293,14 +319,17 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
 
     # get the lidar road vertex with the closest distance to the camera location
     nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y'])[0]
-    next_idx = get_next_road_index(nearest_idx, input_3d_gdf, 'BEARING')
-    cam_lidar_z = interpolate_camera_z(input_3d_gdf.iloc[nearest_idx].Z, input_3d_gdf.iloc[next_idx].Z,
-                                       dist([input_3d_gdf.iloc[nearest_idx].X, input_3d_gdf.iloc[nearest_idx].Y],
-                                            [proj_cam_x, proj_cam_y]),
-                                       dist([input_3d_gdf.iloc[next_idx].X, input_3d_gdf.iloc[next_idx].Y],
-                                            [proj_cam_x, proj_cam_y]))
+    if is_road_boundary_only:
+        next_idx = get_next_road_index(nearest_idx, input_3d_gdf, 'BEARING')
+        cam_lidar_z = interpolate_camera_z(input_3d_gdf.iloc[nearest_idx].Z, input_3d_gdf.iloc[next_idx].Z,
+                                           dist([input_3d_gdf.iloc[nearest_idx].X, input_3d_gdf.iloc[nearest_idx].Y],
+                                                [proj_cam_x, proj_cam_y]),
+                                           dist([input_3d_gdf.iloc[next_idx].X, input_3d_gdf.iloc[next_idx].Y],
+                                                [proj_cam_x, proj_cam_y]))
+    else:
+        cam_lidar_z = input_3d_gdf.iloc[nearest_idx].Z
 
-    # print(f'camera Z: {cam_lidar_z}')
+    print(f'camera Z: {cam_lidar_z}')
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
     if align_in_3d:
@@ -321,12 +350,13 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
                                                  axis=1)
             input_2d_df = transform_2d_points_to_3d(input_2d_df, INIT_CAMERA_PARAMS[FOCAL_LENGTH_X],
                                                     INIT_CAMERA_PARAMS[FOCAL_LENGTH_Y], img_width, img_height)
-            input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match_3d(row['X_3D'], row['Y_3D'],
-                                                                                           row['Z'],
-                                                                                           input_3d_gdf['WORLD_X'],
-                                                                                           input_3d_gdf['WORLD_Y'],
-                                                                                           input_3d_gdf['WORLD_Z'])[0],
-                                                              axis=1)
+            if road_boundary_only:
+                input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match_3d(row['X_3D'], row['Y_3D'],
+                                                                                               row['Z'],
+                                                                                               input_3d_gdf['WORLD_X'],
+                                                                                               input_3d_gdf['WORLD_Y'],
+                                                                                               input_3d_gdf['WORLD_Z'])[0],
+                                                                  axis=1)
         else:
             print(f'{input_depth_filename_pattern} is not valid - it must end with .pfm or .png')
             exit(1)
@@ -368,10 +398,11 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
         else:
             input_3d_gdf = transform_3d_points(input_3d_gdf, INIT_CAMERA_PARAMS, img_width, img_height)
 
-        input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
-                                                                                    input_3d_gdf['PROJ_SCREEN_X'],
-                                                                                    input_3d_gdf['PROJ_SCREEN_Y'])[0],
-                                                          axis=1)
+        if road_boundary_only:
+            input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
+                                                                                        input_3d_gdf['PROJ_SCREEN_X'],
+                                                                                        input_3d_gdf['PROJ_SCREEN_Y'])[0],
+                                                              axis=1)
         if to_output_csv:
             input_3d_gdf.to_csv(out_proj_file,
                                 columns=['X', 'Y', 'Z', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
@@ -388,10 +419,11 @@ def align_image_to_lidar(image_name_with_path, ldf, mdf, out_match_file, out_pro
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
-    parser.add_argument('--input_lidar_shp_with_path', type=str,
-                        default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
-                                'RoadEdge_40001001011_vertices.shp',
-                        help='input shp file that contains road x, y, z vertices from lidar')
+    parser.add_argument('--input_lidar_with_path', type=str,
+                        # default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
+                        #         'RoadEdge_40001001011_vertices.shp',
+                        default='data/d13_route_40001001011/lidar/test_scene_all_raster_10.csv',
+                        help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         default='data/d13_route_40001001011/oneformer',
                         help='base directory to retrieve images')
@@ -404,12 +436,12 @@ if __name__ == '__main__':
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--output_file_base', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/route_batch_3d/road_alignment_with_lidar',
+                                'oneformer/output/aerial_lidar_test/road_alignment_with_lidar',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have an alignment output file for each input image')
     parser.add_argument('--lidar_proj_output_file_base', type=str,
                         default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/route_batch_3d/lidar_project_info',
+                                'oneformer/output/aerial_lidar_test/lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
     parser.add_argument('--output_2d_3d_points_for_external_alignment', action="store_true",
@@ -423,11 +455,11 @@ if __name__ == '__main__':
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
-    parser.add_argument('--optimize', action="store_true",
+    parser.add_argument('--optimize', action="store_false",
                         help='whether to optimize camera parameters')
 
     args = parser.parse_args()
-    input_lidar_shp = args.input_lidar_shp_with_path
+    input_lidar = args.input_lidar_with_path
     obj_base_image_dir = args.obj_base_image_dir
     obj_image_input = args.obj_image_input
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
@@ -438,26 +470,22 @@ if __name__ == '__main__':
     align_road_in_3d = args.align_road_in_3d
     optimize = args.optimize
 
-    lidar_df = get_lidar_data_from_shp(input_lidar_shp)
+    road_boundary_only = True
+    if input_lidar.endswith('.shp'):
+        lidar_df = get_lidar_data_from_shp(input_lidar)
+    else:
+        lidar_df = get_aerial_lidar_road_geo_df(input_lidar, road_only=True)
+        road_boundary_only = False
 
-    mapping_df = pd.read_csv(input_sensor_mapping_file_with_path,
-                             usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE'], dtype=str)
-    mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
-
-    # load input file to get the image names for alignment
-    input_df = pd.read_csv(obj_image_input, usecols=['imageBaseName'], dtype=str)
-    # make sure only use the front image (ending with 1) for alignment
-    input_df['imageBaseName'] = input_df['imageBaseName'].str[:-1] + '1'
-    print(f'input df shape: {input_df.shape}')
-    input_df.drop_duplicates(subset=['imageBaseName'], inplace=True)
-    print(f'input df shape after removing duplicates: {input_df.shape}')
+    input_df = get_input_file_with_images(obj_image_input)
     start_time = time.time()
     input_df['imageBaseName'].apply(lambda img: align_image_to_lidar(os.path.join(obj_base_image_dir, f'{img}.png'),
                                                                      lidar_df,
-                                                                     mapping_df,
+                                                                     input_sensor_mapping_file_with_path,
                                                                      f'{output_file_base}_{img}.csv',
                                                                      f'{lidar_proj_output_file_base}_{img}.csv',
                                                                      output_2d_3d_points_for_external_alignment,
                                                                      align_road_in_3d,
-                                                                     input_depth_image_filename_pattern, optimize))
+                                                                     input_depth_image_filename_pattern, optimize,
+                                                                     road_boundary_only))
     print(f'execution time: {time.time() - start_time}')

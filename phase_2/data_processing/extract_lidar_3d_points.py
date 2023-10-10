@@ -41,7 +41,7 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, e
             clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
     df = df[(df['distance'] < dist_th) & (df['bearing_diff'] < math.pi / 3)]
     print(df.shape)
-    df = df.drop(columns=['Id', 'ORIG_FID', 'geometry_y', 'geometry_x', 'distance', 'bearing_diff'])
+    df = df[['X', 'Y', 'Z']]
     return [df.to_numpy()], cam_bearing
 
 
