@@ -17,10 +17,13 @@ if __name__ == '__main__':
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
     _, _, road_contours = get_image_road_points(image_file_name, boundary_only=boundary_only)
     # Plot the boundary on top of the original image
-    plt.imshow(seg_img)
+    # plt.imshow(seg_img)
     if boundary_only:
         plt.plot(road_contours[0][:, 0], road_contours[0][:, 1], 'r-', linewidth=2)
     else:
         road_data = road_contours[0]
-        plt.scatter(road_data[:, 0], road_data[:, 1], s=1, c='r')
+        plt.scatter(road_data[:, 0], road_data[:, 1], s=1, c=road_data[:, 2], cmap='viridis')
+        plt.colorbar(label='Z Value')
+        plt.xlabel('X')
+        plt.ylabel('Y')
     plt.show()

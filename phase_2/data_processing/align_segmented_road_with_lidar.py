@@ -311,14 +311,27 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
     input_2d_points = input_list[0]
 
     if to_output_csv:
-        np.savetxt(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}1.csv'),
-                   input_2d_points, delimiter=',', header='X,Y', comments='', fmt='%d')
+        if input_2d_points.shape[1] == 2:
+            np.savetxt(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}1.csv'),
+                       input_2d_points, delimiter=',', header='X,Y', comments='', fmt='%d')
+        elif input_2d_points.shape[1] == 3:
+            np.savetxt(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}1.csv'),
+                       input_2d_points, delimiter=',', header='X,Y,FLAG', comments='', fmt='%d')
+        else:
+            print(f'input_2d_points.shape[1] must be either 2, or 3, but it is {input_2d_points.shape[1]}, exiting')
+            exit(1)
     else:
         # output 2d road boundary points for showing alignment overlay plot
         with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
             pickle.dump(input_list, f)
 
-    input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
+    if input_2d_points.shape[1] == 2:
+        input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
+    elif input_2d_points.shape[1] == 3:
+        input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y', 'FLAG'])
+    else:
+        print(f'input_2d_points.shape[1] must be either 2, or 3, but it is {input_2d_points.shape[1]}, exiting')
+        exit(1)
 
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = get_mapping_data(
         input_mapping_file, input_2d_mapped_image)

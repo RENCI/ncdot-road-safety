@@ -87,7 +87,11 @@ def get_image_road_points(image_file_name, boundary_only=True):
                 # Fill all points between pairs of intersections
                 # filled_points.extend([[x, y] for x in range(x_start, x_end)])
                 step = (x_end - x_start) // 2
-                filled_points.extend([[x, y] for x in range(x_start, x_end, step)])
+                filled_points.extend([[x_start, y, 1],
+                                      # only set Z to be 0 to indicate the middle point for the first intersection pair
+                                      [x_start + step, y, 0 if i == 0 else 1],
+                                      [x_end, y, 1]])
+                # filled_points.extend([[x, y] for x in range(x_start, x_end, step)])
             if len(intersections) > 0:
                 prev_line_x_intersect_first = intersections[0]
                 prev_line_x_intersect_last = intersections[-1]

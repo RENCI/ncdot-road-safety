@@ -2,8 +2,6 @@ import argparse
 import geopandas as gpd
 import pickle
 
-import pandas as pd
-
 from utils import haversine, bearing_between_two_latlon_points, get_next_road_index
 import math
 
