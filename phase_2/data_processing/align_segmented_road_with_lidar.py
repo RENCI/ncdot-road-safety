@@ -22,18 +22,27 @@ from get_road_boundary_points import get_image_road_points
 FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
-INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, -8, -15, 0.32, -1.4, -0.77]
+INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, 8, -15, 0.32, -1.4, -0.77]
+# INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, 2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
 LIDAR_DIST_THRESHOLD = 60
 # LIDAR_DIST_THRESHOLD = 190
 
-def rotate_point_series(x, y, angle):
+
+def rotate_point_series(v1, v2, angle, axis):
     angle = radians(angle)
-    new_x = x * np.cos(angle) - y * np.sin(angle)
-    new_y = x * np.sin(angle) + y * np.cos(angle)
-    return new_x, new_y
+    if axis == 'z' or axis == 'x':
+        new_v1 = v1 * np.cos(angle) - v2 * np.sin(angle)
+        new_v2 = v1 * np.sin(angle) + v2 * np.cos(angle)
+    elif axis == 'y':
+        new_v1 = v1 * np.cos(angle) + v2 * np.sin(angle)
+        new_v2 = -v1 * np.sin(angle) + v2 * np.cos(angle)
+    else:
+        print('input axis parameter is invalid - it must be x, y, or z')
+        return v1, v2
+    return new_v1, new_v2
 
 
 def interpolate_camera_z(p1_z, p2_z, p1_dist, p2_dist):
@@ -83,11 +92,12 @@ def transform_to_world_coordinate_system(df, cam_params):
     df['WORLD_Y'] = df['INITIAL_WORLD_Y'] + cam_params[CAMERA_LIDAR_Y_OFFSET]
     df['WORLD_X'] = df['INITIAL_WORLD_X'] + cam_params[CAMERA_LIDAR_X_OFFSET]
     df['WORLD_Y'], df['WORLD_Z'] = rotate_point_series(df['WORLD_Y'], df['WORLD_Z'],
-                                                       cam_params[CAMERA_ROLL])
+                                                       cam_params[CAMERA_ROLL], 'x')
     df['WORLD_X'], df['WORLD_Z'] = rotate_point_series(df['WORLD_X'], df['WORLD_Z'],
-                                                       cam_params[CAMERA_PITCH])
+                                                       cam_params[CAMERA_PITCH], 'y')
     df['WORLD_X'], df['WORLD_Y'] = rotate_point_series(df['WORLD_X'], df['WORLD_Y'],
-                                                       cam_params[CAMERA_YAW])
+                                                       cam_params[CAMERA_YAW], 'z')
+
     return df
 
 
@@ -127,25 +137,20 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     max_proj_x = df['PROJ_X'].max()
     min_proj_y = df['PROJ_Y'].min()
     max_proj_y = df['PROJ_Y'].max()
-    print(f'proj_x: {min_proj_x}: {max_proj_x}, proj_y: {min_proj_y}: {max_proj_y}')
     half_width = img_width / 2
     half_height = img_hgt / 2
     df['PROJ_SCREEN_X'] = df['PROJ_X'].apply(
         lambda x: int(x * half_width + half_width))
     df['PROJ_SCREEN_Y'] = df['PROJ_Y'].apply(
-        lambda y: int(-y * half_height + half_height))
+        lambda y: int(y * half_height + half_height))
     return df
 
 
 def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
-    if len(cam_params) < len(INIT_CAMERA_PARAMS):
-        combined = INIT_CAMERA_PARAMS[:len(INIT_CAMERA_PARAMS)-len(cam_params)]
-        combined.extend(cam_params)
-    else:
-        combined = cam_params
-    df_3d = transform_3d_points(df_3d, combined, img_wd, img_ht)
+    full_cam_params = get_full_camera_parameters(cam_params)
+    df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
     df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
                                                                    df_2d['X'], df_2d['Y'])[1],
                                          axis=1)
@@ -271,6 +276,15 @@ def get_input_file_with_images(input_file):
     return df
 
 
+def get_full_camera_parameters(cam_p):
+    if len(cam_p) < len(INIT_CAMERA_PARAMS):
+        combined = INIT_CAMERA_PARAMS[:len(INIT_CAMERA_PARAMS)-len(cam_p)]
+        combined.extend(cam_p)
+    else:
+        combined = cam_p
+    return combined
+
+
 def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_match_file, out_proj_file, to_output_csv,
                          align_in_3d, input_depth_filename_pattern, is_optimize, is_road_boundary_only):
     """
@@ -392,24 +406,11 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
                               # jac=True,
                               options={'gtol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
             optimized_cam_params = result.x
-            updated_eps = eps
-            while (optimized_cam_params[0] < INIT_CAMERA_PARAMS[0]/2 or optimized_cam_params[1] < INIT_CAMERA_PARAMS[1]/2) \
-                    and (updated_eps > 1e-8):
-                # if focal length along X and/or Y is too small, the result is not acceptable, reducing eps and trying again
-                print(f'focal length too small: {optimized_cam_params} for image {input_2d_mapped_image}, '
-                      f'reduce eps and try again.')
-                updated_eps = updated_eps/10.0
-                result = minimize(objective_function_2d, INIT_CAMERA_PARAMS,
-                                  args=(input_3d_gdf, input_2d_df, img_width, img_height, align_errors),
-                                  method='BFGS',
-                                  # method='CG',
-                                  # jac=True,
-                                  options={'gtol': gtol, 'eps': updated_eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
-                optimized_cam_params = result.x
             print(f'optimizing result for image {input_2d_mapped_image}: {result}')
             print(f'alignment errors: {align_errors}')
             print(f'optimized_cam_params: {optimized_cam_params}')
-            input_3d_gdf = transform_3d_points(input_3d_gdf, optimized_cam_params, img_width, img_height)
+            input_3d_gdf = transform_3d_points(input_3d_gdf, get_full_camera_parameters(optimized_cam_params),
+                                               img_width, img_height)
         else:
             input_3d_gdf = transform_3d_points(input_3d_gdf, INIT_CAMERA_PARAMS, img_width, img_height)
 
@@ -436,7 +437,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
                         # default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
-                        #         'RoadEdge_40001001011_vertices.shp',
+                        #        'RoadEdge_40001001011_vertices.shp',
                         default='data/d13_route_40001001011/lidar/test_scene_all_raster_10.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
@@ -470,7 +471,7 @@ if __name__ == '__main__':
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
-    parser.add_argument('--optimize', action="store_true",
+    parser.add_argument('--optimize', action="store_false",
                         help='whether to optimize camera parameters')
 
     args = parser.parse_args()

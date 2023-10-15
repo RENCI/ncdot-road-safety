@@ -1,6 +1,9 @@
 import argparse
 import geopandas as gpd
 import pickle
+
+import pandas as pd
+
 from utils import haversine, bearing_between_two_latlon_points, get_next_road_index
 import math
 
@@ -41,7 +44,10 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, e
             clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
     df = df[(df['distance'] < dist_th) & (df['bearing_diff'] < math.pi / 3)]
     print(df.shape)
-    df = df[['X', 'Y', 'Z']]
+    if 'X' in df.columns:
+        df = df[['X', 'Y', 'Z']]
+    else:
+        df = df[['POINT_X', 'POINT_Y', 'POINT_Z']]
     return [df.to_numpy()], cam_bearing
 
 
