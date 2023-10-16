@@ -133,10 +133,6 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     #     df['PROJ_Y'] = df.apply(
     #         lambda row: update_focal_length * row['WORLD_Y'] / row['WORLD_Z'],
     #         axis=1)
-    min_proj_x = df['PROJ_X'].min()
-    max_proj_x = df['PROJ_X'].max()
-    min_proj_y = df['PROJ_Y'].min()
-    max_proj_y = df['PROJ_Y'].max()
     half_width = img_width / 2
     half_height = img_hgt / 2
     df['PROJ_SCREEN_X'] = df['PROJ_X'].apply(
