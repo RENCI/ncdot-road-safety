@@ -40,11 +40,14 @@ if __name__ == '__main__':
     gdf['Boundary'] = gdf.apply(lambda row: is_boundary([row['X'], row['Y']], points, y_grid_sp), axis=1)
     df = gdf[['X', 'Y', 'Z', 'Boundary']]
     df.to_csv(output_lidar, index=False)
-    # Plot result to verify
-    bound_df = df[df.Boundary == True]
     if show_plot:
+        # Plot result to verify
         plt.figure(figsize=(8, 8))
-        plt.scatter(df['X'], df['Y'], s=1, c='b')
+        plt.gca().invert_yaxis()
+        sub_df = df[df.Y > 735000]
+        print(df.shape, sub_df.shape)
+        bound_df = sub_df[sub_df.Boundary == True]
+        plt.scatter(sub_df['X'], sub_df['Y'], s=1, c='b')
         plt.scatter(bound_df['X'], bound_df['Y'], s=2, c='r')
         plt.show()
     gdf['Latitude'] = gdf['geometry_y'].apply(lambda point: point.y)
