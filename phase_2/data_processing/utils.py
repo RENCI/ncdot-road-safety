@@ -163,10 +163,13 @@ def get_aerial_lidar_road_geo_df(input_file, road_only=True):
     gdf.X = gdf.X.astype(float)
     gdf.Y = gdf.Y.astype(float)
     gdf.Z = gdf.Z.astype(float)
-    gdf.C = gdf.C.astype(int)
-    if road_only:
-        # 13 is LIDAR classification code for road
-        gdf = gdf[gdf['C'] == 13]
+    if 'C' in gdf.columns:
+        gdf.C = gdf.C.astype(int)
+        if road_only:
+            # 13 is LIDAR classification code for road
+            gdf = gdf[gdf['C'] == 13]
+    if 'Boundary' in gdf.columns:
+        gdf.Boundary = gdf.Boundary.apply(lambda x: 1 if x == 'True' else 0)
     # Create a new geometry column with Point objects
     gdf.geometry = [Point(x, y, z) for x, y, z in zip(gdf['X'], gdf['Y'], gdf['Z'])]
     gdf.crs = 'epsg:6543'

@@ -23,6 +23,8 @@ FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CA
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, 8, -15, 0.32, -1.4, -0.77]
+# INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, 8, -15, -2.03, 3.98, -1.23]
+# -2.94539933 -0.25222716 -0.883944
 # INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, 2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
@@ -148,7 +150,8 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
     full_cam_params = get_full_camera_parameters(cam_params)
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
     df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-                                                                   df_2d['X'], df_2d['Y'])[1],
+                                                                   df_2d[df_2d.Boundary == row['Boundary']]['X'],
+                                                                   df_2d[df_2d.Boundary == row['Boundary']]['Y'])[1],
                                          axis=1)
     # df_3d['MATCH_2D_INDEX'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
     #                                                                 df_2d['X'], df_2d['Y'])[0],
@@ -312,7 +315,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
                        input_2d_points, delimiter=',', header='X,Y', comments='', fmt='%d')
         elif input_2d_points.shape[1] == 3:
             np.savetxt(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}1.csv'),
-                       input_2d_points, delimiter=',', header='X,Y,FLAG', comments='', fmt='%d')
+                       input_2d_points, delimiter=',', header='X,Y,Boundary', comments='', fmt='%d')
         else:
             print(f'input_2d_points.shape[1] must be either 2, or 3, but it is {input_2d_points.shape[1]}, exiting')
             exit(1)
@@ -324,7 +327,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
     if input_2d_points.shape[1] == 2:
         input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
     elif input_2d_points.shape[1] == 3:
-        input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y', 'FLAG'])
+        input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y', 'Boundary'])
     else:
         print(f'input_2d_points.shape[1] must be either 2, or 3, but it is {input_2d_points.shape[1]}, exiting')
         exit(1)
@@ -338,7 +341,10 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}')
     # print(f'input 3d numpy array shape: {input_3d_points.shape}')
-    input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
+    if input_3d_points.shape[1] == 4:
+        input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z', 'Boundary'])
+    else:
+        input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
     input_3d_gdf = gpd.GeoDataFrame(input_3d_df, geometry=gpd.points_from_xy(input_3d_df.X, input_3d_df.Y),
                                     crs='EPSG:6543')
     input_3d_geom_df = input_3d_gdf.geometry.to_crs(epsg=4326)
@@ -447,7 +453,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_lidar_with_path', type=str,
                         # default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
                         #        'RoadEdge_40001001011_vertices.shp',
-                        default='data/d13_route_40001001011/lidar/test_scene_all_raster_10.csv',
+                        default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         default='data/d13_route_40001001011/oneformer',

@@ -43,7 +43,10 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, e
     df = df[(df['distance'] < dist_th) & (df['bearing_diff'] < math.pi / 3)]
     print(df.shape)
     if 'X' in df.columns:
-        df = df[['X', 'Y', 'Z']]
+        if 'Boundary' in df.columns:
+            df = df[['X', 'Y', 'Z', 'Boundary']]
+        else:
+            df = df[['X', 'Y', 'Z']]
     else:
         df = df[['POINT_X', 'POINT_Y', 'POINT_Z']]
     return [df.to_numpy()], cam_bearing
