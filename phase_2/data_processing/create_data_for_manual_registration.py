@@ -3,13 +3,13 @@ import os
 import pandas as pd
 import geopandas as gpd
 import numpy as np
-from utils import bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df
+from utils import bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df, haversine
 from get_road_boundary_points import get_image_road_points
 from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_coordinate_system, compute_match, \
     get_mapping_data, get_input_file_with_images
 
 
-def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file):
+def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file, input_loc=None):
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
     img_width, img_height, input_list = get_image_road_points(image_name_with_path, boundary_only=False)
@@ -43,9 +43,13 @@ def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_
     print(f'camera Z: {cam_lidar_z}')
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
+    if input_loc:
+        input_3d_gdf['DISTANCE_TO_POLE'] = input_3d_gdf.apply(lambda row: haversine(input_loc[1], input_loc[0],
+                                                                                    row['geometry_y']), axis=1)
     joined_df = pd.concat([input_3d_gdf, ldf[['C']]], axis=1)
     joined_df.to_csv(out_file,
-                     columns=['X', 'Y', 'Z', 'C', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z'],
+                     columns=['X', 'Y', 'Z', 'C', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
+                              'DISTANCE_TO_POLE'],
                      float_format='%.3f', index=False)
 
 
@@ -64,9 +68,11 @@ if __name__ == '__main__':
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
+    parser.add_argument('--input_landmark_loc', type=str,
+                        default=(35.7134730, -82.73446760),
+                        help='input landmark location to compute distance from each LIDAR point')
     parser.add_argument('--output_lidar_file_base', type=str,
-                        default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/aerial_lidar_test/lidar_info',
+                        default='/home/hongyi/ncdot-registration/data/lidar_info',
                         help='output lidar file base with path which will be appended with image name '
                              'to have lidar INITIAL WORLD coordinate info for each input image')
 
@@ -75,10 +81,12 @@ if __name__ == '__main__':
     obj_base_image_dir = args.obj_base_image_dir
     obj_image_input = args.obj_image_input
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
+    input_landmark_loc = args.input_landmark_loc
     output_lidar_file_base = args.output_lidar_file_base
 
     # load input file to get the image names for alignment
     input_df = get_input_file_with_images(obj_image_input)
     input_df['imageBaseName'].apply(lambda img: create_data(os.path.join(obj_base_image_dir, f'{img}.png'),
                                                             input_lidar, input_sensor_mapping_file_with_path,
-                                                            f'{output_lidar_file_base}_{img}.csv'))
+                                                            f'{output_lidar_file_base}_{img}.csv',
+                                                            input_loc=input_landmark_loc))

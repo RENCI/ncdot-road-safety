@@ -8,11 +8,13 @@ import numpy as np
 from pypfm import PFMLoader
 from scipy.optimize import minimize
 from math import dist, radians
+from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
     get_aerial_lidar_road_geo_df
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points
+from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 
 
 # indices as constants in the input camera parameter list where CAMERA_LIDAR_X/Y/Z_OFFSET indicate camera
@@ -23,8 +25,6 @@ FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CA
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, 8, -15, 0.32, -1.4, -0.77]
-# INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, 8, -15, -2.03, 3.98, -1.23]
-# -2.94539933 -0.25222716 -0.883944
 # INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, 2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
@@ -66,6 +66,7 @@ def compute_match(x, y, series_x, series_y):
 def compute_match_3d(x, y, z, series_x, series_y, series_z):
     # compute match indices in (series_x, series_y, series_z) based on which point in all points represented in
     # (series_x, series_y, series_z) has minimal distance to point(x, y, z)
+
     distances = (series_x - x) ** 2 + (series_y - y) ** 2 + (series_z - z) ** 2
     min_idx = distances.idxmin()
     return [min_idx, distances[min_idx]]
@@ -144,15 +145,39 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     return df
 
 
+def get_2d_road_points_by_z(idf, filter_col, compare_val, threshold_val=30):
+    """
+    get road points from idf in which the difference between its filter_col value and compare_val is less than a
+    threshold
+    :param idf: input dataframe that includes filter_col
+    :param filter_col: filter column included in the input dataframe
+    :param compare_val: the value to compare difference with in idf[filter_col]
+    :param threshold_val: the threshold value for comparing the absolute difference from for filtering
+    :return: a filtered dataframe that meets the filtering condition
+    """
+    if filter_col not in idf.columns:
+        print(f'{filter_col} not in input dataframe {idf}, return the input dataframe without filtering')
+        return idf
+    return idf[abs(idf[filter_col] - compare_val) < threshold_val]
+
+
 def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
-    df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-                                                                   df_2d[df_2d.Boundary == row['Boundary']]['X'],
-                                                                   df_2d[df_2d.Boundary == row['Boundary']]['Y'])[1],
-                                         axis=1)
+    if 'Z' in df_2d.columns:
+        df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
+            row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
+            get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['X'],
+            get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['Y'])[1],
+                                             axis=1)
+    else:
+        df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
+            row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
+            df_2d[df_2d.Boundary == row['Boundary']]['X'],
+            df_2d[df_2d.Boundary == row['Boundary']]['Y'])[1],
+                                             axis=1)
     # df_3d['MATCH_2D_INDEX'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
     #                                                                 df_2d['X'], df_2d['Y'])[0],
     #                                       axis=1)
@@ -275,6 +300,26 @@ def get_input_file_with_images(input_file):
     return df
 
 
+def get_image_depth(depth_filename, image_base_name, idf, wth, hgt, min_dep, max_dep):
+    if depth_filename.endswith('.pfm'):
+        loader = PFMLoader((wth, hgt), color=False, compress=False)
+        input_pfm = get_depth_data(loader, depth_filename.format(
+            image_base_name=f'{image_base_name}1'))
+        min_depth = input_pfm.min()
+        max_depth = input_pfm.max()
+        idf['Z'] = idf.apply(lambda row: get_depth_of_pixel(row['Y'], row['X'],
+                                                            input_pfm, min_depth, max_depth,
+                                                            scaling=DEPTH_SCALING_FACTOR), axis=1)
+    elif depth_filename.endswith('.png'):
+        input_depth_data = get_zoe_depth_data(depth_filename.format(
+            image_base_name=f'{image_base_name}1'))
+        idf['Z'] = idf.apply(lambda row: get_zoe_depth_of_pixel(row['Y'], row['X'], input_depth_data), axis=1)
+    # scale the estimated depth column Z to match the real LIDAR depth range (min_dep, max_dep)
+    min_max_scaler = MinMaxScaler(feature_range=(min_dep, max_dep))
+    idf['Z'] = min_max_scaler.fit_transform(idf[['Z']])
+    return idf
+
+
 def get_full_camera_parameters(cam_p):
     if len(cam_p) < len(INIT_CAMERA_PARAMS):
         combined = INIT_CAMERA_PARAMS[:len(INIT_CAMERA_PARAMS)-len(cam_p)]
@@ -370,31 +415,21 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
     print(f'camera Z: {cam_lidar_z}')
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
-    if align_in_3d:
+    if input_depth_filename_pattern:
+        input_2d_df = get_image_depth(input_depth_filename_pattern, input_2d_mapped_image, input_2d_df, img_width,
+                                      img_height, input_3d_gdf['INITIAL_WORLD_Z'].min(),
+                                      input_3d_gdf['INITIAL_WORLD_Z'].max())
+    if align_in_3d and input_depth_filename_pattern:
         input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, INIT_CAMERA_PARAMS)
-        if input_depth_filename_pattern.endswith('.pfm'):
-            loader = PFMLoader((img_width, img_height), color=False, compress=False)
-            input_pfm = get_depth_data(loader, input_depth_filename_pattern.format(
-                image_base_name=f'{input_2d_mapped_image}1'))
-            min_depth = input_pfm.min()
-            max_depth = input_pfm.max()
-            input_2d_df['Z'] = input_2d_df.apply(lambda row: get_depth_of_pixel(row['Y'], row['X'],
-                                                                                input_pfm, min_depth, max_depth,
-                                                                                scaling=DEPTH_SCALING_FACTOR), axis=1)
-        elif input_depth_filename_pattern.endswith('.png'):
-            input_depth_data = get_zoe_depth_data(input_depth_filename_pattern.format(
-                image_base_name=f'{input_2d_mapped_image}1'))
-            input_2d_df['Z'] = input_2d_df.apply(lambda row: get_zoe_depth_of_pixel(row['Y'], row['X'], input_depth_data),
-                                                 axis=1)
-            input_2d_df = transform_2d_points_to_3d(input_2d_df, INIT_CAMERA_PARAMS[FOCAL_LENGTH_X],
-                                                    INIT_CAMERA_PARAMS[FOCAL_LENGTH_Y], img_width, img_height)
-            if road_boundary_only:
-                input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match_3d(row['X_3D'], row['Y_3D'],
-                                                                                               row['Z'],
-                                                                                               input_3d_gdf['WORLD_X'],
-                                                                                               input_3d_gdf['WORLD_Y'],
-                                                                                               input_3d_gdf['WORLD_Z'])[0],
-                                                                  axis=1)
+        input_2d_df = transform_2d_points_to_3d(input_2d_df, INIT_CAMERA_PARAMS[FOCAL_LENGTH_X],
+                                                INIT_CAMERA_PARAMS[FOCAL_LENGTH_Y], img_width, img_height)
+        if road_boundary_only:
+            input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match_3d(row['X_3D'], row['Y_3D'],
+                                                                                           row['Z'],
+                                                                                           input_3d_gdf['WORLD_X'],
+                                                                                           input_3d_gdf['WORLD_Y'],
+                                                                                           input_3d_gdf['WORLD_Z'])[0],
+                                                              axis=1)
         else:
             print(f'{input_depth_filename_pattern} is not valid - it must end with .pfm or .png')
             exit(1)
@@ -408,12 +443,6 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
             gtol = 1e-6
             # eps specifies the absolute step size used for numerical approximation of the jacobian via forward differences
             eps = 0.01
-            # result = minimize(objective_function_2d, INIT_CAMERA_PARAMS,
-            #                   args=(input_3d_gdf, input_2d_df, img_width, img_height, align_errors),
-            #                   method='BFGS',
-            #                   # method='CG',
-            #                   # jac=True,
-            #                   options={'gtol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
             result = minimize(objective_function_2d, INIT_CAMERA_PARAMS[5:],
                               args=(input_3d_gdf, input_2d_df, img_width, img_height, align_errors),
                               method='BFGS',
@@ -429,11 +458,16 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
         else:
             input_3d_gdf = transform_3d_points(input_3d_gdf, INIT_CAMERA_PARAMS, img_width, img_height)
 
+        base, ext = os.path.splitext(out_match_file)
         if road_boundary_only:
             input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
                                                                                         input_3d_gdf['PROJ_SCREEN_X'],
                                                                                         input_3d_gdf['PROJ_SCREEN_Y'])[0],
                                                               axis=1)
+            input_2d_df.drop(columns=['X', 'Y'], inplace=True)
+            base, ext = os.path.splitext(out_match_file)
+            input_2d_df.to_csv(f'{base}_2d{ext}', header=False)
+
         if to_output_csv:
             input_3d_gdf.to_csv(out_proj_file,
                                 columns=['X', 'Y', 'Z', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
@@ -442,10 +476,11 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
                                 float_format='%.3f',
                                 index=False)
         else:
-            input_2d_df.drop(columns=['X', 'Y'], inplace=True)
-            base, ext = os.path.splitext(out_match_file)
-            input_2d_df.to_csv(f'{base}_2d{ext}', header=False)
+            input_2d_df.to_csv(f'{base}_2d{ext}', index=False)
             input_3d_gdf.to_csv(out_proj_file, index=False)
+            proj_base, proj_ext = os.path.splitext(out_proj_file)
+            input_3d_gdf.Boundary = input_3d_gdf.Boundary.apply(lambda x: True if x > 0 else False)
+            output_latlon_from_geometry(input_3d_gdf, 'geometry_y', f'{proj_base}_latlon{proj_ext}')
 
 
 if __name__ == '__main__':
@@ -481,8 +516,9 @@ if __name__ == '__main__':
     parser.add_argument('--input_depth_image_filename_pattern', type=str,
                         help='the image pfm depth file pattern with image_base_name to be passed in via string format '
                              'or the zoedepth predicted depth file pattern',
-                        # default='data/d13_route_40001001011/zoedepth_output/m12_nk/{image_base_name}.png',
-                        default='../midas/images/output/d13_route_40001001011/{image_base_name}-dpt_beit_large_512.pfm')
+                        # default='../midas/images/output/d13_route_40001001011/{image_base_name}-dpt_beit_large_512.pfm')
+                        # default='data/d13_route_40001001011/zoedepth_output/m12_nk/{image_base_name}.png')
+                        default='')
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')

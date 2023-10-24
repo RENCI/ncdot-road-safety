@@ -14,6 +14,26 @@ def is_boundary(pt, pts, grid_spacing):
         return False
 
 
+def output_latlon_from_geometry(idf, geom_col, output_file_name):
+    """
+    get lat and lon from dataframe with geometry column. It assumes the input dataframe has "Z" and "Boundary" columns
+    and "Boundary" column is a boolean type
+    :param idf: input dataframe
+    :param geom_col: geometry column in input dataframe
+    :param output_file_name: output file name for the latlon output dataframe
+    :return:
+    """
+    idf['Latitude'] = idf[geom_col].apply(lambda point: point.y)
+    idf['Longitude'] = idf[geom_col].apply(lambda point: point.x)
+    out_df = idf[['Latitude', 'Longitude', 'Z', 'Boundary']]
+    out_df.to_csv(output_file_name, index=False)
+    base, ext = os.path.splitext(output_file_name)
+    out_df[out_df.Boundary == True].drop(columns=['Boundary']).to_csv(
+        f'{base}_boundary{ext}', index=False)
+    out_df[out_df.Boundary == False].drop(columns=['Boundary']).to_csv(
+        f'{base}_internal{ext}', index=False)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar', type=str,
@@ -50,12 +70,4 @@ if __name__ == '__main__':
         plt.scatter(sub_df['X'], sub_df['Y'], s=1, c='b')
         plt.scatter(bound_df['X'], bound_df['Y'], s=2, c='r')
         plt.show()
-    gdf['Latitude'] = gdf['geometry_y'].apply(lambda point: point.y)
-    gdf['Longitude'] = gdf['geometry_y'].apply(lambda point: point.x)
-    latlon_df = gdf[['Latitude', 'Longitude', 'Z', 'Boundary']]
-    latlon_df.to_csv(output_latlon_lidar, index=False)
-    base, ext = os.path.splitext(output_latlon_lidar)
-    latlon_df[latlon_df.Boundary == True].drop(columns=['Boundary']).to_csv(
-        f'{base}_boundary{ext}', index=False)
-    latlon_df[latlon_df.Boundary == False].drop(columns=['Boundary']).to_csv(
-        f'{base}_internal{ext}', index=False)
+    output_latlon_from_geometry(gdf, 'geometry_y', output_latlon_lidar)
