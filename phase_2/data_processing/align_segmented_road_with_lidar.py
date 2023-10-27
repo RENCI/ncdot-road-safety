@@ -7,7 +7,7 @@ import geopandas as gpd
 import numpy as np
 from pypfm import PFMLoader
 from scipy.optimize import minimize
-from math import dist, radians
+from math import dist, radians, tan
 from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
@@ -24,7 +24,7 @@ from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
-INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, 8, -15, 0.32, -1.4, -0.77]
+INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, -8, -15, 0.32, -1.4, -0.77]
 # INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, 2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
@@ -79,7 +79,7 @@ def init_transform_from_lidar_to_world_coordinate_system(df, cam_x, cam_y, cam_z
     df['UPDATE_Y'] = df.Y - cam_y
     # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
     df['CAM_DIST'] = np.sqrt(np.square(df.UPDATE_X) + np.square(df.UPDATE_Y))
-    df['INITIAL_WORLD_Z'] = df.CAM_DIST * np.cos(df.BEARING)
+    df['INITIAL_WORLD_Z'] = -df.CAM_DIST * np.cos(df.BEARING)
     df['INITIAL_WORLD_Y'] = df.Z - cam_z
     df['INITIAL_WORLD_X'] = df.CAM_DIST * np.sin(df.BEARING)
     return df
@@ -104,44 +104,65 @@ def transform_to_world_coordinate_system(df, cam_params):
     return df
 
 
+def apply_matrix4(x, y, z, e, return_axis='x'):
+    w = 1 / (e[3] * x + e[7] * y + e[11] * z + e[15])
+    new_x = (e[0] * x + e[4] * y + e[8] * z + e[12] ) * w
+    new_y = (e[1] * x + e[5] * y + e[9] * z + e[13] ) * w
+    new_z = (e[2] * x + e[6] * y + e[10] * z + e[14] ) * w
+    if return_axis == 'x':
+        return new_x / new_z
+    elif return_axis == 'y':
+        return new_y / new_z
+    else:
+        return new_x, new_y, new_z
+
+
 def transform_3d_points(df, cam_params, img_width, img_hgt):
     df = transform_to_world_coordinate_system(df, cam_params)
+    # aspect = img_width / img_hgt
+    aspect = 1004/803
+    fov = 25
+    near = 0.1
+    far = max(df['INITIAL_WORLD_X'].max(), df['INITIAL_WORLD_Y'].max(), df['INITIAL_WORLD_Z'].max()) * 10
+    top = near * tan(radians(0.5 * fov))
+    height = 2 * top
+    width = aspect * height
+    left = -0.5 * width
+    right = left + width
+    bottom = top - height
+    x = 2 * near / (right - left)
+    y = 2 * near / (top - bottom)
+    a = (right + left) / (right - left)
+    b = (top + bottom) / (top - bottom)
+    c = - (far + near) / (far - near)
+    d = (- 2 * far * near) / (far - near)
+    matrix_elements = [
+        x, 0, 0, 0,
+        0, y, 0, 0,
+        a, b, c, -1,
+        0, 0, d, 0
+    ]
 
     # project to 2D camera coordinate system
     df['PROJ_X'] = df.apply(
-        lambda row: cam_params[FOCAL_LENGTH_X] * row['WORLD_X'] / row['WORLD_Z'],
+        lambda row: apply_matrix4(row['WORLD_X'], row['WORLD_Y'], row['WORLD_Z'], matrix_elements, return_axis='x'),
         axis=1)
     df['PROJ_Y'] = df.apply(
-        lambda row: cam_params[FOCAL_LENGTH_Y] * row['WORLD_Y'] / row['WORLD_Z'],
+        lambda row: apply_matrix4(row['WORLD_X'], row['WORLD_Y'], row['WORLD_Z'], matrix_elements, return_axis='y'),
         axis=1)
-    # max_x = max(df['PROJ_X'])
-    # min_x = min(df['PROJ_X'])
-    # if max_x > 1 or min_x < -1:
-    #     # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
-    #     max_val = max(max_x, -min_x)
-    #     update_focal_length = cam_params[FOCAL_LENGTH_X] / max_val
-    #     print(f'min_x-max_x: {min_x}-{max_x}, reduced focal length from {cam_params[FOCAL_LENGTH_X]} to '
-    #           f'{update_focal_length}')
-    #     df['PROJ_X'] = df.apply(
-    #         lambda row: update_focal_length * row['WORLD_X'] / row['WORLD_Z'],
-    #         axis=1)
-    # max_y = max(df['PROJ_Y'])
-    # min_y = min(df['PROJ_Y'])
-    # if max_y > 1 or min_y < -1:
-    #     # projected points are out of range, need to reduce FOCAL_LENGTH to make them within (-1, 1) range
-    #     max_val = max(max_y, -min_y)
-    #     update_focal_length = cam_params[FOCAL_LENGTH_Y] / max_val
-    #     print(f'min_y-max_y: {min_y}-{max_y}, reduced focal length from {cam_params[FOCAL_LENGTH_Y]} to '
-    #           f'{update_focal_length}')
-    #     df['PROJ_Y'] = df.apply(
-    #         lambda row: update_focal_length * row['WORLD_Y'] / row['WORLD_Z'],
-    #         axis=1)
+    # df['PROJ_X'] = df.apply(
+    #     lambda row: cam_params[FOCAL_LENGTH_X] * row['WORLD_X'] / row['WORLD_Z'],
+    #     axis=1)
+    # df['PROJ_Y'] = df.apply(
+    #     lambda row: cam_params[FOCAL_LENGTH_Y] * row['WORLD_Y'] / row['WORLD_Z'],
+    #     axis=1)
+
     half_width = img_width / 2
     half_height = img_hgt / 2
     df['PROJ_SCREEN_X'] = df['PROJ_X'].apply(
         lambda x: int(x * half_width + half_width))
     df['PROJ_SCREEN_Y'] = df['PROJ_Y'].apply(
-        lambda y: int(y * half_height + half_height))
+        lambda y: int(-(y * half_height) + half_height))
     return df
 
 
@@ -522,7 +543,7 @@ if __name__ == '__main__':
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
-    parser.add_argument('--optimize', action="store_false",
+    parser.add_argument('--optimize', action="store_true",
                         help='whether to optimize camera parameters')
 
     args = parser.parse_args()
