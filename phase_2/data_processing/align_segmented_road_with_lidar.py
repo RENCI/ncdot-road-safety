@@ -21,11 +21,12 @@ from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 # translation to move camera along X/Y/Z axis in world coordinate system, CMAERA_YAM, CAMERA_PITCH, CAMERA_ROLL
 # indicate camera angle of rotation around Z (bearing) axis, Y axis, and X axis, respectively, in the 3D world
 # coordinate system
+PERSPECTIVE_VFOV = 25
+PERSPECTIVE_NEAR = 0.1
 FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, -8, -15, 0.32, -1.4, -0.77]
-# INIT_CAMERA_PARAMS = [1.4, 1, 6, 20, 8, 5, 2, -2]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
@@ -119,23 +120,21 @@ def apply_matrix4(x, y, z, e, return_axis='x'):
 
 def transform_3d_points(df, cam_params, img_width, img_hgt):
     df = transform_to_world_coordinate_system(df, cam_params)
-    # aspect = img_width / img_hgt
-    aspect = 1004/803
-    fov = 25
-    near = 0.1
+    aspect = img_width / img_hgt
+
     far = max(df['INITIAL_WORLD_X'].max(), df['INITIAL_WORLD_Y'].max(), df['INITIAL_WORLD_Z'].max()) * 10
-    top = near * tan(radians(0.5 * fov))
+    top = PERSPECTIVE_NEAR * tan(radians(0.5 * PERSPECTIVE_VFOV))
     height = 2 * top
     width = aspect * height
     left = -0.5 * width
     right = left + width
     bottom = top - height
-    x = 2 * near / (right - left)
-    y = 2 * near / (top - bottom)
+    x = 2 * PERSPECTIVE_NEAR / (right - left)
+    y = 2 * PERSPECTIVE_NEAR / (top - bottom)
     a = (right + left) / (right - left)
     b = (top + bottom) / (top - bottom)
-    c = - (far + near) / (far - near)
-    d = (- 2 * far * near) / (far - near)
+    c = - (far + PERSPECTIVE_NEAR) / (far - PERSPECTIVE_NEAR)
+    d = (- 2 * far * PERSPECTIVE_NEAR) / (far - PERSPECTIVE_NEAR)
     matrix_elements = [
         x, 0, 0, 0,
         0, y, 0, 0,
@@ -199,74 +198,10 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
             df_2d[df_2d.Boundary == row['Boundary']]['X'],
             df_2d[df_2d.Boundary == row['Boundary']]['Y'])[1],
                                              axis=1)
-    # df_3d['MATCH_2D_INDEX'] = df_3d.apply(lambda row: compute_match(row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-    #                                                                 df_2d['X'], df_2d['Y'])[0],
-    #                                       axis=1)
-    # df_3d['MATCH_2D_X_DIST'] = df_3d.apply(lambda row: (row['PROJ_SCREEN_X'] -
-    #                                                     df_2d.iloc[row['MATCH_2D_INDEX']]['X']) ** 2, axis=1)
-    # df_3d['MATCH_2D_Y_DIST'] = df_3d.apply(lambda row: (row['PROJ_SCREEN_Y'] -
-    #                                                     df_2d.iloc[row['MATCH_2D_INDEX']]['Y']) ** 2, axis=1)
-    # df_3d['MATCH_2D_DIST'] = df_3d['MATCH_2D_X_DIST'] + df_3d['MATCH_2D_Y_DIST']
-    # df_2d['MATCH_3D_DIST'] = df_2d.apply(lambda row: compute_match(row['X'], row['Y'],
-    #                                                                df_3d['PROJ_SCREEN_X'], df_3d['PROJ_SCREEN_Y'])[1],
-    #                                      axis=1)
-    # alignment_error = df_2d['MATCH_3D_DIST'].sum() / len(df_2d)
+
     alignment_error = df_3d['MATCH_2D_DIST'].sum()/len(df_3d)
     align_errors.append(alignment_error)
-    # print(f'cam_params: {cam_params}, alignment error: {alignment_error}')
-    # # compute gradients
-    # der = np.zeros_like(cam_params)
-    # half_width = img_wd / 2
-    # half_ht = img_ht / 2
-    # ratio = 2 / len(df_3d)
-    # der[FOCAL_LENGTH_X] = ratio * np.sum(half_width * df_3d['MATCH_2D_X_DIST'] * df_3d['WORLD_X'] / df_3d['WORLD_Z'])
-    # der[FOCAL_LENGTH_Y] = ratio * np.sum(half_ht * df_3d['MATCH_2D_Y_DIST'] * df_3d['WORLD_Y'] / df_3d['WORLD_Z'])
-    # # translation derivates may need to be further refined since WORLD_Z is dependent on WORLD_X via rotations
-    # der[CAMERA_LIDAR_X_OFFSET] = ratio * np.sum(half_width * df_3d['MATCH_2D_X_DIST'] * cam_params[FOCAL_LENGTH_X] *
-    #                                             np.cos(radians(cam_params[CAMERA_PITCH])) *
-    #                                             np.cos(radians(cam_params[CAMERA_YAW])) / df_3d['WORLD_Z'])
-    # der[CAMERA_LIDAR_Y_OFFSET] = ratio * np.sum(half_ht * df_3d['MATCH_2D_Y_DIST'] * cam_params[FOCAL_LENGTH_Y] *
-    #                                             np.cos(radians(cam_params[CAMERA_ROLL])) *
-    #                                             np.cos(radians(cam_params[CAMERA_YAW])) / df_3d['WORLD_Z'])
-    # # use quotient role to compute derivative of cost function relative to CAMERA_LIDAR_Z_OFFSET reflected in WORLD_Z
-    # constants_num = half_width * cam_params[FOCAL_LENGTH_X] * df_3d['WORLD_X'] * \
-    #     np.cos(radians(cam_params[CAMERA_ROLL])) * np.cos(radians(cam_params[CAMERA_PITCH]))
-    # constants_dem = (df_3d['WORLD_Y'] * np.sin(radians(cam_params[CAMERA_ROLL])) +
-    #                  np.cos(radians(cam_params[CAMERA_ROLL])) *
-    #                  (df_3d['WORLD_X'] * np.sin(radians(cam_params[CAMERA_PITCH])) +
-    #                   (df_3d['CAM_DIST'] * np.cos(df_3d['BEARING']) + cam_params[CAMERA_LIDAR_Z_OFFSET]) *
-    #                  np.cos(radians(cam_params[CAMERA_PITCH])))) ** 2
-    # der[CAMERA_LIDAR_Z_OFFSET] = ratio * np.sum(df_3d['MATCH_2D_X_DIST'] * (constants_num / constants_dem))
-    # der[CAMERA_YAW] = ratio * np.sum(df_3d['MATCH_2D_X_DIST'] *
-    #                                  (-half_width * cam_params[FOCAL_LENGTH_X] *
-    #                                   (df_3d['WORLD_X'] * np.sin(radians(cam_params[CAMERA_YAW])) +
-    #                                    df_3d['WORLD_Y'] * np.cos(radians(cam_params[CAMERA_YAW])))) +
-    #                                  df_3d['MATCH_2D_Y_DIST'] * half_ht * cam_params[FOCAL_LENGTH_Y] *
-    #                                  (df_3d['WORLD_X'] * np.cos(radians(cam_params[CAMERA_YAW])) -
-    #                                   df_3d['WORLD_Y'] * np.sin(radians(cam_params[CAMERA_YAW]))))
-    # der_pitch = (-df_3d['WORLD_X'] * np.sin(radians(cam_params[CAMERA_PITCH])) +
-    #              df_3d['WORLD_Z'] * np.cos(radians(cam_params[CAMERA_PITCH]))) * \
-    #     (df_3d['WORLD_X'] * np.sin(radians(cam_params[CAMERA_PITCH])) +
-    #      df_3d['WORLD_Z'] * np.cos(radians(cam_params[CAMERA_PITCH]))) - \
-    #     (df_3d['WORLD_X'] * np.cos(radians(cam_params[CAMERA_PITCH])) -
-    #      df_3d['WORLD_Z'] * np.sin(radians(cam_params[CAMERA_PITCH]))) * \
-    #     (df_3d['WORLD_X'] * np.cos(radians(cam_params[CAMERA_PITCH])) -
-    #      df_3d['WORLD_Z'] * np.sin(radians(cam_params[CAMERA_PITCH]))) / \
-    #             (df_3d['WORLD_X'] * np.sin(radians(cam_params[CAMERA_PITCH])) +
-    #              df_3d['WORLD_Z'] * np.cos(radians(cam_params[CAMERA_PITCH]))) ** 2
-    # der[CAMERA_PITCH] = ratio * np.sum(df_3d['MATCH_2D_X_DIST'] * half_width * cam_params[FOCAL_LENGTH_X] * der_pitch)
-    # der_roll = (-df_3d['WORLD_Y'] * np.sin(radians(cam_params[CAMERA_ROLL])) +
-    #             df_3d['WORLD_Z'] * np.cos(radians(cam_params[CAMERA_ROLL]))) * \
-    #     (df_3d['WORLD_Y'] * np.sin(radians(cam_params[CAMERA_ROLL])) +
-    #      df_3d['WORLD_Z'] * np.cos(radians(cam_params[CAMERA_ROLL]))) - \
-    #     (df_3d['WORLD_Y'] * np.cos(radians(cam_params[CAMERA_ROLL])) -
-    #      df_3d['WORLD_Z'] * np.sin(radians(cam_params[CAMERA_ROLL]))) * \
-    #     (df_3d['WORLD_Y'] * np.cos(radians(cam_params[CAMERA_ROLL])) -
-    #      df_3d['WORLD_Z'] * np.sin(radians(cam_params[CAMERA_ROLL]))) / \
-    #             (df_3d['WORLD_Y'] * np.sin(radians(cam_params[CAMERA_ROLL])) +
-    #              df_3d['WORLD_Z'] * np.cos(radians(cam_params[CAMERA_ROLL]))) ** 2
-    # der[CAMERA_ROLL] = ratio * np.sum(df_3d['MATCH_2D_X_DIST'] * half_ht * cam_params[FOCAL_LENGTH_Y] * der_roll)
-    # return alignment_error, der
+
     return alignment_error
 
 
