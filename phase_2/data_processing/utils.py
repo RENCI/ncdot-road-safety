@@ -177,3 +177,11 @@ def get_aerial_lidar_road_geo_df(input_file, road_only=True):
     # geom_df is added as a geometry_y column in lidar_df while the initial geometry column is renamed as geometry_x
     gdf = gdf.merge(convert_geom_df, left_index=True, right_index=True)
     return gdf
+
+
+def compute_match(x, y, series_x, series_y):
+    # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
+    # (series_x, series_y) pairs has minimal distance to point(x, y)
+    distances = (series_x - x) ** 2 + (series_y - y) ** 2
+    min_idx = distances.idxmin()
+    return [min_idx, distances[min_idx]]

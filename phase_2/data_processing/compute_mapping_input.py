@@ -6,7 +6,7 @@ from pypfm import PFMLoader
 import skimage.measure
 import cv2
 from utils import ROAD, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
-    get_depth_data, get_depth_of_pixel
+    get_depth_data, get_depth_of_pixel, compute_match, bearing_between_two_latlon_points
 
 
 SCALING_FACTOR = 25
@@ -20,11 +20,18 @@ D_H_THRESHOLD = {
     25: 350
 }
 width_to_hfov = {
-    2748: 38.92
+    # 2748: 38.92
+    2748: 31
 }
 
 
-def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfix, mapped_image, path):
+def extract_lon_lat(geom):
+    lon, lat = map(float, geom.strip('POINT ()').split())
+    return lon, lat
+
+
+def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfix, mapped_image, path,
+                          lidar_file_pattern):
     # compute depth of segmented object taking the 10%-trimmed mean of the depths of its constituent pixels
     # to gain robustness with respect to segmentation errors, in particular along the object borders
     cam_lat, cam_lon, cam_br, _, _, _ = get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_image)
@@ -110,14 +117,29 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
                 if filtered_out:
                     continue
 
+                ref_bearing = cam_br
                 if suffix == '1.png':
                     # front view image
-                    image_center_x = image_width/2
-                    if x0 < image_center_x:
-                        minus_bearing = True
+                    # check if lidar project info is available for this image
+                    lidar_file_name = lidar_file_pattern.format(f'{mapped_image}{suffix}')
+                    if os.path.exists(lidar_file_name):
+                        lidar_df = pd.read_csv(lidar_file_name, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y',
+                                                                         'geometry_y'])
+                        lidar_df[['lon', 'lat']] = lidar_df['geometry_y'].apply(lambda x: pd.Series(extract_lon_lat(x)))
+                        # find the nearest LIDAR projected point from the pole ground location
+                        # (x0, object_features[i].bbox[2])
+                        nearest_idx = compute_match(x0, object_features[i].bbox[2], lidar_df['PROJ_SCREEN_X'],
+                                                    lidar_df['PROJ_SCREEN_Y'])[0]
+                        ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
+                                                                        lidar_df.iloc[nearest_idx].lat,
+                                                                        lidar_df.iloc[nearest_idx].lon,
+                                                                        is_degree=True)
+                        ref_x = lidar_df.iloc[nearest_idx].PROJ_SCREEN_X
+                        hangle = abs(x0 - ref_x)/image_width * width_to_hfov[image_width]
                     else:
-                        minus_bearing = False
-                    hangle = (abs(x0 - image_center_x)/image_width) * width_to_hfov[image_width]
+                        ref_x = image_width/2
+                        hangle = (abs(x0 - ref_x)/image_width) * width_to_hfov[image_width]
+                    minus_bearing = True if x0 < ref_x else False
                 elif suffix == '5.png':
                     # left view image
                     minus_bearing = True
@@ -129,7 +151,7 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
                     # addition of 0.5 is needed to account for the front view image
                     hangle = (x0 / image_width + 0.5) * width_to_hfov[image_width]
 
-                br_angle = (cam_br - hangle) if minus_bearing else (cam_br + hangle)
+                br_angle = (ref_bearing - hangle) if minus_bearing else (ref_bearing + hangle)
                 br_angle = (br_angle + 360) % 360
                 img_input_list.append([input_image_base_name, cam_lat, cam_lon, x0, y0, br_angle, depth])
                 # if input_image_base_name == '926005420241':
@@ -149,23 +171,32 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_seg_map_info_with_path', type=str,
-                        default='/projects/ncdot/test_route_segmentation/test_route_road_pole_labels.csv',
+                        # default='/projects/ncdot/test_route_segmentation/test_route_road_pole_labels.csv',
+                        default='data/d13_route_40001001011/other/test_route_road_pole_labels_test_image.csv',
                         help='input csv file that includes input segmented image path and name for computing depth')
     parser.add_argument('--route_id', type=str, default='40001001011',
                         help='route id to filter input_seg_map_info_with_path data with')
     parser.add_argument('--model_col_header', type=str, default='ONEFORMER',
                         help='input model column header in the input_seg_map_info_with_path to get segmentation path')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
-                        default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13.csv',
+                        # default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13.csv',
+                        default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_depth_image_path', type=str,
-                        default='/projects/ncdot/geotagging/midas_output/d13_route_40001001011/oneformer',
+                        # default='/projects/ncdot/geotagging/midas_output/d13_route_40001001011/oneformer',
+                        default='../midas/images/output',
                         help='input path that includes depth prediction output images')
     parser.add_argument('--input_depth_image_postfix', type=str,
                         default='-dpt_beit_large_512',
                         help='input depth prediction output image postfix to concatenate with image basename')
-    parser.add_argument('--output_file', type=str, default='/projects/ncdot/geotagging/input/oneformer/'
-                                                           'route_40001001011_segment_object_mapping_input.csv',
+    parser.add_argument('--lidar_project_info_file_pattern', type=str,
+                        default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/'
+                                'lidar_project_info_{}.csv',
+                        help='input LIDAR projection info file pattern')
+    parser.add_argument('--output_file', type=str,
+                        # default='/projects/ncdot/geotagging/input/oneformer/route_40001001011_segment_object_mapping_input.csv',
+                        default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/'
+                                'test_mapping_input.csv',
                         help='output file that contains image base names and corresponding segmented object depths')
 
 
@@ -176,6 +207,7 @@ if __name__ == '__main__':
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
     input_depth_image_path = args.input_depth_image_path
     input_depth_image_postfix = args.input_depth_image_postfix
+    lidar_project_info_file_pattern = args.lidar_project_info_file_pattern
     output_file = args.output_file
 
     df = pd.read_csv(input_seg_map_info_with_path, index_col=None,
@@ -188,6 +220,7 @@ if __name__ == '__main__':
     mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
     img_input_list = []
     df.apply(lambda row: compute_mapping_input(mapping_df, input_depth_image_path, input_depth_image_postfix,
-                                               row['MAPPED_IMAGE'], row[model_col_header]), axis=1)
-    out_df = pd.DataFrame(img_input_list, columns=["ImageBaseName", "lat", "lon", "x", "y", "bearing", "Depth"])
+                                               row['MAPPED_IMAGE'], row[model_col_header],
+                                               lidar_project_info_file_pattern), axis=1)
+    out_df = pd.DataFrame(img_input_list, columns=["imageBaseName", "lat", "lon", "x", "y", "bearing", "depth"])
     out_df.to_csv(output_file, index=False)

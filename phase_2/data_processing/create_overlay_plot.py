@@ -7,16 +7,16 @@ from utils import load_pickle_data, IMAGE_HEIGHT, IMAGE_WIDTH
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_2d', type=str,
-                    default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/input_2d_92600542024.pkl',
+                    default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/input_2d_92600542014.pkl',
                     help='2d vertices')
 parser.add_argument('--input_3d_proj', type=str,
                     default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/'
-                            'lidar_project_info_926005420241.csv',
+                            'lidar_project_info_926005420141.csv',
                     help='3d projection vertices')
 parser.add_argument('--overlay_bg_image_path', type=str,
-                    default='data/d13_route_40001001011/other/926005420241.jpg',
+                    default='data/d13_route_40001001011/other/926005420141.jpg',
                     help='original background image for overlay with the scatter plots')
-parser.add_argument('--show_bg_img', action="store_true",
+parser.add_argument('--show_bg_img', action="store_false",
                     help='show the background image')
 
 

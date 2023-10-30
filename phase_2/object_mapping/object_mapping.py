@@ -4,6 +4,7 @@ import os
 import os.path
 import time
 import numpy as np
+import pandas as pd
 import itertools
 from math import radians, cos, sin, asin, sqrt, dist
 from utils import lat_lon_to_meters, meters_to_lat_lon, hierarchical_clustering, \
@@ -136,6 +137,29 @@ def compute_avg_object(intersects, objs_connectivity, obj):
     return res, idx_list
 
 
+def get_input_object(lat, lon, bearing, depth, base_img, planar):
+    # calculating the object positions from camera position + bearing + depth_estimate
+    br1 = radians(bearing)
+    if not planar:
+        mx, my = lat_lon_to_meters(lat, lon)
+        y_obj_pos = my + depth * cos(br1) * SCALING_FACTOR  # depth-based positions
+        x_obj_pos = mx + depth * sin(br1) * SCALING_FACTOR
+        lat_obj_p, lon_obj_p = meters_to_lat_lon(x_obj_pos, y_obj_pos)
+        y_obj_pos = my + 1.0 * cos(br1) * SCALING_FACTOR  # normalized positions (at 1m distance from camera)
+        x_obj_pos = mx + 1.0 * sin(br1) * SCALING_FACTOR
+        lat_obj_p1, lon_obj_p1 = meters_to_lat_lon(x_obj_pos, y_obj_pos)
+        # if base_img == '926005500021' or base_img == '926005500131':
+        #     print(base_img, lat_obj_p1, lon_obj_p1, bearing, depth, lat, lon, lat_obj_p, lon_obj_p)
+        return (lat_obj_p1, lon_obj_p1, bearing, depth, 0, lat, lon, lat_obj_p, lon_obj_p, base_img)
+    else:
+        mx, my = lat, lon
+        y_obj_p = my + depth * cos(br1)  # depth-based positions
+        x_obj_p = mx + depth * sin(br1)
+        y_obj_p1 = my + 1.0 * cos(br1)  # normalized positions (at 1m distance from camera)
+        x_obj_p1 = mx + 1.0 * sin(br1)
+        return (x_obj_p1, y_obj_p1, bearing, depth, 0, mx, my, x_obj_p, y_obj_p, base_img)
+
+
 def main(input_filename, output_filename, output_intersect=False, is_planar=False):
     start = time.time()
     objects_base = []
@@ -150,47 +174,10 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
     ###############################
     # A L L  O B J E C T S        #
     ###############################
-    with open(input_filename, 'r') as f:
-        next(f)  # skip the first line
-        for line in f:
-            nums = line.split(',')
-            if len(nums) < 3:
-                print(f'Broken entry ignored with line {line}')
-            base_img = ''
-            if len(nums) == 5:
-                # first column can be ignored
-                lat, lon, bearing, depth, base_img = float(nums[1]), float(nums[2]), float(nums[3]), float(nums[4]), \
-                                                     str(nums[0])
-            elif len(nums) == 4:
-                lat, lon, bearing, depth = float(nums[0]), float(nums[1]), float(nums[2]), float(nums[3])
-            else:  # if a depth estimate is not available, set depth to default 5 meters
-                lat, lon, bearing, depth = float(nums[0]), float(nums[1]), float(nums[2]), 5
-            if depth <= 0:
-                # set depth to default 5 meters if input depth is negative
-                depth = 5
-
-            # calculating the object positions from camera position + bearing + depth_estimate
-            br1 = radians(bearing)
-            if not is_planar:
-                mx, my = lat_lon_to_meters(lat, lon)
-                y_obj_pos = my + depth * cos(br1) * SCALING_FACTOR  # depth-based positions
-                x_obj_pos = mx + depth * sin(br1) * SCALING_FACTOR
-                lat_obj_p, lon_obj_p = meters_to_lat_lon(x_obj_pos, y_obj_pos)
-                y_obj_pos = my + 1.0 * cos(br1) * SCALING_FACTOR  # normalized positions (at 1m distance from camera)
-                x_obj_pos = mx + 1.0 * sin(br1) * SCALING_FACTOR
-                lat_obj_p1, lon_obj_p1 = meters_to_lat_lon(x_obj_pos, y_obj_pos)
-                # if base_img == '926005500021' or base_img == '926005500131':
-                #     print(base_img, lat_obj_p1, lon_obj_p1, bearing, depth, lat, lon, lat_obj_p, lon_obj_p)
-                objects_base.append((lat_obj_p1, lon_obj_p1, bearing, depth, 0, lat, lon, lat_obj_p,
-                                     lon_obj_p, base_img))
-            else:
-                mx, my = lat, lon
-                y_obj_p = my + depth * cos(br1)  # depth-based positions
-                x_obj_p = mx + depth * sin(br1)
-                y_obj_p1 = my + 1.0 * cos(br1)  # normalized positions (at 1m distance from camera)
-                x_obj_p1 = mx + 1.0 * sin(br1)
-                objects_base.append((x_obj_p1, y_obj_p1, bearing, depth, 0, mx, my, x_obj_p, y_obj_p, base_img))
-
+    input_df = pd.read_csv(input_filename, usecols=['imageBaseName', 'lat', 'lon', 'bearing', 'depth'],
+                           dtype={'imageBaseName': str, 'lat': float, 'lon': float, 'bearing': float, 'depth': float})
+    input_df.apply(lambda row: objects_base.append(get_input_object(
+        row['lat'], row['lon'], row['bearing'], row['depth'], row['imageBaseName'], is_planar)), axis=1)
     print("All detected objects: {0:d}".format(len(objects_base)))
     #############################
     # A D M I S S I B L E       #
@@ -409,8 +396,13 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
-    parser.add_argument('--input_file', type=str, default='data/pole_input.csv', help='input file name with path')
-    parser.add_argument('--output_file', type=str, default='data/pole_detection.csv',
+    parser.add_argument('--input_file', type=str,
+                        # default='data/pole_input.csv',
+                        default='data/test_mapping_input.csv',
+                        help='input file name with path')
+    parser.add_argument('--output_file', type=str,
+                        # default='data/pole_detection.csv',
+                        default='data/test_pole_detection.csv',
                         help='output file name with path')
     parser.add_argument('--output_intersect_base_images', action='store_true',
                         help='output list of intersection base images for categorization')

@@ -7,11 +7,11 @@ import geopandas as gpd
 import numpy as np
 from pypfm import PFMLoader
 from scipy.optimize import minimize
-from math import dist, radians, tan
+from math import dist, radians, tan, atan2, degrees
 from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
-    get_aerial_lidar_road_geo_df
+    get_aerial_lidar_road_geo_df, compute_match
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points
 from convert_and_classify_aerial_lidar import output_latlon_from_geometry
@@ -54,14 +54,6 @@ def interpolate_camera_z(p1_z, p2_z, p1_dist, p2_dist):
     (p2_dist, p2_z) where p_dist is the distance from the point to camera and p_z is the LIDAR Z value
     """
     return p1_z - p1_dist * (p2_z - p1_z) / (p2_dist - p1_dist)
-
-
-def compute_match(x, y, series_x, series_y):
-    # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
-    # (series_x, series_y) pairs has minimal distance to point(x, y)
-    distances = (series_x - x) ** 2 + (series_y - y) ** 2
-    min_idx = distances.idxmin()
-    return [min_idx, distances[min_idx]]
 
 
 def compute_match_3d(x, y, z, series_x, series_y, series_z):
@@ -129,6 +121,7 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     left = -0.5 * width
     right = left + width
     bottom = top - height
+    print(f'hfov: {degrees(atan2(width/2, PERSPECTIVE_NEAR)) * 2}')
     x = 2 * PERSPECTIVE_NEAR / (right - left)
     y = 2 * PERSPECTIVE_NEAR / (top - bottom)
     a = (right + left) / (right - left)
@@ -450,7 +443,7 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001011/oneformer',
                         help='base directory to retrieve images')
     parser.add_argument('--obj_image_input', type=str,
-                        default='../object_mapping/data/pole_input.csv.rep',
+                        default='../object_mapping/data/pole_input.csv.rep2',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
