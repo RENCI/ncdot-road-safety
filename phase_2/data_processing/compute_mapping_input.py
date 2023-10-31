@@ -121,25 +121,26 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
                 if suffix == '1.png':
                     # front view image
                     # check if lidar project info is available for this image
-                    lidar_file_name = lidar_file_pattern.format(f'{mapped_image}{suffix}')
+                    lidar_file_name = lidar_file_pattern.format(f'{mapped_image}{suffix[0]}')
                     if os.path.exists(lidar_file_name):
-                        lidar_df = pd.read_csv(lidar_file_name, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y',
+                        lidar_df = pd.read_csv(lidar_file_name, usecols=['ROAD_X', 'ROAD_Y',
                                                                          'geometry_y'])
                         lidar_df[['lon', 'lat']] = lidar_df['geometry_y'].apply(lambda x: pd.Series(extract_lon_lat(x)))
                         # find the nearest LIDAR projected point from the pole ground location
                         # (x0, object_features[i].bbox[2])
-                        nearest_idx = compute_match(x0, object_features[i].bbox[2], lidar_df['PROJ_SCREEN_X'],
-                                                    lidar_df['PROJ_SCREEN_Y'])[0]
+                        nearest_idx = compute_match(x0, object_features[i].bbox[2], lidar_df['ROAD_X'],
+                                                    lidar_df['ROAD_Y'])[0]
                         ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
                                                                         lidar_df.iloc[nearest_idx].lat,
                                                                         lidar_df.iloc[nearest_idx].lon,
                                                                         is_degree=True)
-                        ref_x = lidar_df.iloc[nearest_idx].PROJ_SCREEN_X
+                        ref_x = lidar_df.iloc[nearest_idx].ROAD_X
                         hangle = abs(x0 - ref_x)/image_width * width_to_hfov[image_width]
                     else:
                         ref_x = image_width/2
                         hangle = (abs(x0 - ref_x)/image_width) * width_to_hfov[image_width]
                     minus_bearing = True if x0 < ref_x else False
+                    print(f'ref_bearing: {ref_bearing}, ref_x: {ref_x}, hangle: {hangle}, minus_bearing: {minus_bearing}')
                 elif suffix == '5.png':
                     # left view image
                     minus_bearing = True

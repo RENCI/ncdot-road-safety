@@ -407,16 +407,13 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
         else:
             input_3d_gdf = transform_3d_points(input_3d_gdf, INIT_CAMERA_PARAMS, img_width, img_height)
 
-        base, ext = os.path.splitext(out_match_file)
-        if road_boundary_only:
-            input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match(row['X'], row['Y'],
-                                                                                        input_3d_gdf['PROJ_SCREEN_X'],
-                                                                                        input_3d_gdf['PROJ_SCREEN_Y'])[0],
-                                                              axis=1)
-            input_2d_df.drop(columns=['X', 'Y'], inplace=True)
-            base, ext = os.path.splitext(out_match_file)
-            input_2d_df.to_csv(f'{base}_2d{ext}', header=False)
-
+        input_3d_gdf['MATCH_2D_INDEX'] = input_3d_gdf.apply(lambda row: compute_match(row['PROJ_SCREEN_X'],
+                                                                                      row['PROJ_SCREEN_Y'],
+                                                                                      input_2d_df['X'],
+                                                                                      input_2d_df['Y'])[0],
+                                                            axis=1)
+        input_3d_gdf['ROAD_X'] = input_3d_gdf['MATCH_2D_INDEX'].apply(lambda x: input_2d_df.iloc[x]['X'])
+        input_3d_gdf['ROAD_Y'] = input_3d_gdf['MATCH_2D_INDEX'].apply(lambda x: input_2d_df.iloc[x]['Y'])
         if to_output_csv:
             input_3d_gdf.to_csv(out_proj_file,
                                 columns=['X', 'Y', 'Z', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
@@ -425,7 +422,6 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
                                 float_format='%.3f',
                                 index=False)
         else:
-            input_2d_df.to_csv(f'{base}_2d{ext}', index=False)
             input_3d_gdf.to_csv(out_proj_file, index=False)
             proj_base, proj_ext = os.path.splitext(out_proj_file)
             input_3d_gdf.Boundary = input_3d_gdf.Boundary.apply(lambda x: True if x > 0 else False)
