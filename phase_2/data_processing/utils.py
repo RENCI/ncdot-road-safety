@@ -59,11 +59,11 @@ def split_into_lines(y_data, x_data):
 
 
 def get_data_from_image(input_image_name):
-    input_image = Image.open(input_image_name)
-    image_width = input_image.width
-    image_height = input_image.height
-    input_data = np.array(input_image)
-    return image_width, image_height, input_data
+    with Image.open(input_image_name) as input_image:
+        image_width = input_image.width
+        image_height = input_image.height
+        input_data = np.array(input_image)
+        return image_width, image_height, input_data
 
 
 def save_data_to_image(data, output_image_name):
@@ -149,8 +149,8 @@ def get_depth_of_pixel(y, x, pfm_data, min_depth, max_depth, scaling=1):
 
 
 def get_zoe_depth_data(image_name):
-    depth_img = Image.open(image_name)
-    return np.asarray(depth_img, dtype='uint32')
+    with Image.open(image_name) as depth_img:
+        return np.asarray(depth_img, dtype='uint32')
 
 
 def get_zoe_depth_of_pixel(y, x, depth_data):

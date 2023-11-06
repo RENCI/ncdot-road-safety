@@ -12,7 +12,8 @@ def join_images(left_image_path, front_image_path, right_image_path):
     imgs = []
     try:
         for idx in range(3):
-            imgs.append(Image.open(img_names[idx]))
+            with Image.open(img_names[idx]) as img:
+                imgs.append(img)
 
         dest_img = Image.new('RGB', (imgs[0].width+imgs[1].width+imgs[2].width, imgs[0].height))
 

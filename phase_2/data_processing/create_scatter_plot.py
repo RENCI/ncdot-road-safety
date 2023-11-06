@@ -56,8 +56,10 @@ if input_file_1.endswith('.pfm'):
     print(f'depth of point_2 of the second image on Y, depth: {pfm_2[point_2_yx[0], point_2_yx[1]]}, '
           f'normalized depth: {depth_2}, inversed normalized depth: {1 - depth_2}, min: {min_2}, max: {max_2}')
 elif input_file_1.endswith('.png'):
-    data_1 = np.asarray(Image.open(input_file_1))
-    data_2 = np.asarray(Image.open(input_file_2))
+    with Image.open(input_file_1) as img1:
+        data_1 = np.asarray(img1)
+    with Image.open(input_file_2) as img2:
+        data_2 = np.asarray(img2)
     X = data_1[:, 0]
     Y = data_2[:, image_width-1]
 
