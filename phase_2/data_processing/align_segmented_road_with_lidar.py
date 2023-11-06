@@ -11,7 +11,7 @@ from math import dist, radians, tan, atan2, degrees
 from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
-    get_aerial_lidar_road_geo_df, compute_match
+    get_aerial_lidar_road_geo_df, compute_match, compute_match_3d
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points
 from convert_and_classify_aerial_lidar import output_latlon_from_geometry
@@ -54,15 +54,6 @@ def interpolate_camera_z(p1_z, p2_z, p1_dist, p2_dist):
     (p2_dist, p2_z) where p_dist is the distance from the point to camera and p_z is the LIDAR Z value
     """
     return p1_z - p1_dist * (p2_z - p1_z) / (p2_dist - p1_dist)
-
-
-def compute_match_3d(x, y, z, series_x, series_y, series_z):
-    # compute match indices in (series_x, series_y, series_z) based on which point in all points represented in
-    # (series_x, series_y, series_z) has minimal distance to point(x, y, z)
-
-    distances = (series_x - x) ** 2 + (series_y - y) ** 2 + (series_z - z) ** 2
-    min_idx = distances.idxmin()
-    return [min_idx, distances[min_idx]]
 
 
 def init_transform_from_lidar_to_world_coordinate_system(df, cam_x, cam_y, cam_z):

@@ -270,7 +270,8 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
             intersect_list.append((res[0], res[1]))
             for oid in id_list:
                 intersect_index_pairs.append((i, oid))
-
+        else:
+            print(objects_intersects)
     print("ICM intersections: {0:d}".format(len(intersect_list)))
     intersect_clusters, ret_clusters = hierarchical_clustering(intersect_list, max_dist_in_cluster)
 

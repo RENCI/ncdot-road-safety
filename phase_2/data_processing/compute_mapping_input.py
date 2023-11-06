@@ -123,19 +123,33 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
                     # check if lidar project info is available for this image
                     lidar_file_name = lidar_file_pattern.format(f'{mapped_image}{suffix[0]}')
                     if os.path.exists(lidar_file_name):
-                        lidar_df = pd.read_csv(lidar_file_name, usecols=['ROAD_X', 'ROAD_Y',
+                        lidar_df = pd.read_csv(lidar_file_name, usecols=['ROAD_X', 'ROAD_Y', 'BEARING',
                                                                          'geometry_y'])
                         lidar_df[['lon', 'lat']] = lidar_df['geometry_y'].apply(lambda x: pd.Series(extract_lon_lat(x)))
+
                         # find the nearest LIDAR projected point from the pole ground location
                         # (x0, object_features[i].bbox[2])
-                        nearest_idx = compute_match(x0, object_features[i].bbox[2], lidar_df['ROAD_X'],
-                                                    lidar_df['ROAD_Y'])[0]
+                        obj_depth = get_depth_of_pixel(object_features[i].bbox[2], x0,
+                                                       image_pfm, min_depth, max_depth, scaling=SCALING_FACTOR)
+                        print(f'obj_depth: {obj_depth}, depth: {depth}')
+                        lidar_df['ROAD_Z'] = lidar_df.apply(lambda row: get_depth_of_pixel(
+                            row['ROAD_Y'], row['ROAD_X'], image_pfm, min_depth, max_depth, scaling=SCALING_FACTOR),
+                                                            axis=1)
+                        lidar_df['DIFF_ROAD_Z'] = lidar_df.apply(lambda row: abs(depth - row['ROAD_Z']),
+                                                                 axis=1)
+                        sub_lidar_df = lidar_df[lidar_df['DIFF_ROAD_Z'] <= 1].reset_index(drop=True)
+                        nearest_idx = compute_match(x0, object_features[i].bbox[2],
+                                                    sub_lidar_df['ROAD_X'], sub_lidar_df['ROAD_Y'])[0]
+                        print(sub_lidar_df.iloc[nearest_idx])
                         ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
-                                                                        lidar_df.iloc[nearest_idx].lat,
-                                                                        lidar_df.iloc[nearest_idx].lon,
+                                                                        sub_lidar_df.iloc[nearest_idx].lat,
+                                                                        sub_lidar_df.iloc[nearest_idx].lon,
                                                                         is_degree=True)
-                        ref_x = lidar_df.iloc[nearest_idx].ROAD_X
-                        hangle = abs(x0 - ref_x)/image_width * width_to_hfov[image_width]
+                        ref_x = sub_lidar_df.iloc[nearest_idx].ROAD_X
+                        print(f'input_image_base_name: {input_image_base_name}, x0: {x0}, ref_x: {ref_x}, '
+                              f'closet lidar lat: {sub_lidar_df.iloc[nearest_idx].lat}, '
+                              f'lon: {sub_lidar_df.iloc[nearest_idx].lon}')
+                        hangle = (abs(x0 - ref_x)/image_width) * width_to_hfov[image_width]
                     else:
                         ref_x = image_width/2
                         hangle = (abs(x0 - ref_x)/image_width) * width_to_hfov[image_width]
@@ -184,7 +198,6 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_depth_image_path', type=str,
-                        # default='/projects/ncdot/geotagging/midas_output/d13_route_40001001011/oneformer',
                         default='../midas/images/output',
                         help='input path that includes depth prediction output images')
     parser.add_argument('--input_depth_image_postfix', type=str,

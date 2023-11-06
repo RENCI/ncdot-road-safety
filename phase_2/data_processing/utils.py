@@ -185,3 +185,12 @@ def compute_match(x, y, series_x, series_y):
     distances = (series_x - x) ** 2 + (series_y - y) ** 2
     min_idx = distances.idxmin()
     return [min_idx, distances[min_idx]]
+
+
+def compute_match_3d(x, y, z, series_x, series_y, series_z):
+    # compute match indices in (series_x, series_y, series_z) based on which point in all points represented in
+    # (series_x, series_y, series_z) has minimal distance to point(x, y, z)
+
+    distances = (series_x - x) ** 2 + (series_y - y) ** 2 + (series_z - z) ** 2
+    min_idx = distances.idxmin()
+    return [min_idx, distances[min_idx]]
