@@ -264,14 +264,15 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
 
     intersect_list = []
     intersect_index_pairs = []
+    print(f'objects_connectivity: {objects_connectivity}')
+    print(f'objects_intersects: {objects_intersects}')
     for i in range(len(objects_base)):
         res, id_list = compute_avg_object(objects_intersects, objects_connectivity, i)
+        print(f'res: {res}, id_list: {id_list}')
         if res[0]:
             intersect_list.append((res[0], res[1]))
             for oid in id_list:
                 intersect_index_pairs.append((i, oid))
-        else:
-            print(objects_intersects)
     print("ICM intersections: {0:d}".format(len(intersect_list)))
     intersect_clusters, ret_clusters = hierarchical_clustering(intersect_list, max_dist_in_cluster)
 
