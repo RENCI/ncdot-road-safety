@@ -30,12 +30,12 @@ and a score value for each of these. The score is the number of individual views
 '''
 
 # preset parameters
-MAX_OBJ_DIST_FROM_CAM = 20  # Max distance from camera to objects (in meters)
+MAX_OBJ_DIST_FROM_CAM = 25  # Max distance from camera to objects (in meters)
 MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
 SCALING_FACTOR = 640.0 / 256
 
 # MRF optimization parameters
-DEPTH_WEIGHT = 0.2  # weight alpha in Eq.(4)
+DEPTH_WEIGHT = 0.199  # weight alpha in Eq.(4)
 OBJ_MULTI_VIEW = 0.2  # weight beta in  Eq.(4)
 STANDALONE_PRICE = max(1 - DEPTH_WEIGHT - OBJ_MULTI_VIEW, 0)  # weight (1-alpha-beta) in Eq. (4)
 
@@ -111,6 +111,7 @@ def compute_energy(objs_dist, objs, objs_connectivity, obj):
         if objs_connectivity[obj, i]:
             # increase energy by penalizing distance between triangulated distance and depth estimate
             depth_pen = DEPTH_WEIGHT * abs(objs_dist[obj, i] - (objs[obj])[DEPTH])
+            # print(f'obj: {obj}, i: {i}, objs_dist[obj, i]: {objs_dist[obj, i]}, (objs[obj])[DEPTH]: {(objs[obj])[DEPTH]}')
             energy += depth_pen
             # if Object == 63 or Object == 64:
             #     print(f"object depth: {objs[obj][DEPTH]}, i: {i}, dist: {objs_dist[obj, i]}, depth_pen: {depth_pen}")

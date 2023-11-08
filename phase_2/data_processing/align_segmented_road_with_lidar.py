@@ -21,13 +21,15 @@ from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 # translation to move camera along X/Y/Z axis in world coordinate system, CMAERA_YAM, CAMERA_PITCH, CAMERA_ROLL
 # indicate camera angle of rotation around Z (bearing) axis, Y axis, and X axis, respectively, in the 3D world
 # coordinate system
-PERSPECTIVE_VFOV = 25
+PERSPECTIVE_VFOV = 20
+# PERSPECTIVE_VFOV = 25
 PERSPECTIVE_NEAR = 0.1
 FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 # INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, -8, -15, 0.32, -1.4, -0.77]
-INIT_CAMERA_PARAMS = [2.3, 2.3, 1.7, -8.9, 16, 0.1, -1.8, -0.56]
+# INIT_CAMERA_PARAMS = [2.3, 2.3, 1.7, -8.9, 16, 0.1, -1.8, -0.56]
+INIT_CAMERA_PARAMS = [2.8, 2.8, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
