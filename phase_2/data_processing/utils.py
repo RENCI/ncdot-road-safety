@@ -7,9 +7,47 @@ from shapely.geometry import Point
 
 ROAD = 1
 POLE = 2
-IMAGE_WIDTH = 2748
-IMAGE_HEIGHT = 2198
-ASPECT_RATIO = IMAGE_WIDTH/IMAGE_HEIGHT
+
+CITYSCAPE_DICT = {
+    0: 'road',
+    1: 'sidewalk',
+    2: 'building',
+    3: 'wall',
+    4: 'fence',
+    5: 'pole',
+    6: 'traffic light',
+    7: 'traffic sign',
+    8: 'vegetation',
+    9: 'terrain',
+    10: 'sky',
+    11: 'person',
+    12: 'rider',
+    13: 'car',
+    14: 'truck',
+    15: 'bus',
+    16: 'train',
+    17: 'motorcycle',
+    18: 'bicycle',
+    255: 'unlabeled'
+}
+
+LIDAR_CLASS_DICT = {
+    1: "Default",
+    2: "Ground",
+    3: "Low Veg/Strata**",
+    4: "Medium Veg/Strata**",
+    5: "High Veg/Strata**",
+    6: "Buildings (Automated)",
+    7: "Low Points",
+    9: "Water (Hydro Cleaned Area)",
+    11: "Roads",
+    14: "Wire-Conductor",
+    15: "Transmission Tower",
+    17: "Bridges",
+    18: "Withheld (high points)",
+    20: "Breakline Proximity",
+    25: "Overlap Water"
+}
 
 
 def next_location(lat, lon, bearing, distance, is_degree=True):

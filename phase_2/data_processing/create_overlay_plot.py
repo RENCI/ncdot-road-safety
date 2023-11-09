@@ -2,7 +2,7 @@ import argparse
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import pandas as pd
-from utils import load_pickle_data, IMAGE_HEIGHT, IMAGE_WIDTH
+from utils import load_pickle_data
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -30,13 +30,14 @@ input_2d_points = load_pickle_data(input_2d)
 
 input_3d_proj_df = pd.read_csv(input_3d_proj, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'], dtype=int)
 
-if show_bg_img:
-    bg_img = mpimg.imread(overlay_bg_image_path)
+bg_img = mpimg.imread(overlay_bg_image_path)
 
-plt.scatter(input_2d_points[:, 0], IMAGE_HEIGHT - input_2d_points[:, 1], s=20)
-plt.scatter(input_3d_proj_df['PROJ_SCREEN_X'], IMAGE_HEIGHT - input_3d_proj_df['PROJ_SCREEN_Y'], s=20)
+image_height, image_width, _ = bg_img.shape
+
+plt.scatter(input_2d_points[:, 0], image_height - input_2d_points[:, 1], s=20)
+plt.scatter(input_3d_proj_df['PROJ_SCREEN_X'], image_height - input_3d_proj_df['PROJ_SCREEN_Y'], s=20)
 if show_bg_img:
-    plt.imshow(bg_img, extent=[0, IMAGE_WIDTH-1, 0, IMAGE_HEIGHT-1])
+    plt.imshow(bg_img, extent=[0, image_width-1, 0, image_height-1])
 plt.title('2D road vertices & 3D projected road vertices in screen coordinate system')
 plt.ylabel('Y')
 plt.xlabel('X')

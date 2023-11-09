@@ -3,12 +3,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
-from utils import load_pickle_data, ASPECT_RATIO
+from utils import load_pickle_data
 
 
 SCALING_FACTOR = 400
 X_OFFSET_3D = 500
-
+ASPECT_RATIO = 2748/2198
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_match_2d_3d_indices', type=str,

@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 from pypfm import PFMLoader
 import matplotlib.pyplot as plt
-from utils import load_pickle_data, IMAGE_WIDTH, IMAGE_HEIGHT, get_depth_data, get_depth_of_pixel
+from utils import load_pickle_data, get_depth_data, get_depth_of_pixel
 
 
 if __name__ == '__main__':
@@ -22,6 +22,8 @@ if __name__ == '__main__':
                         help='input file containing predicted depth for projected 3D LIDAR data')
     parser.add_argument('--depth_scaling_factor', type=int, default=189, help='depth scaling factor corresponding to '
                                                                               'the input_depth_file_3d input')
+    parser.add_argument('--image_width', type=int, default=2748, help='image width for the depth image')
+    parser.add_argument('--image_height', type=int, default=2198, help='image height for the depth image')
     parser.add_argument('--show_scatter_plot', action="store_true",
                         help='show scatter plot to see relationship between Y and Z')
     parser.add_argument('--show_3d_plot', action="store_true",
@@ -32,6 +34,8 @@ if __name__ == '__main__':
     output_file = args.output_file
     input_depth_image_filename = args.input_depth_image_filename
     input_depth_file_3d = args.input_depth_file_3d
+    image_width = args.image_width
+    image_height = args.image_height
     dsf = args.depth_scaling_factor
     show_scatter_plot = args.show_scatter_plot
     show_3d_plot = args.show_3d_plot
@@ -39,7 +43,7 @@ if __name__ == '__main__':
     if not os.path.isfile(output_file):
         input_2d_points = load_pickle_data(input_data_filename)
         df = pd.DataFrame(input_2d_points, columns=["X", "Y"])
-        loader = PFMLoader((IMAGE_WIDTH, IMAGE_HEIGHT), color=False, compress=False)
+        loader = PFMLoader((image_width, image_height), color=False, compress=False)
         input_pfm = get_depth_data(loader, input_depth_image_filename)
         min_depth = input_pfm.min()
         max_depth = input_pfm.max()
