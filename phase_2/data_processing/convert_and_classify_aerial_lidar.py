@@ -25,26 +25,34 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
     """
     idf['Latitude'] = idf[geom_col].apply(lambda point: point.y)
     idf['Longitude'] = idf[geom_col].apply(lambda point: point.x)
-    out_df = idf[['Latitude', 'Longitude', 'Z', 'Boundary']]
+    sub_list = ['Latitude', 'Longitude', 'Z']
+    if 'C' in idf.columns:
+        sub_list.append('C')
+    if 'Boundary' in idf.columns:
+        sub_list.append('Boundary')
+    out_df = idf[sub_list]
     out_df.to_csv(output_file_name, index=False)
-    base, ext = os.path.splitext(output_file_name)
-    out_df[out_df.Boundary == True].drop(columns=['Boundary']).to_csv(
-        f'{base}_boundary{ext}', index=False)
-    out_df[out_df.Boundary == False].drop(columns=['Boundary']).to_csv(
-        f'{base}_internal{ext}', index=False)
+    if 'Boundary' in idf.columns:
+        base, ext = os.path.splitext(output_file_name)
+        out_df[out_df.Boundary == True].drop(columns=['Boundary']).to_csv(
+            f'{base}_boundary{ext}', index=False)
+        out_df[out_df.Boundary == False].drop(columns=['Boundary']).to_csv(
+            f'{base}_internal{ext}', index=False)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar', type=str,
-                        default='data/d13_route_40001001011/lidar/route_40001001011_road_raster_10.csv',
+                        default='data/new_test_scene/new_test_scene_all_raster_10.csv',
                         help='input rasterized lidar file with road points x, y, z in EPSG:6543 coordinate projection')
     parser.add_argument('--output_lidar', type=str,
-                        default='data/d13_route_40001001011/lidar/route_40001001011_road_raster_10_classified.csv',
+                        default='',
+                        # default='data/new_test_scene/new_test_scene_all_raster_10_classified.csv',
                         help='output rasterized lidar file with road points classified as edge or not')
-    parser.add_argument('--show_plot', action="store_true", help='show plot for verification')
+    parser.add_argument('--lidar_class_to_keep', default=['6', '11', '15'],
+                        help='filter lidar data to only keep desired classes')
     parser.add_argument('--output_latlon_lidar', type=str,
-                        default='data/d13_route_40001001011/lidar/route_40001001011_road_raster_10_latlon.csv',
+                        default='data/new_test_scene/new_test_scene_raster_10_filtered_latlon.csv',
                         help='output rasterized lidar file with road points lat, lon, z in EPSG:4326 '
                              'coordinate projection')
 
@@ -52,19 +60,24 @@ if __name__ == '__main__':
     input_lidar = args.input_lidar
     output_lidar = args.output_lidar
     output_latlon_lidar = args.output_latlon_lidar
-    show_plot = args.show_plot
+    lidar_class_to_keep = args.lidar_class_to_keep
 
-    gdf = get_aerial_lidar_road_geo_df(input_lidar, road_only=True)
-    y_grid_sp = 5
-    points = gdf[['X', 'Y']].to_numpy()
-    gdf['Boundary'] = gdf.apply(lambda row: is_boundary([row['X'], row['Y']], points, y_grid_sp), axis=1)
-    df = gdf[['X', 'Y', 'Z', 'Boundary']]
-    df.to_csv(output_lidar, index=False)
-    if show_plot:
+    gdf = get_aerial_lidar_road_geo_df(input_lidar)
+    print(gdf.C.unique())
+
+    if lidar_class_to_keep:
+        gdf = gdf[gdf.C.isin(lidar_class_to_keep)]
+    if output_lidar:
+        points = gdf[['X', 'Y']].to_numpy()
+        y_grid_sp = 5
+        gdf['Boundary'] = gdf.apply(lambda row: is_boundary([row['X'], row['Y']], points, y_grid_sp), axis=1)
+        df = gdf[['X', 'Y', 'Z', 'Boundary']]
+        df.to_csv(output_lidar, index=False)
         # Plot result to verify
         plt.figure(figsize=(8, 8))
         plt.gca().invert_yaxis()
-        sub_df = df[df.Y > 735000]
+        # sub_df = df[df.Y > 735000]
+        sub_df = df
         print(df.shape, sub_df.shape)
         bound_df = sub_df[sub_df.Boundary == True]
         plt.scatter(sub_df['X'], sub_df['Y'], s=1, c='b')

@@ -196,16 +196,11 @@ def get_zoe_depth_of_pixel(y, x, depth_data):
     return depth_data[y, x] * 3.28084 / 256.0
 
 
-def get_aerial_lidar_road_geo_df(input_file, road_only=True):
+def get_aerial_lidar_road_geo_df(input_file):
     gdf = gpd.read_file(input_file)
     gdf.X = gdf.X.astype(float)
     gdf.Y = gdf.Y.astype(float)
     gdf.Z = gdf.Z.astype(float)
-    if 'C' in gdf.columns:
-        gdf.C = gdf.C.astype(int)
-        if road_only:
-            # 13 is LIDAR classification code for road
-            gdf = gdf[gdf['C'] == 13]
     if 'Boundary' in gdf.columns:
         gdf.Boundary = gdf.Boundary.apply(lambda x: 1 if x == 'True' else 0)
     # Create a new geometry column with Point objects

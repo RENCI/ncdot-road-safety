@@ -480,7 +480,7 @@ if __name__ == '__main__':
     if input_lidar.endswith('.shp'):
         lidar_df = get_lidar_data_from_shp(input_lidar)
     else:
-        lidar_df = get_aerial_lidar_road_geo_df(input_lidar, road_only=True)
+        lidar_df = get_aerial_lidar_road_geo_df(input_lidar)
         road_boundary_only = False
 
     input_df = get_input_file_with_images(obj_image_input)

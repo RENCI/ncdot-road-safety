@@ -19,7 +19,7 @@ def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_
     np.savetxt(os.path.join(os.path.dirname(out_file), f'input_2d_{input_2d_mapped_image}1.csv'),
                input_2d_points, delimiter=',', header='X,Y', comments='', fmt='%d')
 
-    ldf = get_aerial_lidar_road_geo_df(input_lidar_file, road_only=False)
+    ldf = get_aerial_lidar_road_geo_df(input_lidar_file)
 
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = get_mapping_data(
         input_mapping_file, input_2d_mapped_image)
