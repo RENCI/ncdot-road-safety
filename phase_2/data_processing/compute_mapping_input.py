@@ -5,7 +5,7 @@ import numpy as np
 from pypfm import PFMLoader
 import skimage.measure
 import cv2
-from utils import ROAD, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
+from utils import SegmentationClass, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
     get_depth_data, get_depth_of_pixel, compute_match, bearing_between_two_latlon_points
 
 
@@ -22,7 +22,8 @@ D_H_THRESHOLD = {
 width_to_hfov = {
     # 2748: 38.92
     # 2748: 31
-    2748: 24.86
+    2748: 24.86,
+    2356: 24.86
 }
 
 
@@ -49,8 +50,8 @@ def compute_mapping_input(mapping_df, input_depth_image_path, depth_image_postfi
         if image_width not in width_to_hfov:
             print(f'no HFOV can be found for image width {image_width} of the image {input_image_name}')
             continue
-        # move ROAD to background in order to get all pole objects
-        input_data[input_data == ROAD] = 0
+        # move other classes to background in order to get all pole objects
+        input_data[input_data != SegmentationClass.POLE.value] = 0
         # perform connected component analysis
         labeled_data, count = skimage.measure.label(input_data, connectivity=2, return_num=True)
         labeled_data = labeled_data.astype('uint8')

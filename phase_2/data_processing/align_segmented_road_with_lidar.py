@@ -107,7 +107,7 @@ def apply_matrix4(x, y, z, e, return_axis='x'):
 def transform_3d_points(df, cam_params, img_width, img_hgt):
     df = transform_to_world_coordinate_system(df, cam_params)
     aspect = img_width / img_hgt
-
+    print(f'img_width: {img_width}, img_hgt: {img_hgt}, aspect: {aspect}')
     far = max(df['INITIAL_WORLD_X'].max(), df['INITIAL_WORLD_Y'].max(), df['INITIAL_WORLD_Z'].max()) * 10
     top = PERSPECTIVE_NEAR * tan(radians(0.5 * PERSPECTIVE_VFOV))
     height = 2 * top
@@ -427,26 +427,29 @@ if __name__ == '__main__':
     parser.add_argument('--input_lidar_with_path', type=str,
                         # default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
                         #        'RoadEdge_40001001011_vertices.shp',
-                        default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
+                        # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
+                        default='data/new_test_scene/new_test_scene_road_raster_10_classified.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
-                        default='data/d13_route_40001001011/oneformer',
+                        # default='data/d13_route_40001001011/oneformer',
+                        default='data/new_test_scene/segmentation',
                         help='base directory to retrieve images')
     parser.add_argument('--obj_image_input', type=str,
-                        default='../object_mapping/data/pole_input.csv.rep2',
+                        # default='../object_mapping/data/pole_input.csv.rep2',
+                        default='../object_mapping/data/new_test_route.csv',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--output_file_base', type=str,
-                        default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/aerial_lidar_test/road_alignment_with_lidar',
+                        # default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/road_alignment_with_lidar',
+                        default='data/new_test_scene/output/road_alignment_with_lidar',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have an alignment output file for each input image')
     parser.add_argument('--lidar_proj_output_file_base', type=str,
-                        default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/aerial_lidar_test/lidar_project_info',
+                        # default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/lidar_project_info',
+                        default='data/new_test_scene/output/lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
     parser.add_argument('--output_2d_3d_points_for_external_alignment', action="store_true",

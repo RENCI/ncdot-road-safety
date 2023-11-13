@@ -4,50 +4,22 @@ from math import radians, cos, sin, asin, sqrt, atan2, degrees, pi
 import pickle
 import geopandas as gpd
 from shapely.geometry import Point
+from enum import Enum
 
-ROAD = 1
-POLE = 2
 
-CITYSCAPE_DICT = {
-    0: 'road',
-    1: 'sidewalk',
-    2: 'building',
-    3: 'wall',
-    4: 'fence',
-    5: 'pole',
-    6: 'traffic light',
-    7: 'traffic sign',
-    8: 'vegetation',
-    9: 'terrain',
-    10: 'sky',
-    11: 'person',
-    12: 'rider',
-    13: 'car',
-    14: 'truck',
-    15: 'bus',
-    16: 'train',
-    17: 'motorcycle',
-    18: 'bicycle',
-    255: 'unlabeled'
-}
+class SegmentationClass(Enum):
+    ROAD = 0
+    POLE = 5  # 2
+    BUILDING = 2
+    SIDEWALK = 1
+    WALL = 3
+    FENCE = 4
 
-LIDAR_CLASS_DICT = {
-    1: "Default",
-    2: "Ground",
-    3: "Low Veg/Strata**",
-    4: "Medium Veg/Strata**",
-    5: "High Veg/Strata**",
-    6: "Buildings (Automated)",
-    7: "Low Points",
-    9: "Water (Hydro Cleaned Area)",
-    11: "Roads",
-    14: "Wire-Conductor",
-    15: "Transmission Tower",
-    17: "Bridges",
-    18: "Withheld (high points)",
-    20: "Breakline Proximity",
-    25: "Overlap Water"
-}
+
+class LIDARClass(Enum):
+    ROAD = 11
+    BUILDING = 6
+    POLE: 15
 
 
 def next_location(lat, lon, bearing, distance, is_degree=True):
