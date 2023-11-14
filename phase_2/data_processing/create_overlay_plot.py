@@ -19,7 +19,7 @@ parser.add_argument('--overlay_bg_image_path', type=str,
                     # default='data/d13_route_40001001011/other/926005420241.jpg',
                     default='data/new_test_scene/images/881000952181.jpg',
                     help='original background image for overlay with the scatter plots')
-parser.add_argument('--show_bg_img', action="store_false",
+parser.add_argument('--show_bg_img', action="store_true",
                     help='show the background image')
 
 

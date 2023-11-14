@@ -179,9 +179,26 @@ def get_aerial_lidar_road_geo_df(input_file):
     gdf.geometry = [Point(x, y, z) for x, y, z in zip(gdf['X'], gdf['Y'], gdf['Z'])]
     gdf.crs = 'epsg:6543'
     convert_geom_df = gdf.geometry.to_crs(epsg=4326)
-    # geom_df is added as a geometry_y column in lidar_df while the initial geometry column is renamed as geometry_x
+    # convert_geom_df is added as a geometry_y column in lidar_df while the initial geometry column is
+    # renamed as geometry_x
     gdf = gdf.merge(convert_geom_df, left_index=True, right_index=True)
     return gdf
+
+
+def create_gdf_from_df(input_df, x_col_name='X', y_col_name='Y'):
+    """
+    create geographic dataframe in LIDAR coordinate system with EPSG:6543 from X, Y column in input dataframe
+    :param input_df: input dataframe that must include x_col_name and y_col_name columns
+    :param x_col_name: x column name with default value X
+    :param y_col_name: y column name with default value Y
+    :return: geographic dataframe that includes geometry column in LIDAR EPSG:6543 projection and projected
+    geometry_y column in EPSG:4326 lat/lon projection
+    """
+    gdf = gpd.GeoDataFrame(input_df, geometry=gpd.points_from_xy(input_df[x_col_name], input_df[y_col_name]),
+                           crs='EPSG:6543')
+    geom_df = gdf.geometry.to_crs(epsg=4326)
+    # geom_df is added as a geometry_y column in lidar_df while the initial geometry column is renamed as geometry_x
+    return gdf.merge(geom_df, left_index=True, right_index=True)
 
 
 def compute_match(x, y, series_x, series_y):

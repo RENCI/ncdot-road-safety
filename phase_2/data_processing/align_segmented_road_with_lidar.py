@@ -11,7 +11,7 @@ from math import dist, radians, tan, atan2, degrees
 from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
-    get_aerial_lidar_road_geo_df, compute_match, compute_match_3d
+    get_aerial_lidar_road_geo_df, compute_match, compute_match_3d, create_gdf_from_df
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points
 from convert_and_classify_aerial_lidar import output_latlon_from_geometry
@@ -33,7 +33,7 @@ INIT_CAMERA_PARAMS = [2.8, 2.8, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
-LIDAR_DIST_THRESHOLD = 60
+LIDAR_DIST_THRESHOLD = 90
 # LIDAR_DIST_THRESHOLD = 190
 
 
@@ -333,15 +333,10 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
         input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z', 'Boundary'])
     else:
         input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
-    input_3d_gdf = gpd.GeoDataFrame(input_3d_df, geometry=gpd.points_from_xy(input_3d_df.X, input_3d_df.Y),
-                                    crs='EPSG:6543')
-    input_3d_geom_df = input_3d_gdf.geometry.to_crs(epsg=4326)
-    # geom_df is added as a geometry_y column in lidar_df while the initial geometry column is renamed as geometry_x
-    input_3d_gdf = input_3d_gdf.merge(input_3d_geom_df, left_index=True, right_index=True)
+    input_3d_gdf = create_gdf_from_df(input_3d_df)
     # calculate the bearing of each 3D point to the camera
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
-        cam_lat, cam_lon, geom.y, geom.x, is_degree=False))
-    input_3d_gdf['BEARING'] = input_3d_gdf['BEARING'] - cam_br
+        cam_lat, cam_lon, geom.y, geom.x, is_degree=False)  - cam_br)
 
     # get the lidar road vertex with the closest distance to the camera location
     nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y'])[0]
