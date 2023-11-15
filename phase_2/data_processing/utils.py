@@ -19,7 +19,7 @@ class SegmentationClass(Enum):
 class LIDARClass(Enum):
     ROAD = 11
     BUILDING = 6
-    POLE: 15
+    POLE = 15
 
 
 def next_location(lat, lon, bearing, distance, is_degree=True):
