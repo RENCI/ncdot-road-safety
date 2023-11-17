@@ -20,14 +20,14 @@ def get_lidar_data_from_shp(lidar_shp_file_path):
     return df.merge(geom_df, left_index=True, right_index=True)
 
 
-def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, end_of_route=False):
+def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, end_of_route=False,
+                                       include_all_cols=False):
     clat, clon = cam_loc
     next_clat, next_clon = next_cam_loc
     df['distance'] = df.apply(lambda row: haversine(clon, clat, row['geometry_y']), axis=1)
     cam_bearing = bearing_between_two_latlon_points(clat, clon, next_clat, next_clon, is_degree=False)
     df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
         clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
-    print(df.shape)
     if end_of_route:
         # use lidar road edge as camera bearing direction instead since next_cam_loc is interpolated and does not
         # accurately reflect camera bearing direction
@@ -40,16 +40,21 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, e
                                                         is_degree=False)
         df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
             clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
+
     df = df[(df['distance'] < dist_th) & (df['bearing_diff'] < math.pi / 3)]
     print(df.shape)
-    if 'X' in df.columns:
-        if 'Boundary' in df.columns:
-            df = df[['X', 'Y', 'Z', 'Boundary']]
-        else:
-            df = df[['X', 'Y', 'Z']]
+    if include_all_cols:
+        df = df.drop(columns=['bearing_diff'])
+        return df.copy(), cam_bearing
     else:
-        df = df[['POINT_X', 'POINT_Y', 'POINT_Z']]
-    return [df.to_numpy()], cam_bearing
+        if 'X' in df.columns:
+            if 'Boundary' in df.columns:
+                df = df[['X', 'Y', 'Z', 'Boundary']]
+            else:
+                df = df[['X', 'Y', 'Z']]
+        else:
+            df = df[['POINT_X', 'POINT_Y', 'POINT_Z']]
+        return [df.to_numpy()], cam_bearing
 
 
 if __name__ == '__main__':

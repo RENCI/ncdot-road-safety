@@ -8,8 +8,7 @@ from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_c
     get_mapping_data, get_input_file_with_images, extract_lidar_3d_points_for_camera, LIDAR_DIST_THRESHOLD
 
 
-def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file, input_loc=None,
-                extract_lidar=True):
+def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file, input_loc=None):
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
     img_width, img_height, input_list = get_image_road_points(image_name_with_path, boundary_only=False)
@@ -24,40 +23,35 @@ def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = get_mapping_data(
         input_mapping_file, input_2d_mapped_image)
 
-    if extract_lidar:
-        vertices, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
-                                                              dist_th=LIDAR_DIST_THRESHOLD,
-                                                              end_of_route=eor)
+    # get the lidar road vertex with the closest distance to the camera location
+    nearest_idx = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])[0]
+    cam_lidar_z = ldf.iloc[nearest_idx].Z
+    print(f'camera Z: {cam_lidar_z}, eor: {eor}, dist_th: {LIDAR_DIST_THRESHOLD}')
 
-        input_3d_points = vertices[0]
-    else:
-        input_3d_points = ldf[['X', 'Y', 'Z']].to_numpy()
-    print(f'len(input_3d_points): {len(input_3d_points)}')
-    input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
-    input_3d_gdf = create_gdf_from_df(input_3d_df)
-    # calculate the bearing of each 3D point to the camera
+    input_3d_gdf, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
+                                                              dist_th=LIDAR_DIST_THRESHOLD,
+                                                              end_of_route=eor,
+                                                              include_all_cols=True)
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
         cam_lat, cam_lon, geom.y, geom.x, is_degree=False) - cam_br)
-
-    # get the lidar road vertex with the closest distance to the camera location
-    nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y'])[0]
-    cam_lidar_z = input_3d_gdf.iloc[nearest_idx].Z
-    print(f'camera Z: {cam_lidar_z}')
+    print(input_3d_gdf.shape)
+    print(input_3d_gdf.columns)
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
+    print(input_3d_gdf.shape)
+    print(input_3d_gdf.columns)
+
     if input_loc:
         input_3d_gdf['DISTANCE_TO_POLE'] = input_3d_gdf.apply(lambda row: haversine(input_loc[1], input_loc[0],
                                                                                     row['geometry_y']), axis=1)
-    joined_df = pd.concat([input_3d_gdf, ldf[['C']]], axis=1)
     if input_loc:
-        joined_df.to_csv(out_file,
-                         columns=['X', 'Y', 'Z', 'C', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
-                                  'DISTANCE_TO_POLE'],
-                         float_format='%.3f', index=False)
+        input_3d_gdf.to_csv(out_file,
+                            columns=['X', 'Y', 'Z', 'C', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
+                                     'DISTANCE_TO_POLE'], float_format='%.3f', index=False)
     else:
-        joined_df.to_csv(out_file,
-                         columns=['X', 'Y', 'Z', 'C', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z'],
-                         float_format='%.3f', index=False)
+        input_3d_gdf.to_csv(out_file,
+                            columns=['X', 'Y', 'Z', 'C', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z'],
+                            float_format='%.3f', index=False)
 
 
 if __name__ == '__main__':
@@ -82,8 +76,6 @@ if __name__ == '__main__':
                         # default=(35.7134730, -82.73446760),
                         default='',
                         help='input landmark location to compute distance from each LIDAR point')
-    parser.add_argument('--extract_lidar_for_image', action="store_true",
-                        help='whether to extract subset lidar data corresponding to the image')
     parser.add_argument('--output_lidar_file_base', type=str,
                         default='/home/hongyi/ncdot-registration/data/lidar_info',
                         help='output lidar file base with path which will be appended with image name '
@@ -95,7 +87,6 @@ if __name__ == '__main__':
     obj_image_input = args.obj_image_input
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
     input_landmark_loc = args.input_landmark_loc
-    extract_lidar_for_image = args.extract_lidar_for_image
     output_lidar_file_base = args.output_lidar_file_base
 
     # load input file to get the image names for alignment
@@ -103,5 +94,4 @@ if __name__ == '__main__':
     input_df['imageBaseName'].apply(lambda img: create_data(os.path.join(obj_base_image_dir, f'{img}.png'),
                                                             input_lidar, input_sensor_mapping_file_with_path,
                                                             f'{output_lidar_file_base}_{img}.csv',
-                                                            input_loc=input_landmark_loc,
-                                                            extract_lidar=extract_lidar_for_image))
+                                                            input_loc=input_landmark_loc))

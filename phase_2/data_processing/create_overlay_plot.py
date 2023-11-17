@@ -31,12 +31,18 @@ show_bg_img = args.show_bg_img
 
 input_2d_points = load_pickle_data(input_2d)
 
-input_3d_proj_df = pd.read_csv(input_3d_proj, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'], dtype=int)
-
 bg_img = mpimg.imread(overlay_bg_image_path)
-
 image_height, image_width, _ = bg_img.shape
 
+input_3d_proj_df = pd.read_csv(input_3d_proj, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'], dtype=int)
+print(input_3d_proj_df.shape, min(input_3d_proj_df.PROJ_SCREEN_X), max(input_3d_proj_df.PROJ_SCREEN_X))
+print(min(input_3d_proj_df.PROJ_SCREEN_Y), max(input_3d_proj_df.PROJ_SCREEN_Y))
+print(image_width, image_height)
+input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.PROJ_SCREEN_X > 0) &
+                                    (input_3d_proj_df.PROJ_SCREEN_X < image_width) &
+                                    (input_3d_proj_df.PROJ_SCREEN_Y > 0) &
+                                    (input_3d_proj_df.PROJ_SCREEN_Y < image_height)]
+print(input_3d_proj_df.shape)
 plt.scatter(input_2d_points[:, 0], image_height - input_2d_points[:, 1], s=20)
 plt.scatter(input_3d_proj_df['PROJ_SCREEN_X'], image_height - input_3d_proj_df['PROJ_SCREEN_Y'], s=20)
 if show_bg_img:

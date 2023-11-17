@@ -6,6 +6,7 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 from pypfm import PFMLoader
+from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 from math import dist, radians, tan, atan2, degrees
 from sklearn.preprocessing import MinMaxScaler
@@ -21,15 +22,14 @@ from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 # translation to move camera along X/Y/Z axis in world coordinate system, CMAERA_YAM, CAMERA_PITCH, CAMERA_ROLL
 # indicate camera angle of rotation around Z (bearing) axis, Y axis, and X axis, respectively, in the 3D world
 # coordinate system
-PERSPECTIVE_VFOV = 20
-# PERSPECTIVE_VFOV = 25
+# PERSPECTIVE_VFOV = 20
+PERSPECTIVE_VFOV = 18
 PERSPECTIVE_NEAR = 0.1
 FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
-# INIT_CAMERA_PARAMS = [2.3, 2.3, 2.4, -8, -15, 0.32, -1.4, -0.77]
-# INIT_CAMERA_PARAMS = [2.3, 2.3, 1.7, -8.9, 16, 0.1, -1.8, -0.56]
-INIT_CAMERA_PARAMS = [2.8, 2.8, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53]
+# INIT_CAMERA_PARAMS = [2.8, 2.8, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53]
+INIT_CAMERA_PARAMS = [3.2, 3.2, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
@@ -37,18 +37,9 @@ LIDAR_DIST_THRESHOLD = 90
 # LIDAR_DIST_THRESHOLD = 190
 
 
-def rotate_point_series(v1, v2, angle, axis):
-    angle = radians(angle)
-    if axis == 'z' or axis == 'x':
-        new_v1 = v1 * np.cos(angle) - v2 * np.sin(angle)
-        new_v2 = v1 * np.sin(angle) + v2 * np.cos(angle)
-    elif axis == 'y':
-        new_v1 = v1 * np.cos(angle) + v2 * np.sin(angle)
-        new_v2 = -v1 * np.sin(angle) + v2 * np.cos(angle)
-    else:
-        print('input axis parameter is invalid - it must be x, y, or z')
-        return v1, v2
-    return new_v1, new_v2
+def rotate_point(point, quaternion):
+    rotated_point = quaternion.apply(point)
+    return rotated_point
 
 
 def interpolate_camera_z(p1_z, p2_z, p1_dist, p2_dist):
@@ -78,16 +69,19 @@ def transform_to_world_coordinate_system(df, cam_params):
     # z-axis reflecting the elevation Z pointing upwards, and the x-axis is perpendicular to both y-axis and z-axis
     # reflecting X and Y. Note that LIDAR world coordinate system origin is located at lower-left corner while
     # screen coordinate system origin is located at upper-left corner
-    df['WORLD_Z'] = df['INITIAL_WORLD_Z'] + cam_params[CAMERA_LIDAR_Z_OFFSET]
-    df['WORLD_Y'] = df['INITIAL_WORLD_Y'] + cam_params[CAMERA_LIDAR_Y_OFFSET]
-    df['WORLD_X'] = df['INITIAL_WORLD_X'] + cam_params[CAMERA_LIDAR_X_OFFSET]
-    df['WORLD_Y'], df['WORLD_Z'] = rotate_point_series(df['WORLD_Y'], df['WORLD_Z'],
-                                                       cam_params[CAMERA_ROLL], 'x')
-    df['WORLD_X'], df['WORLD_Z'] = rotate_point_series(df['WORLD_X'], df['WORLD_Z'],
-                                                       cam_params[CAMERA_PITCH], 'y')
-    df['WORLD_X'], df['WORLD_Y'] = rotate_point_series(df['WORLD_X'], df['WORLD_Y'],
-                                                       cam_params[CAMERA_YAW], 'z')
+    rotation_x = Rotation.from_euler('x', radians(cam_params[CAMERA_ROLL]))
+    rotation_y = Rotation.from_euler('y', radians(cam_params[CAMERA_PITCH]))
+    rotation_z = Rotation.from_euler('z', radians(cam_params[CAMERA_YAW]))
+    combined_rotation = rotation_z * rotation_y * rotation_x
 
+    points = df[['INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z']].to_numpy()
+    rotated_point = np.apply_along_axis(rotate_point, axis=1, arr=points, quaternion=combined_rotation)
+    rp_df = pd.DataFrame(rotated_point, columns=['WORLD_X', 'WORLD_Y', 'WORLD_Z'])
+    df['WORLD_X'], df['WORLD_Y'], df['WORLD_Z'] = rp_df['WORLD_X'], rp_df['WORLD_Y'], rp_df['WORLD_Z']
+
+    df['WORLD_Z'] = df['WORLD_Z'] + cam_params[CAMERA_LIDAR_Z_OFFSET]
+    df['WORLD_Y'] = df['WORLD_Y'] + cam_params[CAMERA_LIDAR_Y_OFFSET]
+    df['WORLD_X'] = df['WORLD_X'] + cam_params[CAMERA_LIDAR_X_OFFSET]
     return df
 
 
@@ -326,6 +320,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
     vertices, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                           dist_th=LIDAR_DIST_THRESHOLD,
                                                           end_of_route=eor)
+    print(f'len(vertices): {len(vertices[0])}')
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}')
     # print(f'input 3d numpy array shape: {input_3d_points.shape}')
