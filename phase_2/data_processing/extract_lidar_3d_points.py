@@ -1,9 +1,12 @@
 import argparse
+import sys
 import geopandas as gpd
 import pickle
-
-from utils import haversine, bearing_between_two_latlon_points, get_next_road_index
+import cv2
+import numpy as np
 import math
+from scipy.spatial import Delaunay
+from utils import haversine, bearing_between_two_latlon_points, get_next_road_index, get_aerial_lidar_road_geo_df
 
 
 def get_lidar_data_from_shp(lidar_shp_file_path):
@@ -57,35 +60,96 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, e
         return [df.to_numpy()], cam_bearing
 
 
+def get_convex_hull_and_convexity_defects(points, image_width):
+    # normalize points to a range for visualizing
+    x_min, x_max = np.min(points[:, 0]), np.max(points[:, 0])
+    y_min, y_max = np.min(points[:, 1]), np.max(points[:, 1])
+    x_range, y_range = x_max - x_min + 1, y_max - y_min + 1
+    scaling_range = x_range if x_range > y_range else y_range
+    scaling_factor = image_width / scaling_range
+    normalized_x = np.round((points[:, 0] - x_min) * scaling_factor).astype(np.int32)
+    normalized_y = np.round((points[:, 1] - y_min) * scaling_factor).astype(np.int32)
+    normalized_points = np.column_stack((normalized_x, normalized_y))
+    hull_image = np.zeros((image_width + 1, image_width + 1), dtype=np.uint8)
+    hull_image[normalized_points[:, 1], normalized_points[:, 0]] = 255
+
+    triangulation = Delaunay(normalized_points)
+
+    # Filter out large triangles based on side length
+    max_side_length = 50
+    filtered_simplices = []
+    for simplex in triangulation.simplices:
+        side_lengths = np.linalg.norm(
+            triangulation.points[simplex] - np.roll(triangulation.points[simplex], shift=-1, axis=0), axis=1)
+        print(side_lengths)
+        if all(side_length < max_side_length for side_length in side_lengths):
+            for i in range(3):
+                start = tuple(normalized_points[simplex[i]])
+                end = tuple(normalized_points[simplex[(i + 1) % 3]])
+                cv2.line(hull_image, start, end, 255, 1)
+            filtered_simplices.append(simplex)
+    print(len(filtered_simplices))
+    simplices_contour = np.vstack([triangulation.points[s] for s in filtered_simplices])
+
+    # Convert the contour to integer (required by cv2.convexHull)
+    simplices_contour_int = np.round(simplices_contour).astype(np.int32)
+    hull_indices = cv2.convexHull(simplices_contour_int, returnPoints=False)
+    # Extract the convex hull points
+    hull_points = simplices_contour_int[hull_indices.flatten()]
+    cv2.polylines(hull_image, [hull_points], isClosed=True, color=255, thickness=1)
+    # defects = cv2.convexityDefects(simplices_contour_int, hull_indices)
+    #
+    # # Create an empty image to draw the convexity defects
+    # if defects is not None:
+    #     for i in range(defects.shape[0]):
+    #         s, e, f, _ = defects[i, 0]
+    #         start = tuple(normalized_points[s])
+    #         end = tuple(normalized_points[e])
+    #         far = tuple(normalized_points[f])
+    #         cv2.line(hull_image, start, end, color=255, thickness=2)
+    #         cv2.circle(hull_image, far, radius=5, color=255, thickness=-1)
+    cv2.imshow("convexity defects", hull_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
-    parser.add_argument('--input_lidar_shp_with_path', type=str,
-                        default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
-                                'RoadEdge_40001001011_vertices.shp',
-                        help='input shp file that contains road x, y, z vertices from lidar')
+    parser.add_argument('--input_lidar_with_path', type=str,
+                        # default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
+                        #         'RoadEdge_40001001011_vertices.shp',
+                        default='data/new_test_scene/new_test_scene_road_raster_10_classified.csv',
+                        help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--output_file', type=str,
-                        default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
-                                'oneformer/output/input_3d.pkl',
+                        # default='/home/hongyi/ncdot-road-safety/phase_2/data_processing/data/d13_route_40001001011/'
+                        #       'oneformer/output/input_3d.pkl',
+                        default='data/new_test_scene/input_3d.pkl',
                         help='output path for 3D points to be corresponded with from 2D image points in pickle format')
     parser.add_argument('--camera_loc', type=str,
-                        default=[35.7137581, -82.7346679],
+                        # default=[35.7137581, -82.7346679],
+                        default=[35.6848124, -81.5217857],
                         help='camera loc to extract lidar vertices within a set threshold distance from')
     parser.add_argument('--next_camera_loc', type=str,
-                        default=[35.7136764,-82.7346359],
+                        # default=[35.7136764,-82.7346359],
+                        default=[35.6847461, -81.5218077],
                         help='next camera loc to define camera/driving bearing direction')
     parser.add_argument('--distance_threshold', type=str,
                         #default=385,
-                        default=190,
+                        default=154,
                         help='distance threshold in meter to filter out lidar vertices')
 
     args = parser.parse_args()
-    input_lidar_shp_with_path = args.input_lidar_shp_with_path
+    input_lidar_with_path = args.input_lidar_with_path
     output_file = args.output_file
     camera_loc = args.camera_loc
     next_camera_loc = args.next_camera_loc
     distance_threshold = args.distance_threshold
-    lidar_df = get_lidar_data_from_shp(input_lidar_shp_with_path)
+    if input_lidar_with_path.endswith('.shp'):
+        lidar_df = get_lidar_data_from_shp(input_lidar_with_path)
+    else:
+        lidar_df = get_aerial_lidar_road_geo_df(input_lidar_with_path)
     vertices, _ = extract_lidar_3d_points_for_camera(lidar_df, camera_loc, next_camera_loc, dist_th=distance_threshold)
-
+    get_convex_hull_and_convexity_defects(vertices[0], 1000)
     with open(output_file, 'wb') as f:
         pickle.dump(vertices, f)
+    sys.exit()

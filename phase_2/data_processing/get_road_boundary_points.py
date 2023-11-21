@@ -1,17 +1,20 @@
+import sys
 import cv2
 import os
 import numpy as np
 from skimage import morphology, measure
+from PIL import Image
 import argparse
-from utils import get_data_from_image
+from utils import get_data_from_image, SegmentationClass
 import pickle
 
 
 def get_image_road_points(image_file_name, boundary_only=True):
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
-    # seg_img is labeled segmented image data with road labeled as 1 and object labeled as 2
-    seg_img[seg_img == 2] = 0
-    seg_img[seg_img == 1] = 255
+    # assign road with 255 and the rest with 0
+    seg_img[seg_img == SegmentationClass.ROAD.value] = 255
+    seg_img[seg_img != 255] = 0
+
     cleaned_mask = morphology.remove_small_objects(seg_img, min_size=1000)
     labeled_data, count = measure.label(cleaned_mask, connectivity=2, return_num=True)
     labeled_data = labeled_data.astype('uint8')
@@ -26,6 +29,7 @@ def get_image_road_points(image_file_name, boundary_only=True):
 
     # Find contours of the dilated edges
     contours, _ = cv2.findContours(dilated_edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
     updated_contours = []
     for i in range(len(contours)):
         min_xy = np.min(contours[i], axis=0)
@@ -51,6 +55,29 @@ def get_image_road_points(image_file_name, boundary_only=True):
         return_contours = updated_contours
 
     if boundary_only:
+        # find convexHull of the road contours
+        hull = cv2.convexHull(return_contours[0], returnPoints=False)
+        # find convexity defects to identify concave regions (potential intersections)
+        defects = cv2.convexityDefects(return_contours[0], hull)
+
+        binary_data[binary_data != 0] = 0
+        binary_data = np.uint8(binary_data)
+
+        if defects is not None:
+            for defect in defects:
+                sp, ep, fp, fdist = defect[0]
+
+                start = tuple(return_contours[0][sp])
+                end = tuple(return_contours[0][ep])
+                far = tuple(return_contours[0][fp])
+                if 40000 > fdist > 1000:
+                    print(f'fdist: {fdist}, x: {far[0]}, y: {far[1]}')
+                    cv2.line(binary_data, start, far, (255, 255, 255), 2)
+                    cv2.line(binary_data, far, end, (255, 255, 255), 2)
+                    cv2.circle(binary_data, far, 5, (255, 255, 255), -1)
+
+        cv2.drawContours(binary_data, return_contours, -1, (127, 127, 127), 1)
+        Image.fromarray(binary_data, 'L').save('data/new_test_scene/output/881000952181_intersections.png')
         return image_width, image_height, return_contours
     else:
         boundary_contours = return_contours[0]
@@ -100,9 +127,13 @@ def get_image_road_points(image_file_name, boundary_only=True):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
-    parser.add_argument('--input_data_path', type=str, default='data/d13_route_40001001011/oneformer/input',
+    parser.add_argument('--input_data_path', type=str,
+                        # default='data/d13_route_40001001011/oneformer/input',
+                        default='data/new_test_scene/seg_test',
                         help='input data path')
-    parser.add_argument('--output_file', type=str, default='data/d13_route_40001001011/oneformer/output/input_2d.pkl',
+    parser.add_argument('--output_file', type=str,
+                        # default='data/d13_route_40001001011/oneformer/output/input_2d.pkl',
+                        default='data/new_test_scene/output/input_2d.pkl',
                         help='output pickle 2D point file name with path')
 
     args = parser.parse_args()
@@ -124,3 +155,4 @@ if __name__ == '__main__':
     # output to pickle file for blindPnP correspondence prediction
     with open(output_file, 'wb') as f:
         pickle.dump(all_road_contours, f)
+    sys.exit()

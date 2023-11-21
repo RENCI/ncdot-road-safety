@@ -33,7 +33,7 @@ INIT_CAMERA_PARAMS = [3.2, 3.2, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
-LIDAR_DIST_THRESHOLD = 90
+LIDAR_DIST_THRESHOLD = 154
 # LIDAR_DIST_THRESHOLD = 190
 
 
@@ -316,7 +316,6 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
 
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = get_mapping_data(
         input_mapping_file, input_2d_mapped_image)
-
     vertices, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                           dist_th=LIDAR_DIST_THRESHOLD,
                                                           end_of_route=eor)

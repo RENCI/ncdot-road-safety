@@ -1,3 +1,4 @@
+import sys
 import argparse
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
@@ -56,3 +57,4 @@ else:
     plt.grid(True)
 # plt.legend(loc='lower left')
 plt.show()
+sys.exit()

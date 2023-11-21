@@ -1,3 +1,4 @@
+import sys
 import argparse
 import matplotlib.pyplot as plt
 from utils import get_data_from_image
@@ -8,7 +9,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--image_file_name', type=str, default='data/d13_route_40001001011/oneformer/926005420241.png',
                         help='input image file name with path')
-    parser.add_argument('--boundary_only', action="store_true",
+    parser.add_argument('--boundary_only', action="store_false",
                         help='whether to plot boundary only or all road pixels')
 
     args = parser.parse_args()
@@ -26,4 +27,6 @@ if __name__ == '__main__':
         plt.colorbar(label='Z Value')
         plt.xlabel('X')
         plt.ylabel('Y')
+    plt.grid(True)
     plt.show()
+    sys.exit()
