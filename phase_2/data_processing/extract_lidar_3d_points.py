@@ -71,7 +71,7 @@ def get_convex_hull_and_convexity_defects(points, image_width):
     normalized_y = np.round((points[:, 1] - y_min) * scaling_factor).astype(np.int32)
     normalized_points = np.column_stack((normalized_x, normalized_y))
     hull_image = np.zeros((image_width + 1, image_width + 1), dtype=np.uint8)
-    hull_image[normalized_points[:, 1], normalized_points[:, 0]] = 255
+    hull_image[normalized_points[:, 1], normalized_points[:, 0]] = 100
 
     triangulation = Delaunay(normalized_points)
 
@@ -81,33 +81,35 @@ def get_convex_hull_and_convexity_defects(points, image_width):
     for simplex in triangulation.simplices:
         side_lengths = np.linalg.norm(
             triangulation.points[simplex] - np.roll(triangulation.points[simplex], shift=-1, axis=0), axis=1)
-        print(side_lengths)
         if all(side_length < max_side_length for side_length in side_lengths):
-            for i in range(3):
-                start = tuple(normalized_points[simplex[i]])
-                end = tuple(normalized_points[simplex[(i + 1) % 3]])
-                cv2.line(hull_image, start, end, 255, 1)
             filtered_simplices.append(simplex)
-    print(len(filtered_simplices))
     simplices_contour = np.vstack([triangulation.points[s] for s in filtered_simplices])
+    print(simplices_contour.shape)
+    # Extract the boundary contour
+    boundary_contour = np.round(np.unique(simplices_contour.reshape(-1, 2), axis=0)).astype(np.int32)
+    print(boundary_contour.shape)
+    hull_image[boundary_contour[:, 1], boundary_contour[:, 0]] = 255
 
     # Convert the contour to integer (required by cv2.convexHull)
-    simplices_contour_int = np.round(simplices_contour).astype(np.int32)
-    hull_indices = cv2.convexHull(simplices_contour_int, returnPoints=False)
+    hull_indices = cv2.convexHull(boundary_contour, returnPoints=False)
     # Extract the convex hull points
-    hull_points = simplices_contour_int[hull_indices.flatten()]
-    cv2.polylines(hull_image, [hull_points], isClosed=True, color=255, thickness=1)
-    # defects = cv2.convexityDefects(simplices_contour_int, hull_indices)
-    #
-    # # Create an empty image to draw the convexity defects
-    # if defects is not None:
-    #     for i in range(defects.shape[0]):
-    #         s, e, f, _ = defects[i, 0]
-    #         start = tuple(normalized_points[s])
-    #         end = tuple(normalized_points[e])
-    #         far = tuple(normalized_points[f])
-    #         cv2.line(hull_image, start, end, color=255, thickness=2)
-    #         cv2.circle(hull_image, far, radius=5, color=255, thickness=-1)
+    # hull_points = boundary_contour[hull_indices.flatten()]
+    # cv2.polylines(hull_image, [hull_points], isClosed=True, color=255, thickness=1)
+    hull_indices[::-1].sort(axis=0)
+    defects = cv2.convexityDefects(boundary_contour, hull_indices)
+
+    # Create an empty image to draw the convexity defects
+    if defects is not None:
+        for defect in defects:
+            sp, ep, fp, fdist = defect[0]
+            print(fdist)
+            if fdist > 20000:
+                start = tuple(boundary_contour[sp])
+                end = tuple(boundary_contour[ep])
+                far = tuple(boundary_contour[fp])
+                # cv2.line(hull_image, start, far, color=255, thickness=2)
+                # cv2.line(hull_image, far, end, color=255, thickness=2)
+                cv2.circle(hull_image, far, radius=5, color=255, thickness=-1)
     cv2.imshow("convexity defects", hull_image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()

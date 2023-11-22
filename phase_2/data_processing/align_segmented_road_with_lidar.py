@@ -397,6 +397,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
                                                             axis=1)
         input_3d_gdf['ROAD_X'] = input_3d_gdf['MATCH_2D_INDEX'].apply(lambda x: input_2d_df.iloc[x]['X'])
         input_3d_gdf['ROAD_Y'] = input_3d_gdf['MATCH_2D_INDEX'].apply(lambda x: input_2d_df.iloc[x]['Y'])
+
         if to_output_csv:
             input_3d_gdf.to_csv(out_proj_file,
                                 columns=['X', 'Y', 'Z', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
@@ -417,7 +418,7 @@ if __name__ == '__main__':
                         # default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
                         #        'RoadEdge_40001001011_vertices.shp',
                         # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
-                        default='data/new_test_scene/new_test_scene_road_raster_10_classified.csv',
+                        default='data/new_test_scene/new_test_scene_road_raster_10.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         # default='data/d13_route_40001001011/oneformer',
