@@ -48,7 +48,7 @@ plt.scatter(input_2d_points[:, 0], image_height - input_2d_points[:, 1], s=20)
 plt.scatter(input_3d_proj_df['PROJ_SCREEN_X'], image_height - input_3d_proj_df['PROJ_SCREEN_Y'], s=20)
 if show_bg_img:
     plt.imshow(bg_img, extent=[0, image_width-1, 0, image_height-1])
-plt.title('2D road vertices & 3D projected road vertices in screen coordinate system')
+plt.title('Road alignment in screen coordinate system')
 plt.ylabel('Y')
 plt.xlabel('X')
 if show_bg_img:

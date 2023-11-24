@@ -324,9 +324,13 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
     print(f'len(input_3d_points): {len(input_3d_points)}')
     # print(f'input 3d numpy array shape: {input_3d_points.shape}')
     if input_3d_points.shape[1] == 4:
-        input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z', 'Boundary'])
+        input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z', 'I'])
+        input_3d_df['I'] = input_3d_df['I'].astype(int)
     else:
         input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
+    input_3d_df['X'] = input_3d_df['X'].astype(float)
+    input_3d_df['Y'] = input_3d_df['Y'].astype(float)
+    input_3d_df['Z'] = input_3d_df['Z'].astype(float)
     input_3d_gdf = create_gdf_from_df(input_3d_df)
     # calculate the bearing of each 3D point to the camera
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
@@ -400,7 +404,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
 
         if to_output_csv:
             input_3d_gdf.to_csv(out_proj_file,
-                                columns=['X', 'Y', 'Z', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
+                                columns=['X', 'Y', 'Z', 'I', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
                                          'WORLD_X', 'WORLD_Y', 'WORLD_Z', 'PROJ_X', 'PROJ_Y',
                                          'PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
                                 float_format='%.3f',
@@ -408,7 +412,8 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
         else:
             input_3d_gdf.to_csv(out_proj_file, index=False)
             proj_base, proj_ext = os.path.splitext(out_proj_file)
-            input_3d_gdf.Boundary = input_3d_gdf.Boundary.apply(lambda x: True if x > 0 else False)
+            if 'Boundary' in input_3d_gdf.columns:
+                input_3d_gdf.Boundary = input_3d_gdf.Boundary.apply(lambda x: True if x > 0 else False)
             output_latlon_from_geometry(input_3d_gdf, 'geometry_y', f'{proj_base}_latlon{proj_ext}')
 
 

@@ -51,8 +51,8 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, e
         return df.copy(), cam_bearing
     else:
         if 'X' in df.columns:
-            if 'Boundary' in df.columns:
-                df = df[['X', 'Y', 'Z', 'Boundary']]
+            if 'I' in df.columns:
+                df = df[['X', 'Y', 'Z', 'I']]
             else:
                 df = df[['X', 'Y', 'Z']]
         else:
