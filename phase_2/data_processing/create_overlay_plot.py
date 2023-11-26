@@ -20,6 +20,8 @@ parser.add_argument('--overlay_bg_image_path', type=str,
                     # default='data/d13_route_40001001011/other/926005420241.jpg',
                     default='data/new_test_scene/images/881000952181.jpg',
                     help='original background image for overlay with the scatter plots')
+parser.add_argument('--show_intersect_only', action="store_true",
+                    help='show the intersection alignment only')
 parser.add_argument('--show_bg_img', action="store_true",
                     help='show the background image')
 
@@ -28,6 +30,7 @@ args = parser.parse_args()
 input_2d = args.input_2d
 input_3d_proj = args.input_3d_proj
 overlay_bg_image_path = args.overlay_bg_image_path
+show_intersect_only = args.show_intersect_only
 show_bg_img = args.show_bg_img
 
 input_2d_points = load_pickle_data(input_2d)
@@ -35,7 +38,12 @@ input_2d_points = load_pickle_data(input_2d)
 bg_img = mpimg.imread(overlay_bg_image_path)
 image_height, image_width, _ = bg_img.shape
 
-input_3d_proj_df = pd.read_csv(input_3d_proj, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'], dtype=int)
+if show_intersect_only:
+    input_3d_proj_df = pd.read_csv(input_3d_proj, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'I'], dtype=int)
+    input_3d_proj_df = input_3d_proj_df[input_3d_proj_df['I'] > 0]
+else:
+    input_3d_proj_df = pd.read_csv(input_3d_proj, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'], dtype=int)
+
 print(input_3d_proj_df.shape, min(input_3d_proj_df.PROJ_SCREEN_X), max(input_3d_proj_df.PROJ_SCREEN_X))
 print(min(input_3d_proj_df.PROJ_SCREEN_Y), max(input_3d_proj_df.PROJ_SCREEN_Y))
 print(image_width, image_height)

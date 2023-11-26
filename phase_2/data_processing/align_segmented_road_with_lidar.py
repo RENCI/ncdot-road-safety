@@ -22,14 +22,14 @@ from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 # translation to move camera along X/Y/Z axis in world coordinate system, CMAERA_YAM, CAMERA_PITCH, CAMERA_ROLL
 # indicate camera angle of rotation around Z (bearing) axis, Y axis, and X axis, respectively, in the 3D world
 # coordinate system
-# PERSPECTIVE_VFOV = 20
-PERSPECTIVE_VFOV = 18
 PERSPECTIVE_NEAR = 0.1
-FOCAL_LENGTH_X, FOCAL_LENGTH_Y, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
-    CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
+FOCAL_LENGTH_X = FOCAL_LENGTH_Y = 3.2
+
+PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
+    CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6
 # initial camera parameter list for optimization
-# INIT_CAMERA_PARAMS = [2.8, 2.8, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53]
-INIT_CAMERA_PARAMS = [3.2, 3.2, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060]
+# INIT_CAMERA_PARAMS = [20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53]
+INIT_CAMERA_PARAMS = [18, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060]
 # gradient descent hyperparameters
 NUM_ITERATIONS = 100
 DEPTH_SCALING_FACTOR = 189
@@ -103,7 +103,7 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     aspect = img_width / img_hgt
     print(f'img_width: {img_width}, img_hgt: {img_hgt}, aspect: {aspect}')
     far = max(df['INITIAL_WORLD_X'].max(), df['INITIAL_WORLD_Y'].max(), df['INITIAL_WORLD_Z'].max()) * 10
-    top = PERSPECTIVE_NEAR * tan(radians(0.5 * PERSPECTIVE_VFOV))
+    top = PERSPECTIVE_NEAR * tan(radians(0.5 * cam_params[PERSPECTIVE_VFOV]))
     height = 2 * top
     width = aspect * height
     left = -0.5 * width
@@ -130,12 +130,6 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     df['PROJ_Y'] = df.apply(
         lambda row: apply_matrix4(row['WORLD_X'], row['WORLD_Y'], row['WORLD_Z'], matrix_elements, return_axis='y'),
         axis=1)
-    # df['PROJ_X'] = df.apply(
-    #     lambda row: cam_params[FOCAL_LENGTH_X] * row['WORLD_X'] / row['WORLD_Z'],
-    #     axis=1)
-    # df['PROJ_Y'] = df.apply(
-    #     lambda row: cam_params[FOCAL_LENGTH_Y] * row['WORLD_Y'] / row['WORLD_Z'],
-    #     axis=1)
 
     half_width = img_width / 2
     half_height = img_hgt / 2
@@ -162,6 +156,33 @@ def get_2d_road_points_by_z(idf, filter_col, compare_val, threshold_val=30):
     return idf[abs(idf[filter_col] - compare_val) < threshold_val]
 
 
+def mean_squared_error(points1, points2_df, points2_df_x_col, points2_df_y_col):
+    """
+    calculate the mean squared error between points1 and points2. The given points1 and points2 are assumed
+    to be in the corresponding order for computing the squared difference
+    :param points1: a list of points with each point represented as a tuple (x, y)
+    :param points2_df: a dataframe of points with each row represented as a point
+    with points2_df_x_col, points2_df_y_col columns
+    :param points2_df_x_col: the x column in points2_df
+    :param points2_df_y_col: the y column in points2_df
+    :return: MSE between points1 and points2 in the given order
+    """
+    # Convert the list of tuples to a DataFrame for easier manipulation
+    df1 = pd.DataFrame(points1, columns=['X1', 'Y1'])
+
+    # Merge the df1 DataFrame and given points2_df on the index
+    merged_df = pd.concat([df1, points2_df], axis=1)
+
+    # Calculate squared differences for X and Y columns
+    squared_diff_x = (merged_df['X1'] - merged_df[points2_df_x_col])**2
+    squared_diff_y = (merged_df['Y1'] - merged_df[points2_df_y_col])**2
+
+    # Calculate mean squared error
+    mse = np.mean(squared_diff_x + squared_diff_y)
+
+    return mse
+
+
 def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, intersect_pts, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
@@ -184,11 +205,18 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, intersect_pt
     else:
         left_intersects = intersect_pts[0]
         right_intersects = intersect_pts[1]
-        # to do: interpolate left_intersects pairs and right_intersects pairs with the same number of LIDAR intersect
-        # pairs and match them to compute alignment errors
+        lidar_li_df = df_3d[df_3d['I'] == 1].sort_values('CAM_DIST').reset_index(drop=True)
+        lidar_ri_df = df_3d[df_3d['I'] == 2].sort_values('CAM_DIST').reset_index(drop=True)
+        print(lidar_li_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']])
+        print(lidar_ri_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']])
+        lalign_error = mean_squared_error(left_intersects, lidar_li_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
+                                          'PROJ_SCREEN_X', 'PROJ_SCREEN_Y')
+        ralign_error = mean_squared_error(right_intersects, lidar_ri_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
+                                          'PROJ_SCREEN_X', 'PROJ_SCREEN_Y')
+        print(f'lalign_error: {lalign_error}, ralign_error: {ralign_error}')
+        alignment_error = lalign_error + ralign_error
 
     align_errors.append(alignment_error)
-
     return alignment_error
 
 
@@ -204,6 +232,24 @@ def transform_2d_points_to_3d(df, fl_x, fl_y, img_width, img_hgt, x_header='X', 
         axis=1)
 
     return df
+
+
+def linear_interpolation(point1, point2, n):
+    """
+    Lindarly interpolate n points between two given points
+    :param point1: first given point as Tuple (x1, y1)
+    :param point2: second given point as Tuple (x2, y2)
+    :param n: number of points in total including interpolated points and the given two end points
+    :return: list of tuples representing the interpolated points enclosed by the given two end points
+    """
+    x1, y1 = point1
+    x2, y2 = point2
+
+    # Calculate the step size for interpolation
+    step_size = 1.0 / (n - 1)
+    print(f'step_size: {step_size}, n: {n}')
+    # Perform linear interpolation
+    return [(round(x1 + i * step_size * (x2 - x1)), round(y1 + i * step_size * (y2 - y1))) for i in range(0, n)]
 
 
 def get_mapping_data(input_file, input_image_name):
@@ -331,6 +377,14 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
     if input_3d_points.shape[1] == 4:
         input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z', 'I'])
         input_3d_df['I'] = input_3d_df['I'].astype(int)
+        li_count = len(input_3d_df[input_3d_df.I == 1])
+        ri_count = len(input_3d_df[input_3d_df.I == 2])
+        print(f'li_count: {li_count}, ri_count: {ri_count}')
+        # interpolate intersect_points to have the same number of li_count and ri_count
+        li_points = linear_interpolation(intersect_points[0][0], intersect_points[0][1], li_count)
+        ri_points = linear_interpolation(intersect_points[1][0], intersect_points[1][1], ri_count)
+        intersect_points = [li_points, ri_points]
+        print(f'intersect_points: {intersect_points}')
     else:
         input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
     input_3d_df['X'] = input_3d_df['X'].astype(float)
@@ -360,8 +414,8 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
                                       input_3d_gdf['INITIAL_WORLD_Z'].max())
     if align_in_3d and input_depth_filename_pattern:
         input_3d_gdf = transform_to_world_coordinate_system(input_3d_gdf, INIT_CAMERA_PARAMS)
-        input_2d_df = transform_2d_points_to_3d(input_2d_df, INIT_CAMERA_PARAMS[FOCAL_LENGTH_X],
-                                                INIT_CAMERA_PARAMS[FOCAL_LENGTH_Y], img_width, img_height)
+        input_2d_df = transform_2d_points_to_3d(input_2d_df, FOCAL_LENGTH_X,
+                                                FOCAL_LENGTH_Y, img_width, img_height)
         input_2d_df['MATCH_3D_INDEX'] = input_2d_df.apply(lambda row: compute_match_3d(row['X_3D'], row['Y_3D'],
                                                                                        row['Z'],
                                                                                        input_3d_gdf['WORLD_X'],
@@ -378,7 +432,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
             gtol = 1e-6
             # eps specifies the absolute step size used for numerical approximation of the jacobian via forward differences
             eps = 0.01
-            result = minimize(objective_function_2d, INIT_CAMERA_PARAMS[2:],
+            result = minimize(objective_function_2d, INIT_CAMERA_PARAMS,
                               args=(input_3d_gdf, input_2d_df, img_width, img_height, intersect_points, align_errors),
                               method='BFGS',
                               # method='CG',
@@ -458,7 +512,7 @@ if __name__ == '__main__':
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
-    parser.add_argument('--optimize', action="store_true",
+    parser.add_argument('--optimize', action="store_false",
                         help='whether to optimize camera parameters')
 
     args = parser.parse_args()
