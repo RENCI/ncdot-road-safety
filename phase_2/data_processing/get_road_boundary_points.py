@@ -9,6 +9,21 @@ from utils import get_data_from_image, SegmentationClass
 import pickle
 
 
+def get_road_intersections_by_y(contours, y):
+    # Find intersections of the scanline of y with the road boundary contours
+    # y_range is a list of indices of the vertices that intersect the scanline
+    y_range = np.where((contours[:, 1] <= y) & (np.roll(contours, 1, axis=0)[:, 1] > y))[0]
+    # contours[y_range, 0] are the x-coordinates of those intersecting vertices
+    # contours[y_range, 1] are the y-coordinates of those intersecting vertices
+    # intersections = x1 + (x2-x1) * (y-y1)/(y2-y1)
+    intersects = contours[y_range, 0] + (y - contours[y_range, 1]) * \
+                    (np.roll(contours, 1, axis=0)[y_range, 0] - contours[y_range, 0]) / \
+                    (np.roll(contours, 1, axis=0)[y_range, 1] - contours[y_range, 1])
+    # Sort intersection points
+    intersects.sort()
+    return intersects
+
+
 def get_image_road_points(image_file_name, boundary_only=True):
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
     # assign road with 255 and the rest with 0
@@ -62,23 +77,40 @@ def get_image_road_points(image_file_name, boundary_only=True):
 
         binary_data[binary_data != 0] = 0
         binary_data = np.uint8(binary_data)
-
         if defects is not None:
+            left_intersect_list = []
+            right_intersect_list = []
             for defect in defects:
                 sp, ep, fp, fdist = defect[0]
 
                 start = tuple(return_contours[0][sp])
                 end = tuple(return_contours[0][ep])
                 far = tuple(return_contours[0][fp])
-                if 40000 > fdist > 1000:
-                    print(f'fdist: {fdist}, x: {far[0]}, y: {far[1]}')
+                if 40000 > fdist > 2000:
+                    # print(f'fdist: {fdist}, x: {far[0]}, y: {far[1]}')
                     cv2.line(binary_data, start, far, (255, 255, 255), 2)
                     cv2.line(binary_data, far, end, (255, 255, 255), 2)
                     cv2.circle(binary_data, far, 5, (255, 255, 255), -1)
-
+                    # Find intersections of the scanline of y with road boundary
+                    intersections = get_road_intersections_by_y(return_contours[0], far[1])
+                    x_start = int(intersections[0])
+                    x_end = int(intersections[-1]) + 1
+                    center_pt_x = x_start + (x_end - x_start) // 2
+                    if far[0] <= center_pt_x:
+                        left_intersect_list.append(far)
+                    else:
+                        right_intersect_list.append(far)
+            # sort intersect_list by the second element (y coordinate) of each tuple (x, y) pair in descending order
+            # since y origin is on the top of the image in the image coordinate system and we want to sort points
+            # in the distance from camera from closest to farthest
+            sorted_intersects = [sorted(left_intersect_list, key=lambda point: point[1], reverse=True),
+                                 sorted(right_intersect_list, key=lambda point: point[1], reverse=True)]
+        else:
+            sorted_intersects = []
         cv2.drawContours(binary_data, return_contours, -1, (127, 127, 127), 1)
-        Image.fromarray(binary_data, 'L').save('data/new_test_scene/output/881000952181_intersections.png')
-        return image_width, image_height, return_contours
+        Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_intersections.png')
+        print(sorted_intersects)
+        return image_width, image_height, return_contours, sorted_intersects
     else:
         boundary_contours = return_contours[0]
         # Determine the minimum and maximum y coordinates of the polygon
@@ -89,17 +121,8 @@ def get_image_road_points(image_file_name, boundary_only=True):
         filled_points = []
         prev_line_x_intersect_first = prev_line_x_intersect_last = None
         for y in range(y_min, y_max + 1):
-            # Find intersections of the scanline with each edge, y_range is a list of indices of the vertices that
-            # intersect the scanline
-            y_range = np.where((boundary_contours[:, 1] <= y) & (np.roll(boundary_contours, 1, axis=0)[:, 1] > y))[0]
-            # boundary_contours[y_range, 0] are the x-coordinates of those intersecting vertices
-            # boundary_contours[y_range, 1] are the y-coordinates of those intersecting vertices
-            # intersections = x1 + (x2-x1) * (y-y1)/(y2-y1)
-            intersections = boundary_contours[y_range, 0] + (y - boundary_contours[y_range, 1]) * \
-                (np.roll(boundary_contours, 1, axis=0)[y_range, 0] - boundary_contours[y_range, 0]) / \
-                (np.roll(boundary_contours, 1, axis=0)[y_range, 1] - boundary_contours[y_range, 1])
-            # Sort intersection points
-            intersections.sort()
+            # Find intersections of the scanline of y with road boundary
+            intersections = get_road_intersections_by_y(boundary_contours, y)
 
             if y > 1900 and len(intersections) >= 1:
                 if intersections[0] > 2000 and prev_line_x_intersect_first is not None:
@@ -122,7 +145,7 @@ def get_image_road_points(image_file_name, boundary_only=True):
             if len(intersections) > 0:
                 prev_line_x_intersect_first = intersections[0]
                 prev_line_x_intersect_last = intersections[-1]
-        return image_width, image_height, [np.array(filled_points)]
+        return image_width, image_height, [np.array(filled_points)], []
 
 
 if __name__ == '__main__':
@@ -144,7 +167,7 @@ if __name__ == '__main__':
     for image in os.listdir(input_data_path):
         if not image.endswith('1.png'):
             continue
-        _, _, road_contours = get_image_road_points(os.path.join(input_data_path, image))
+        _, _, road_contours, _ = get_image_road_points(os.path.join(input_data_path, image))
         print(f"Number of updated contours found = {len(road_contours)} for {image}")
         print(f"the first contour shape: {road_contours[0].shape} for {image}")
         # binary_data[binary_data != 0] = 0

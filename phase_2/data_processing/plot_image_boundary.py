@@ -16,7 +16,7 @@ if __name__ == '__main__':
     image_file_name = args.image_file_name
     boundary_only = args.boundary_only
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
-    _, _, road_contours = get_image_road_points(image_file_name, boundary_only=boundary_only)
+    _, _, road_contours, _ = get_image_road_points(image_file_name, boundary_only=boundary_only)
     # Plot the boundary on top of the original image
     # plt.imshow(seg_img)
     if boundary_only:

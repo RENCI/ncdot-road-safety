@@ -11,7 +11,7 @@ from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_c
 def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file, input_loc=None):
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
-    img_width, img_height, input_list = get_image_road_points(image_name_with_path, boundary_only=False)
+    img_width, img_height, input_list, _ = get_image_road_points(image_name_with_path, boundary_only=False)
 
     input_2d_points = input_list[0]
 
