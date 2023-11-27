@@ -20,6 +20,9 @@ parser.add_argument('--overlay_bg_image_path', type=str,
                     # default='data/d13_route_40001001011/other/926005420241.jpg',
                     default='data/new_test_scene/images/881000952181.jpg',
                     help='original background image for overlay with the scatter plots')
+parser.add_argument('--image_crossroad_intersect_file', type=str,
+                    default='data/new_test_scene/output/image_881000952181_crossroad_intersects.csv',
+                    help='csv file that includes interpolated crossroad intersection points to overlay on the display')
 parser.add_argument('--show_intersect_only', action="store_true",
                     help='show the intersection alignment only')
 parser.add_argument('--show_bg_img', action="store_true",
@@ -30,6 +33,7 @@ args = parser.parse_args()
 input_2d = args.input_2d
 input_3d_proj = args.input_3d_proj
 overlay_bg_image_path = args.overlay_bg_image_path
+image_crossroad_intersect_file = args.image_crossroad_intersect_file
 show_intersect_only = args.show_intersect_only
 show_bg_img = args.show_bg_img
 
@@ -56,6 +60,9 @@ plt.scatter(input_2d_points[:, 0], image_height - input_2d_points[:, 1], s=20)
 plt.scatter(input_3d_proj_df['PROJ_SCREEN_X'], image_height - input_3d_proj_df['PROJ_SCREEN_Y'], s=20)
 if show_bg_img:
     plt.imshow(bg_img, extent=[0, image_width-1, 0, image_height-1])
+if image_crossroad_intersect_file:
+    cr_inter_df = pd.read_csv(image_crossroad_intersect_file)
+    plt.scatter(cr_inter_df['X'], image_height - cr_inter_df['Y'], s=20)
 plt.title('Road alignment in screen coordinate system')
 plt.ylabel('Y')
 plt.xlabel('X')

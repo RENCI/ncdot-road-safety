@@ -382,9 +382,13 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
         print(f'li_count: {li_count}, ri_count: {ri_count}')
         # interpolate intersect_points to have the same number of li_count and ri_count
         li_points = linear_interpolation(intersect_points[0][0], intersect_points[0][1], li_count)
+        li_df = pd.DataFrame(li_points, columns=['X', 'Y'])
         ri_points = linear_interpolation(intersect_points[1][0], intersect_points[1][1], ri_count)
+        ri_df = pd.DataFrame(ri_points, columns=['X', 'Y'])
         intersect_points = [li_points, ri_points]
-        print(f'intersect_points: {intersect_points}')
+        pd.concat([li_df, ri_df]).to_csv(
+            os.path.join(os.path.dirname(out_proj_file), f'image_{input_2d_mapped_image}1_crossroad_intersects.csv'),
+            index=False)
     else:
         input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
     input_3d_df['X'] = input_3d_df['X'].astype(float)
@@ -468,6 +472,10 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
             if 'Boundary' in input_3d_gdf.columns:
                 input_3d_gdf.Boundary = input_3d_gdf.Boundary.apply(lambda x: True if x > 0 else False)
             output_latlon_from_geometry(input_3d_gdf, 'geometry_y', f'{proj_base}_latlon{proj_ext}')
+            if 'I' in input_3d_gdf.columns:
+                cr_ldf = input_3d_gdf[input_3d_gdf['I'] > 0].reset_index(drop=True)
+                output_latlon_from_geometry(cr_ldf, 'geometry_y',
+                                            f'{proj_base}_crossroad_intersect_latlon{proj_ext}')
 
 
 if __name__ == '__main__':
@@ -512,7 +520,7 @@ if __name__ == '__main__':
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
-    parser.add_argument('--optimize', action="store_false",
+    parser.add_argument('--optimize', action="store_true",
                         help='whether to optimize camera parameters')
 
     args = parser.parse_args()

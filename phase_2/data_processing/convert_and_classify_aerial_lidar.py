@@ -16,7 +16,7 @@ def is_boundary(pt, pts, grid_spacing):
 
 def output_latlon_from_geometry(idf, geom_col, output_file_name):
     """
-    get lat and lon from dataframe with geometry column. It assumes the input dataframe has "Z" and "Boundary" columns
+    get lat and lon from dataframe with geometry column. It assumes the input dataframe has "Z" column
     and "Boundary" column is a boolean type
     :param idf: input dataframe
     :param geom_col: geometry column in input dataframe
@@ -28,6 +28,8 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
     sub_list = ['Latitude', 'Longitude', 'Z']
     if 'C' in idf.columns:
         sub_list.append('C')
+    if 'I' in idf.columns:
+        sub_list.append('I')
     if 'Boundary' in idf.columns:
         sub_list.append('Boundary')
     out_df = idf[sub_list]
