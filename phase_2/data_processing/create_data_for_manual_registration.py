@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import pandas as pd
 import numpy as np
 from utils import bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df, haversine, create_gdf_from_df
@@ -8,10 +9,11 @@ from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_c
     get_mapping_data, get_input_file_with_images, extract_lidar_3d_points_for_camera, LIDAR_DIST_THRESHOLD
 
 
-def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file, input_loc=None):
+def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file, input_loc=None,
+                input_road_intersect=None):
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
-    img_width, img_height, input_list, _ = get_image_road_points(image_name_with_path, boundary_only=False)
+    img_width, img_height, input_list, _ = get_image_road_points(image_name_with_path)
 
     input_2d_points = input_list[0]
 
@@ -44,10 +46,19 @@ def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_
     if input_loc:
         input_3d_gdf['DISTANCE_TO_POLE'] = input_3d_gdf.apply(lambda row: haversine(input_loc[1], input_loc[0],
                                                                                     row['geometry_y']), axis=1)
+    if input_road_intersect:
+        road_ldf = pd.read_csv(input_road_intersect)
+        input_3d_gdf = input_3d_gdf.merge(road_ldf, on=['X', 'Y', 'Z'], how='left')
+        input_3d_gdf['I'].fillna(0, inplace=True)
+        input_3d_gdf['I'] = input_3d_gdf['I'].astype(int)
     if input_loc:
         input_3d_gdf.to_csv(out_file,
                             columns=['X', 'Y', 'Z', 'C', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
                                      'DISTANCE_TO_POLE'], float_format='%.3f', index=False)
+    elif input_road_intersect:
+        input_3d_gdf.to_csv(out_file,
+                            columns=['X', 'Y', 'Z', 'C', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z', 'I'],
+                            float_format='%.3f', index=False)
     else:
         input_3d_gdf.to_csv(out_file,
                             columns=['X', 'Y', 'Z', 'C', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z'],
@@ -59,7 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_lidar_with_path', type=str,
                         # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10.csv',
                         default='data/new_test_scene/new_test_scene_all_raster_10.csv',
-                        help='input file that contains road x, y, z vertices from lidar')
+                        help='input file that contains x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         # default='data/d13_route_40001001011/oneformer',
                         default='data/new_test_scene/segmentation',
@@ -76,6 +87,10 @@ if __name__ == '__main__':
                         # default=(35.7134730, -82.73446760),
                         default='',
                         help='input landmark location to compute distance from each LIDAR point')
+    parser.add_argument('--input_road_lidar_with_intersection', type=str,
+                        default='data/new_test_scene/new_test_scene_road_raster_10.csv',
+                        help='input file that contains road x, y, z vertices from lidar along with a I column '
+                             'indicating whether the vertex is part of crossroad intersection or not')
     parser.add_argument('--output_lidar_file_base', type=str,
                         default='/home/hongyi/ncdot-registration/data/lidar_info',
                         help='output lidar file base with path which will be appended with image name '
@@ -88,10 +103,13 @@ if __name__ == '__main__':
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
     input_landmark_loc = args.input_landmark_loc
     output_lidar_file_base = args.output_lidar_file_base
+    input_road_lidar_with_intersection = args.input_road_lidar_with_intersection
 
     # load input file to get the image names for alignment
     input_df = get_input_file_with_images(obj_image_input)
     input_df['imageBaseName'].apply(lambda img: create_data(os.path.join(obj_base_image_dir, f'{img}.png'),
                                                             input_lidar, input_sensor_mapping_file_with_path,
                                                             f'{output_lidar_file_base}_{img}.csv',
-                                                            input_loc=input_landmark_loc))
+                                                            input_loc=input_landmark_loc,
+                                                            input_road_intersect=input_road_lidar_with_intersection))
+    sys.exit()
