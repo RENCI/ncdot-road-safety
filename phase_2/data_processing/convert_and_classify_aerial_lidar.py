@@ -1,5 +1,7 @@
 import argparse
 import os
+import sys
+import pandas as pd
 from utils import get_aerial_lidar_road_geo_df
 import matplotlib.pyplot as plt
 
@@ -45,44 +47,68 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar', type=str,
-                        default='data/new_test_scene/new_test_scene_all_raster_10.csv',
+                        # default='data/new_test_scene/new_test_scene_all_raster_10.csv',
+                        default='data/new_test_scene/new_test_scene_road_raster_10.csv',
                         help='input rasterized lidar file with road points x, y, z in EPSG:6543 coordinate projection')
-    parser.add_argument('--output_lidar', type=str,
+    parser.add_argument('--input_lidar_bound', type=str,
+                        default='data/new_test_scene/new_test_scene_road_bounds.csv',
+                        help='input lidar file with road edge/bound points x, y, z in EPSG:6543 coordinate projection')
+    parser.add_argument('--output_lidar_boundary', type=str,
                         default='',
                         # default='data/new_test_scene/new_test_scene_all_raster_10_classified.csv',
                         help='output rasterized lidar file with road points classified as edge or not')
     parser.add_argument('--lidar_class_to_keep', default=['6', '11', '15'],
                         help='filter lidar data to only keep desired classes')
-    parser.add_argument('--output_latlon_lidar', type=str,
-                        default='data/new_test_scene/new_test_scene_raster_10_filtered_latlon.csv',
-                        help='output rasterized lidar file with road points lat, lon, z in EPSG:4326 '
-                             'coordinate projection')
+    parser.add_argument('--output_latlon_lidar_basename', type=str,
+                        default='data/new_test_scene/new_test_scene_road',
+                        help='output lidar file with road points lat, lon, z in EPSG:4326 coordinate projection')
 
     args = parser.parse_args()
     input_lidar = args.input_lidar
-    output_lidar = args.output_lidar
-    output_latlon_lidar = args.output_latlon_lidar
+    input_lidar_bound = args.input_lidar_bound
+    output_lidar_boundary = args.output_lidar_boundary
+    output_latlon_lidar_basename = args.output_latlon_lidar_basename
     lidar_class_to_keep = args.lidar_class_to_keep
 
-    gdf = get_aerial_lidar_road_geo_df(input_lidar)
-    print(gdf.C.unique())
+    if input_lidar:
+        gdf = get_aerial_lidar_road_geo_df(input_lidar)
+        if 'C' in gdf.columns:
+            print(gdf.C.unique())
 
-    if lidar_class_to_keep:
-        gdf = gdf[gdf.C.isin(lidar_class_to_keep)]
-    if output_lidar:
-        points = gdf[['X', 'Y']].to_numpy()
-        y_grid_sp = 5
-        gdf['Boundary'] = gdf.apply(lambda row: is_boundary([row['X'], row['Y']], points, y_grid_sp), axis=1)
-        df = gdf[['X', 'Y', 'Z', 'Boundary']]
-        df.to_csv(output_lidar, index=False)
-        # Plot result to verify
-        plt.figure(figsize=(8, 8))
-        plt.gca().invert_yaxis()
-        # sub_df = df[df.Y > 735000]
-        sub_df = df
-        print(df.shape, sub_df.shape)
-        bound_df = sub_df[sub_df.Boundary == True]
-        plt.scatter(sub_df['X'], sub_df['Y'], s=1, c='b')
-        plt.scatter(bound_df['X'], bound_df['Y'], s=2, c='r')
-        plt.show()
-    output_latlon_from_geometry(gdf, 'geometry_y', output_latlon_lidar)
+            if lidar_class_to_keep:
+                gdf = gdf[gdf.C.isin(lidar_class_to_keep)]
+
+        if output_lidar_boundary:
+            points = gdf[['X', 'Y']].to_numpy()
+            y_grid_sp = 5
+            gdf['Boundary'] = gdf.apply(lambda row: is_boundary([row['X'], row['Y']], points, y_grid_sp), axis=1)
+            df = gdf[['X', 'Y', 'Z', 'Boundary']]
+            df.to_csv(output_lidar_boundary, index=False)
+            # Plot result to verify
+            plt.figure(figsize=(8, 8))
+            plt.gca().invert_yaxis()
+            # sub_df = df[df.Y > 735000]
+            sub_df = df
+            print(df.shape, sub_df.shape)
+            bound_df = sub_df[sub_df.Boundary == True]
+            plt.scatter(sub_df['X'], sub_df['Y'], s=1, c='b')
+            plt.scatter(bound_df['X'], bound_df['Y'], s=2, c='r')
+            plt.show()
+
+    if input_lidar_bound:
+        gdf_bound = get_aerial_lidar_road_geo_df(input_lidar_bound)
+
+    if input_lidar and input_lidar_bound:
+        # combine two lidar points with an added column to indicate whether it belongs to edge/bound or not
+        gdf['BOUND'] = 0
+        gdf_bound['BOUND'] = 1
+        gdf_bound['I'] = 0
+        combined_df = pd.concat([gdf, gdf_bound], ignore_index=True)
+        combined_df = combined_df.drop(columns=['geometry_x', 'geometry_y'])
+        combined_df.to_csv(f'{output_latlon_lidar_basename}.csv', index=False)
+    elif input_lidar:
+        # output latlon csv file
+        output_latlon_from_geometry(gdf, 'geometry_y', f'{output_latlon_lidar_basename}_latlon.csv')
+    elif input_lidar_bound:
+        output_latlon_from_geometry(gdf_bound, 'geometry_y', f'{output_latlon_lidar_basename}_bounds_latlon.csv')
+    sys.exit()

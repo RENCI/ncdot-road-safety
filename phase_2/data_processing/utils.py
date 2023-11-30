@@ -131,15 +131,19 @@ def haversine(lon1, lat1, geom):
     Calculate the great circle distance between two points
     on the earth (specified in decimal degrees) in meter
     """
-    lat2 = geom.y
-    lon2 = geom.x
-    # convert decimal degrees to radians
-    lon1, lat1, lon2, lat2 = map(radians, [float(lon1), float(lat1), float(lon2), float(lat2)])
-    # haversine formula
-    dist_lon = lon2 - lon1
-    dist_lat = lat2 - lat1
-    a = sin(dist_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dist_lon / 2) ** 2
-    return 6367000. * 2 * asin(sqrt(a))
+    try:
+        lat2 = geom.y
+        lon2 = geom.x
+        # convert decimal degrees to radians
+        lon1, lat1, lon2, lat2 = map(radians, [float(lon1), float(lat1), float(lon2), float(lat2)])
+        # haversine formula
+        dist_lon = lon2 - lon1
+        dist_lat = lat2 - lat1
+        a = sin(dist_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dist_lon / 2) ** 2
+        return 6367000. * 2 * asin(sqrt(a))
+    except Exception as e:
+        print(f'lon1: {lon1}, lat1: {lat1}, geom: {geom}')
+        raise Exception(e)
 
 
 def load_pickle_data(input_data_file):
@@ -175,6 +179,7 @@ def get_aerial_lidar_road_geo_df(input_file):
     gdf.Z = gdf.Z.astype(float)
     if 'Boundary' in gdf.columns:
         gdf.Boundary = gdf.Boundary.apply(lambda x: 1 if x == 'True' else 0)
+
     # Create a new geometry column with Point objects
     gdf.geometry = [Point(x, y, z) for x, y, z in zip(gdf['X'], gdf['Y'], gdf['Z'])]
     gdf.crs = 'epsg:6543'

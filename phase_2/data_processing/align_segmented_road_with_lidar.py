@@ -31,7 +31,7 @@ PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_O
 # INIT_CAMERA_PARAMS = [20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53]
 INIT_CAMERA_PARAMS = [18, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060]
 # gradient descent hyperparameters
-NUM_ITERATIONS = 100
+NUM_ITERATIONS = 1000
 DEPTH_SCALING_FACTOR = 189
 LIDAR_DIST_THRESHOLD = 154
 # LIDAR_DIST_THRESHOLD = 190
@@ -207,8 +207,6 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, intersect_pt
         right_intersects = intersect_pts[1]
         lidar_li_df = df_3d[df_3d['I'] == 1].sort_values('CAM_DIST').reset_index(drop=True)
         lidar_ri_df = df_3d[df_3d['I'] == 2].sort_values('CAM_DIST').reset_index(drop=True)
-        print(lidar_li_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']])
-        print(lidar_ri_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']])
         lalign_error = mean_squared_error(left_intersects, lidar_li_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
                                           'PROJ_SCREEN_X', 'PROJ_SCREEN_Y')
         ralign_error = mean_squared_error(right_intersects, lidar_ri_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
@@ -367,15 +365,15 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
 
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = get_mapping_data(
         input_mapping_file, input_2d_mapped_image)
-    vertices, cam_br = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
+    vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                           dist_th=LIDAR_DIST_THRESHOLD,
                                                           end_of_route=eor)
     print(f'len(vertices): {len(vertices[0])}')
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}')
     # print(f'input 3d numpy array shape: {input_3d_points.shape}')
-    if input_3d_points.shape[1] == 4:
-        input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z', 'I'])
+    input_3d_df = pd.DataFrame(data=input_3d_points, columns=cols)
+    if 'I' in cols:
         input_3d_df['I'] = input_3d_df['I'].astype(int)
         li_count = len(input_3d_df[input_3d_df.I == 1])
         ri_count = len(input_3d_df[input_3d_df.I == 2])
@@ -389,8 +387,10 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
         pd.concat([li_df, ri_df]).to_csv(
             os.path.join(os.path.dirname(out_proj_file), f'image_{input_2d_mapped_image}1_crossroad_intersects.csv'),
             index=False)
-    else:
-        input_3d_df = pd.DataFrame(data=input_3d_points, columns=['X', 'Y', 'Z'])
+
+    if 'BOUND' in cols:
+        input_3d_df['BOUND'] = input_3d_df['BOUND'].astype(int)
+
     input_3d_df['X'] = input_3d_df['X'].astype(float)
     input_3d_df['Y'] = input_3d_df['Y'].astype(float)
     input_3d_df['Z'] = input_3d_df['Z'].astype(float)
@@ -434,14 +434,18 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
             align_errors = []
             # terminate if gradient norm is less than gtol
             gtol = 1e-6
-            # eps specifies the absolute step size used for numerical approximation of the jacobian via forward differences
-            eps = 0.01
+            # eps specifies the absolute step size used for numerical approximation of the jacobian via forward
+            # differences
+            eps = 0.1
             result = minimize(objective_function_2d, INIT_CAMERA_PARAMS,
                               args=(input_3d_gdf, input_2d_df, img_width, img_height, intersect_points, align_errors),
-                              method='BFGS',
+                              method='Nelder-Mead',
+                              # method='SLSQP',
+                              # method='TNC',
+                              # method='BFGS',
                               # method='CG',
                               # jac=True,
-                              options={'gtol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
+                              options={'gtol': gtol, 'ftol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
             optimized_cam_params = result.x
             print(f'optimizing result for image {input_2d_mapped_image}: {result}')
             print(f'alignment errors: {align_errors}')
@@ -484,7 +488,9 @@ if __name__ == '__main__':
                         # default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
                         #        'RoadEdge_40001001011_vertices.shp',
                         # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
-                        default='data/new_test_scene/new_test_scene_road_raster_10.csv',
+                        # default='data/new_test_scene/new_test_scene_road_raster_10.csv',
+                        # default='data/new_test_scene/new_test_scene_road_bounds.csv',
+                        default='data/new_test_scene/new_test_scene_road.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         # default='data/d13_route_40001001011/oneformer',
@@ -520,7 +526,7 @@ if __name__ == '__main__':
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
-    parser.add_argument('--optimize', action="store_true",
+    parser.add_argument('--optimize', action="store_false",
                         help='whether to optimize camera parameters')
 
     args = parser.parse_args()

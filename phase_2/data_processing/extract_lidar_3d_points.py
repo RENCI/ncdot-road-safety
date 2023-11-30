@@ -46,18 +46,22 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, e
 
     df = df[(df['distance'] < dist_th) & (df['bearing_diff'] < math.pi / 3)]
     print(df.shape)
+
     if include_all_cols:
         df = df.drop(columns=['bearing_diff'])
-        return df.copy(), cam_bearing
+        return df.copy(), cam_bearing, df.columns
     else:
         if 'X' in df.columns:
-            if 'I' in df.columns:
-                df = df[['X', 'Y', 'Z', 'I']]
+            if 'I' in df.columns and 'BOUND' in df.columns:
+                inc_cols = ['X', 'Y', 'Z', 'I', 'BOUND']
+            elif 'I' in df.columns:
+                inc_cols = ['X', 'Y', 'Z', 'I']
             else:
-                df = df[['X', 'Y', 'Z']]
+                inc_cols = ['X', 'Y', 'Z']
         else:
-            df = df[['POINT_X', 'POINT_Y', 'POINT_Z']]
-        return [df.to_numpy()], cam_bearing
+            inc_cols = ['POINT_X', 'POINT_Y', 'POINT_Z']
+        df = df[inc_cols]
+        return [df.to_numpy()], cam_bearing, inc_cols
 
 
 def get_convex_hull_and_convexity_defects(points, image_width):
