@@ -59,9 +59,6 @@ input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.PROJ_SCREEN_X > 0) &
                                     (input_3d_proj_df.PROJ_SCREEN_Y < image_height)]
 print(input_3d_proj_df.shape)
 plt.scatter(input_2d_points[:, 0], image_height - input_2d_points[:, 1], s=20)
-if 'I' in use_lidar_proj_cols:
-    intersect_ldf =input_3d_proj_df[input_3d_proj_df['I'] > 0]
-    plt.scatter(intersect_ldf['PROJ_SCREEN_X'], image_height - intersect_ldf['PROJ_SCREEN_Y'], s=10, c='#001100')
 if 'BOUND' in use_lidar_proj_cols:
     bound_ldf = input_3d_proj_df[input_3d_proj_df['BOUND'] > 0]
     plt.scatter(bound_ldf['PROJ_SCREEN_X'], image_height - bound_ldf['PROJ_SCREEN_Y'], s=10, c='c')
@@ -74,11 +71,17 @@ elif 'BOUND' in use_lidar_proj_cols:
 else:
     remain_ldf = input_3d_proj_df
 plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10, c='orange')
+
 if show_bg_img:
     plt.imshow(bg_img, extent=[0, image_width-1, 0, image_height-1])
 if image_crossroad_intersect_file:
     cr_inter_df = pd.read_csv(image_crossroad_intersect_file)
     plt.scatter(cr_inter_df['X'], image_height - cr_inter_df['Y'], s=20, c='g')
+
+if 'I' in use_lidar_proj_cols:
+    intersect_ldf =input_3d_proj_df[input_3d_proj_df['I'] > 0]
+    plt.scatter(intersect_ldf['PROJ_SCREEN_X'], image_height - intersect_ldf['PROJ_SCREEN_Y'], s=10, c='#001100')
+
 plt.title('Road alignment in screen coordinate system')
 plt.ylabel('Y')
 plt.xlabel('X')

@@ -23,13 +23,14 @@ from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 # indicate camera angle of rotation around Z (bearing) axis, Y axis, and X axis, respectively, in the 3D world
 # coordinate system
 PERSPECTIVE_NEAR = 0.1
-FOCAL_LENGTH_X = FOCAL_LENGTH_Y = 3.2
+FOCAL_LENGTH_X = FOCAL_LENGTH_Y = 2.8
 
 PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6
 # initial camera parameter list for optimization
-# INIT_CAMERA_PARAMS = [20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53]
-INIT_CAMERA_PARAMS = [18, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060]
+# INIT_CAMERA_PARAMS = [20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53] # for route 40001001011
+# INIT_CAMERA_PARAMS = [18, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060] # for new test scene route
+INIT_CAMERA_PARAMS = [20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17] # for new test scene route using road intersections
 # gradient descent hyperparameters
 NUM_ITERATIONS = 1000
 DEPTH_SCALING_FACTOR = 189
@@ -172,6 +173,9 @@ def mean_squared_error(points1, points2_df, points2_df_x_col, points2_df_y_col):
 
     # Merge the df1 DataFrame and given points2_df on the index
     merged_df = pd.concat([df1, points2_df], axis=1)
+
+    # only keep the first and last rows to test out only aligning the corner points
+    # merged_df = merged_df.iloc[[0, -1]]
 
     # Calculate squared differences for X and Y columns
     squared_diff_x = (merged_df['X1'] - merged_df[points2_df_x_col])**2

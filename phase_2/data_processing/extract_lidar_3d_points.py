@@ -154,7 +154,8 @@ if __name__ == '__main__':
         lidar_df = get_lidar_data_from_shp(input_lidar_with_path)
     else:
         lidar_df = get_aerial_lidar_road_geo_df(input_lidar_with_path)
-    vertices, _ = extract_lidar_3d_points_for_camera(lidar_df, camera_loc, next_camera_loc, dist_th=distance_threshold)
+    vertices, _, _ = extract_lidar_3d_points_for_camera(lidar_df, camera_loc, next_camera_loc,
+                                                        dist_th=distance_threshold)
     get_convex_hull_and_convexity_defects(vertices[0], 1000)
     with open(output_file, 'wb') as f:
         pickle.dump(vertices, f)
