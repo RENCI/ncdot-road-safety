@@ -23,6 +23,9 @@ parser.add_argument('--overlay_bg_image_path', type=str,
 parser.add_argument('--image_crossroad_intersect_file', type=str,
                     default='data/new_test_scene/output/image_881000952181_crossroad_intersects.csv',
                     help='csv file that includes interpolated crossroad intersection points to overlay on the display')
+parser.add_argument('--landmark_file', type=str,
+                    default='data/new_test_scene/new_test_scene_landmarks.csv',
+                    help='input csv file that includes landmark mapping info')
 parser.add_argument('--use_lidar_proj_cols', type=list,
                     default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'I', 'BOUND'],
                     help='list of columns to load when reading the input lidar projection data from input_3d_proj')
@@ -37,6 +40,7 @@ input_2d = args.input_2d
 input_3d_proj = args.input_3d_proj
 overlay_bg_image_path = args.overlay_bg_image_path
 image_crossroad_intersect_file = args.image_crossroad_intersect_file
+landmark_file = args.landmark_file
 use_lidar_proj_cols = args.use_lidar_proj_cols
 show_intersect_only = args.show_intersect_only
 show_bg_img = args.show_bg_img
@@ -82,6 +86,11 @@ if 'I' in use_lidar_proj_cols:
     intersect_ldf =input_3d_proj_df[input_3d_proj_df['I'] > 0]
     plt.scatter(intersect_ldf['PROJ_SCREEN_X'], image_height - intersect_ldf['PROJ_SCREEN_Y'], s=10, c='#001100')
 
+if landmark_file:
+    landmark_df = pd.read_csv(landmark_file, usecols=['LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
+    plt.scatter(landmark_df['LANDMARK_SCREEN_X'], image_height - landmark_df['LANDMARK_SCREEN_Y'], s=10, c='#880000')
+    lidar_match_df = input_3d_proj_df[len(input_3d_proj_df) - len(landmark_df):].reset_index(drop=True)
+    plt.scatter(lidar_match_df['PROJ_SCREEN_X'], image_height - lidar_match_df['PROJ_SCREEN_Y'], s=10, c='#ff0000')
 plt.title('Road alignment in screen coordinate system')
 plt.ylabel('Y')
 plt.xlabel('X')

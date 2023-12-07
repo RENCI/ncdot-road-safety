@@ -157,6 +157,24 @@ def get_2d_road_points_by_z(idf, filter_col, compare_val, threshold_val=30):
     return idf[abs(idf[filter_col] - compare_val) < threshold_val]
 
 
+def _compute_mse(df, x_col1, x_col2, y_col1, y_col2):
+    """
+    compute mean square error between (x_col1, y_col1) and (x_col2, y_col2)
+    :param df: input dataframe that contains four columns to compute MSE from
+    :param x_col1: the first x column
+    :param x_col2: the second x column
+    :param y_col1: the first y column
+    :param y_col2: the second y column
+    :return: mean square error
+    """
+    # Calculate squared differences for X and Y columns
+    squared_diff_x = (df[x_col1] - df[x_col2]) ** 2
+    squared_diff_y = (df[y_col1] - df[y_col2]) ** 2
+
+    # Calculate mean squared error
+    return np.mean(squared_diff_x + squared_diff_y)
+
+
 def mean_squared_error(points1, points2_df, points2_df_x_col, points2_df_y_col):
     """
     calculate the mean squared error between points1 and points2. The given points1 and points2 are assumed
@@ -175,49 +193,49 @@ def mean_squared_error(points1, points2_df, points2_df_x_col, points2_df_y_col):
     merged_df = pd.concat([df1, points2_df], axis=1)
 
     # only keep the first and last rows to test out only aligning the corner points
-    # merged_df = merged_df.iloc[[0, -1]]
-
-    # Calculate squared differences for X and Y columns
-    squared_diff_x = (merged_df['X1'] - merged_df[points2_df_x_col])**2
-    squared_diff_y = (merged_df['Y1'] - merged_df[points2_df_y_col])**2
-
-    # Calculate mean squared error
-    mse = np.mean(squared_diff_x + squared_diff_y)
-
-    return mse
+    merged_df = merged_df.iloc[[0, -1]]
+    print(f'merged_df: {merged_df}')
+    return _compute_mse(merged_df, 'X1', points2_df_x_col, 'Y1', points2_df_y_col)
 
 
-def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, intersect_pts, align_errors):
+def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, input_matching_data, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
-    if len(intersect_pts) <= 0:
-        if 'Z' in df_2d.columns:
-            df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
-                row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-                get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['X'],
-                get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['Y'])[1],
-                                                 axis=1)
-        else:
-            df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
-                row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-                df_2d[df_2d.Boundary == row['Boundary']]['X'],
-                df_2d[df_2d.Boundary == row['Boundary']]['Y'])[1],
-                                                 axis=1)
-        alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
-    else:
-        left_intersects = intersect_pts[0]
-        right_intersects = intersect_pts[1]
-        lidar_li_df = df_3d[df_3d['I'] == 1].sort_values('CAM_DIST').reset_index(drop=True)
-        lidar_ri_df = df_3d[df_3d['I'] == 2].sort_values('CAM_DIST').reset_index(drop=True)
-        lalign_error = mean_squared_error(left_intersects, lidar_li_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
-                                          'PROJ_SCREEN_X', 'PROJ_SCREEN_Y')
-        ralign_error = mean_squared_error(right_intersects, lidar_ri_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
-                                          'PROJ_SCREEN_X', 'PROJ_SCREEN_Y')
-        print(f'lalign_error: {lalign_error}, ralign_error: {ralign_error}')
-        alignment_error = lalign_error + ralign_error
 
+    if isinstance(input_matching_data, list):
+        if len(input_matching_data) <= 0:
+            if 'Z' in df_2d.columns:
+                df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
+                    row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
+                    get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['X'],
+                    get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['Y'])[1],
+                                                     axis=1)
+            else:
+                df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
+                    row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
+                    df_2d[df_2d.Boundary == row['Boundary']]['X'],
+                    df_2d[df_2d.Boundary == row['Boundary']]['Y'])[1],
+                                                     axis=1)
+            alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
+        else:
+            left_intersects = input_matching_data[0]
+            right_intersects = input_matching_data[1]
+            lidar_li_df = df_3d[df_3d['I'] == 1].sort_values('CAM_DIST').reset_index(drop=True)
+            lidar_ri_df = df_3d[df_3d['I'] == 2].sort_values('CAM_DIST').reset_index(drop=True)
+            lalign_error = mean_squared_error(left_intersects, lidar_li_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
+                                              'PROJ_SCREEN_X', 'PROJ_SCREEN_Y')
+            ralign_error = mean_squared_error(right_intersects, lidar_ri_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
+                                              'PROJ_SCREEN_X', 'PROJ_SCREEN_Y')
+            print(f'lalign_error: {lalign_error}, ralign_error: {ralign_error}')
+            alignment_error = lalign_error + ralign_error
+    elif isinstance(input_matching_data, pd.DataFrame):
+        print(f'input_matching_data is dataframe: {input_matching_data}')
+        lidar_match_df = df_3d[len(df_3d)-len(input_matching_data):].reset_index(drop=True)
+        match_df = pd.concat([lidar_match_df, input_matching_data], axis=1)
+        alignment_error = _compute_mse(match_df, 'PROJ_SCREEN_X', 'LANDMARK_SCREEN_X',
+                                       'PROJ_SCREEN_Y', 'LANDMARK_SCREEN_Y')
     align_errors.append(alignment_error)
     return alignment_error
 
@@ -320,13 +338,14 @@ def get_full_camera_parameters(cam_p):
     return combined
 
 
-def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_match_file, out_proj_file, to_output_csv,
-                         align_in_3d, input_depth_filename_pattern, is_optimize):
+def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark_file, out_match_file, out_proj_file,
+                         to_output_csv, align_in_3d, input_depth_filename_pattern, is_optimize):
     """
     :param image_name_with_path: image file name with whole path
     :param ldf: lidar 3D point geodataframe
     :param input_mapping_file: input_mapping_file to read and extract camera location and its next camera location
     for determining bearing direction
+    :param landmark_file: input landmark file that can be used for optimizer's cost function to be minimized
     :param out_match_file: file base name for aligned road info which will be appended with image name to
     have an alignment output file for each input image
     :param out_proj_file: output file base with path for aligned road info which will be appended with image name
@@ -370,13 +389,23 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = get_mapping_data(
         input_mapping_file, input_2d_mapped_image)
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
-                                                          dist_th=LIDAR_DIST_THRESHOLD,
-                                                          end_of_route=eor)
+                                                                dist_th=LIDAR_DIST_THRESHOLD,
+                                                                end_of_route=eor)
     print(f'len(vertices): {len(vertices[0])}')
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}')
     # print(f'input 3d numpy array shape: {input_3d_points.shape}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=cols)
+    if landmark_file:
+        lm_df = pd.read_csv(landmark_file, usecols=['X', 'Y', 'Z', 'LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
+        lm_3d_df = lm_df.drop(columns=['LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
+        # concatenate lm_3d_df with input_3d_df for subsequent transformations
+        if 'I' in cols:
+            lm_3d_df['I'] = 0
+        if 'BOUND' in cols:
+            lm_3d_df['BOUND'] = 0
+        input_3d_df = pd.concat([input_3d_df, lm_3d_df], ignore_index=True)
+        lm_df.drop(columns=['X', 'Y', 'Z'], inplace=True)
     if 'I' in cols:
         input_3d_df['I'] = input_3d_df['I'].astype(int)
         li_count = len(input_3d_df[input_3d_df.I == 1])
@@ -386,6 +415,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
         li_points = linear_interpolation(intersect_points[0][0], intersect_points[0][1], li_count)
         li_df = pd.DataFrame(li_points, columns=['X', 'Y'])
         ri_points = linear_interpolation(intersect_points[1][0], intersect_points[1][1], ri_count)
+        print(f'left corner intersections: {intersect_points[0]}, right corner intersections: {intersect_points[1]}')
         ri_df = pd.DataFrame(ri_points, columns=['X', 'Y'])
         intersect_points = [li_points, ri_points]
         pd.concat([li_df, ri_df]).to_csv(
@@ -434,6 +464,13 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
         input_2d_df.to_csv(out_match_file, index=False)
         input_3d_gdf.to_csv(out_proj_file, index=False)
     else:
+        print(input_3d_gdf.columns)
+        li_df = input_3d_gdf[input_3d_gdf['I'] == 1].sort_values('CAM_DIST')
+        ri_df = input_3d_gdf[input_3d_gdf['I'] == 2].sort_values('CAM_DIST')
+        print(
+            f"lidar sorted left intersection: {li_df[['geometry_y']]}")
+        print(
+            f"lidar sorted right intersection: {ri_df[['geometry_y']]}")
         if is_optimize:
             align_errors = []
             # terminate if gradient norm is less than gtol
@@ -441,8 +478,12 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, out_matc
             # eps specifies the absolute step size used for numerical approximation of the jacobian via forward
             # differences
             eps = 0.1
+            if landmark_file:
+                matching_data = lm_df
+            else:
+                matching_data = intersect_points
             result = minimize(objective_function_2d, INIT_CAMERA_PARAMS,
-                              args=(input_3d_gdf, input_2d_df, img_width, img_height, intersect_points, align_errors),
+                              args=(input_3d_gdf, input_2d_df, img_width, img_height, matching_data, align_errors),
                               method='Nelder-Mead',
                               # method='SLSQP',
                               # method='TNC',
@@ -508,6 +549,9 @@ if __name__ == '__main__':
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
+    parser.add_argument('--input_landmark_file', type=str,
+                        default='data/new_test_scene/new_test_scene_landmarks.csv',
+                        help='input csv file that includes landmark mapping info to be leveraged for optimizer')
     parser.add_argument('--output_file_base', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/road_alignment_with_lidar',
                         default='data/new_test_scene/output/road_alignment_with_lidar',
@@ -538,6 +582,7 @@ if __name__ == '__main__':
     obj_base_image_dir = args.obj_base_image_dir
     obj_image_input = args.obj_image_input
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
+    input_landmark_file = args.input_landmark_file
     output_file_base = args.output_file_base
     lidar_proj_output_file_base = args.lidar_proj_output_file_base
     output_2d_3d_points_for_external_alignment = args.output_2d_3d_points_for_external_alignment
@@ -555,6 +600,7 @@ if __name__ == '__main__':
     input_df['imageBaseName'].apply(lambda img: align_image_to_lidar(os.path.join(obj_base_image_dir, f'{img}.png'),
                                                                      lidar_df,
                                                                      input_sensor_mapping_file_with_path,
+                                                                     input_landmark_file,
                                                                      f'{output_file_base}_{img}.csv',
                                                                      f'{lidar_proj_output_file_base}_{img}.csv',
                                                                      output_2d_3d_points_for_external_alignment,
