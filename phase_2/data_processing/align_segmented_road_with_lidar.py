@@ -574,7 +574,7 @@ if __name__ == '__main__':
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
-    parser.add_argument('--optimize', action="store_false",
+    parser.add_argument('--optimize', action="store_true",
                         help='whether to optimize camera parameters')
 
     args = parser.parse_args()

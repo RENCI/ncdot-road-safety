@@ -57,6 +57,13 @@ if show_intersect_only:
 print(input_3d_proj_df.shape, min(input_3d_proj_df.PROJ_SCREEN_X), max(input_3d_proj_df.PROJ_SCREEN_X))
 print(min(input_3d_proj_df.PROJ_SCREEN_Y), max(input_3d_proj_df.PROJ_SCREEN_Y))
 print(image_width, image_height)
+if landmark_file:
+    landmark_df = pd.read_csv(landmark_file, usecols=['LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
+    landmark_size = len(landmark_df)
+    input_3d_proj_lm_df = input_3d_proj_df[len(input_3d_proj_df)-landmark_size:]
+    print(len(input_3d_proj_lm_df))
+    input_3d_proj_df = input_3d_proj_df[:len(input_3d_proj_df)-landmark_size]
+
 input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.PROJ_SCREEN_X > 0) &
                                     (input_3d_proj_df.PROJ_SCREEN_X < image_width) &
                                     (input_3d_proj_df.PROJ_SCREEN_Y > 0) &
@@ -87,10 +94,9 @@ if 'I' in use_lidar_proj_cols:
     plt.scatter(intersect_ldf['PROJ_SCREEN_X'], image_height - intersect_ldf['PROJ_SCREEN_Y'], s=10, c='#001100')
 
 if landmark_file:
-    landmark_df = pd.read_csv(landmark_file, usecols=['LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
     plt.scatter(landmark_df['LANDMARK_SCREEN_X'], image_height - landmark_df['LANDMARK_SCREEN_Y'], s=10, c='#880000')
-    lidar_match_df = input_3d_proj_df[len(input_3d_proj_df) - len(landmark_df):].reset_index(drop=True)
-    plt.scatter(lidar_match_df['PROJ_SCREEN_X'], image_height - lidar_match_df['PROJ_SCREEN_Y'], s=10, c='#ff0000')
+    plt.scatter(input_3d_proj_lm_df['PROJ_SCREEN_X'], image_height - input_3d_proj_lm_df['PROJ_SCREEN_Y'], s=10,
+                c='#ff0000')
 plt.title('Road alignment in screen coordinate system')
 plt.ylabel('Y')
 plt.xlabel('X')
