@@ -22,15 +22,14 @@ from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 # translation to move camera along X/Y/Z axis in world coordinate system, CMAERA_YAM, CAMERA_PITCH, CAMERA_ROLL
 # indicate camera angle of rotation around Z (bearing) axis, Y axis, and X axis, respectively, in the 3D world
 # coordinate system
-PERSPECTIVE_NEAR = 0.1
 FOCAL_LENGTH_X = FOCAL_LENGTH_Y = 2.8
 
-PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
-    CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6
+PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
+    CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 # INIT_CAMERA_PARAMS = [20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53] # for route 40001001011
 # INIT_CAMERA_PARAMS = [18, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060] # for new test scene route
-INIT_CAMERA_PARAMS = [20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17] # for new test scene route using road intersections
+INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17] # for new test scene route using road intersections
 # gradient descent hyperparameters
 NUM_ITERATIONS = 1000
 DEPTH_SCALING_FACTOR = 189
@@ -92,31 +91,39 @@ def apply_matrix4(x, y, z, e, return_axis='x'):
     new_y = (e[1] * x + e[5] * y + e[9] * z + e[13] ) * w
     new_z = (e[2] * x + e[6] * y + e[10] * z + e[14] ) * w
     if return_axis == 'x':
-        return new_x / new_z
+        return new_x
     elif return_axis == 'y':
-        return new_y / new_z
+        return new_y
     else:
         return new_x, new_y, new_z
 
 
+def meet_camera_parameter_constraint(cam_params):
+    if cam_params[PERSPECTIVE_NEAR] < 0.005:
+        return False
+    return True
+
+
 def transform_3d_points(df, cam_params, img_width, img_hgt):
+    if not meet_camera_parameter_constraint(cam_params):
+        return df
     df = transform_to_world_coordinate_system(df, cam_params)
     aspect = img_width / img_hgt
     print(f'img_width: {img_width}, img_hgt: {img_hgt}, aspect: {aspect}')
     far = max(df['INITIAL_WORLD_X'].max(), df['INITIAL_WORLD_Y'].max(), df['INITIAL_WORLD_Z'].max()) * 10
-    top = PERSPECTIVE_NEAR * tan(radians(0.5 * cam_params[PERSPECTIVE_VFOV]))
+    top = cam_params[PERSPECTIVE_NEAR] * tan(radians(0.5 * cam_params[PERSPECTIVE_VFOV]))
     height = 2 * top
     width = aspect * height
     left = -0.5 * width
     right = left + width
     bottom = top - height
-    print(f'hfov: {degrees(atan2(width/2, PERSPECTIVE_NEAR)) * 2}')
-    x = 2 * PERSPECTIVE_NEAR / (right - left)
-    y = 2 * PERSPECTIVE_NEAR / (top - bottom)
+    print(f'hfov: {degrees(atan2(width/2, cam_params[PERSPECTIVE_NEAR])) * 2}')
+    x = 2 * cam_params[PERSPECTIVE_NEAR] / (right - left)
+    y = 2 * cam_params[PERSPECTIVE_NEAR] / (top - bottom)
     a = (right + left) / (right - left)
     b = (top + bottom) / (top - bottom)
-    c = - (far + PERSPECTIVE_NEAR) / (far - PERSPECTIVE_NEAR)
-    d = (- 2 * far * PERSPECTIVE_NEAR) / (far - PERSPECTIVE_NEAR)
+    c = - (far + cam_params[PERSPECTIVE_NEAR]) / (far - cam_params[PERSPECTIVE_NEAR])
+    d = (- 2 * far * cam_params[PERSPECTIVE_NEAR]) / (far - cam_params[PERSPECTIVE_NEAR])
     matrix_elements = [
         x, 0, 0, 0,
         0, y, 0, 0,
@@ -482,7 +489,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
                 matching_data = lm_df
             else:
                 matching_data = intersect_points
-            result = minimize(objective_function_2d, INIT_CAMERA_PARAMS,
+            result = minimize(objective_function_2d, INIT_CAMERA_PARAMS[1:],
                               args=(input_3d_gdf, input_2d_df, img_width, img_height, matching_data, align_errors),
                               method='Nelder-Mead',
                               # method='SLSQP',
