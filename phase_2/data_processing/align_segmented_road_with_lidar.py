@@ -33,7 +33,7 @@ INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17] # for new test s
 # gradient descent hyperparameters
 NUM_ITERATIONS = 1000
 DEPTH_SCALING_FACTOR = 189
-LIDAR_DIST_THRESHOLD = (0, 154)
+LIDAR_DIST_THRESHOLD = (22, 154)
 
 
 def rotate_point(point, quaternion):
@@ -394,6 +394,17 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
 
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = get_mapping_data(
         input_mapping_file, input_2d_mapped_image)
+    # get the lidar road vertex with the closest distance to the camera location
+    nearest_idx = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])[0]
+    # next_idx = get_next_road_index(nearest_idx, input_3d_gdf, 'BEARING')
+    # cam_lidar_z = interpolate_camera_z(input_3d_gdf.iloc[nearest_idx].Z, input_3d_gdf.iloc[next_idx].Z,
+    #                                    dist([input_3d_gdf.iloc[nearest_idx].X, input_3d_gdf.iloc[nearest_idx].Y],
+    #                                         [proj_cam_x, proj_cam_y]),
+    #                                    dist([input_3d_gdf.iloc[next_idx].X, input_3d_gdf.iloc[next_idx].Y],
+    #                                         [proj_cam_x, proj_cam_y]))
+    cam_lidar_z = ldf.iloc[nearest_idx].Z
+    print(f'camera Z: {cam_lidar_z}')
+
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
                                                                 end_of_route=eor)
@@ -439,17 +450,6 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
         cam_lat, cam_lon, geom.y, geom.x, is_degree=False)  - cam_br)
 
-    # get the lidar road vertex with the closest distance to the camera location
-    nearest_idx = compute_match(proj_cam_x, proj_cam_y, input_3d_gdf['X'], input_3d_gdf['Y'])[0]
-    # next_idx = get_next_road_index(nearest_idx, input_3d_gdf, 'BEARING')
-    # cam_lidar_z = interpolate_camera_z(input_3d_gdf.iloc[nearest_idx].Z, input_3d_gdf.iloc[next_idx].Z,
-    #                                    dist([input_3d_gdf.iloc[nearest_idx].X, input_3d_gdf.iloc[nearest_idx].Y],
-    #                                         [proj_cam_x, proj_cam_y]),
-    #                                    dist([input_3d_gdf.iloc[next_idx].X, input_3d_gdf.iloc[next_idx].Y],
-    #                                         [proj_cam_x, proj_cam_y]))
-    cam_lidar_z = input_3d_gdf.iloc[nearest_idx].Z
-
-    print(f'camera Z: {cam_lidar_z}')
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
     if input_depth_filename_pattern:
@@ -580,7 +580,7 @@ if __name__ == '__main__':
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
-    parser.add_argument('--optimize', action="store_false",
+    parser.add_argument('--optimize', action="store_true",
                         help='whether to optimize camera parameters')
 
     args = parser.parse_args()
