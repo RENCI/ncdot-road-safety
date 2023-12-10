@@ -33,8 +33,7 @@ INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17] # for new test s
 # gradient descent hyperparameters
 NUM_ITERATIONS = 1000
 DEPTH_SCALING_FACTOR = 189
-LIDAR_DIST_THRESHOLD = 154
-# LIDAR_DIST_THRESHOLD = 190
+LIDAR_DIST_THRESHOLD = (0, 154)
 
 
 def rotate_point(point, quaternion):
@@ -581,7 +580,7 @@ if __name__ == '__main__':
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
-    parser.add_argument('--optimize', action="store_true",
+    parser.add_argument('--optimize', action="store_false",
                         help='whether to optimize camera parameters')
 
     args = parser.parse_args()

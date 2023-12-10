@@ -23,7 +23,7 @@ def get_lidar_data_from_shp(lidar_shp_file_path):
     return df.merge(geom_df, left_index=True, right_index=True)
 
 
-def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, end_of_route=False,
+def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 190), end_of_route=False,
                                        include_all_cols=False):
     clat, clon = cam_loc
     next_clat, next_clon = next_cam_loc
@@ -44,7 +44,7 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=190, e
         df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
             clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
 
-    df = df[(df['distance'] < dist_th) & (df['bearing_diff'] < math.pi / 3)]
+    df = df[(df['distance'] > dist_th[0]) & (df['distance'] < dist_th[1]) & (df['bearing_diff'] < math.pi / 3)]
     print(df.shape)
 
     if include_all_cols:
@@ -140,8 +140,7 @@ if __name__ == '__main__':
                         default=[35.6847461, -81.5218077],
                         help='next camera loc to define camera/driving bearing direction')
     parser.add_argument('--distance_threshold', type=str,
-                        #default=385,
-                        default=154,
+                        default=(20, 154),
                         help='distance threshold in meter to filter out lidar vertices')
 
     args = parser.parse_args()
