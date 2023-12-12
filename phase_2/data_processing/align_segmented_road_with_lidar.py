@@ -237,11 +237,19 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, input_matchi
             print(f'lalign_error: {lalign_error}, ralign_error: {ralign_error}')
             alignment_error = lalign_error + ralign_error
     elif isinstance(input_matching_data, pd.DataFrame):
-        print(f'input_matching_data is dataframe: {input_matching_data}')
         lidar_match_df = df_3d[len(df_3d)-len(input_matching_data):].reset_index(drop=True)
         match_df = pd.concat([lidar_match_df, input_matching_data], axis=1)
-        alignment_error = _compute_mse(match_df, 'PROJ_SCREEN_X', 'LANDMARK_SCREEN_X',
+        error1 = _compute_mse(match_df, 'PROJ_SCREEN_X', 'LANDMARK_SCREEN_X',
                                        'PROJ_SCREEN_Y', 'LANDMARK_SCREEN_Y')
+        # compute alignment error for other parts of the road
+        df_3d_filtered = df_3d[:len(df_3d)-len(input_matching_data)]
+        max_match_y = lidar_match_df['PROJ_SCREEN_Y'].max()
+        df_3d_filtered = df_3d_filtered[(df_3d_filtered.BOUND == 1) & (df_3d_filtered.PROJ_SCREEN_Y > max_match_y)]
+        df_3d_filtered['MATCH_2D_DIST'] = df_3d_filtered.apply(lambda row: compute_match(
+            row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'], df_2d['X'], df_2d['Y'])[1], axis=1)
+        error2 = np.mean(df_3d_filtered['MATCH_2D_DIST'])
+        alignment_error = error1 + error2
+        # alignment_error = 0.9 * error1 + 0.1 * error2
     align_errors.append(alignment_error)
     return alignment_error
 
@@ -488,7 +496,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
                 matching_data = lm_df
             else:
                 matching_data = intersect_points
-            result = minimize(objective_function_2d, INIT_CAMERA_PARAMS[1:],
+            result = minimize(objective_function_2d, INIT_CAMERA_PARAMS[2:],
                               args=(input_3d_gdf, input_2d_df, img_width, img_height, matching_data, align_errors),
                               method='Nelder-Mead',
                               # method='SLSQP',
