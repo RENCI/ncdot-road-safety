@@ -27,11 +27,10 @@ FOCAL_LENGTH_X = FOCAL_LENGTH_Y = 2.8
 PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, \
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
-# INIT_CAMERA_PARAMS = [20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53] # for route 40001001011
-# INIT_CAMERA_PARAMS = [18, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060] # for new test scene route
+# INIT_CAMERA_PARAMS = [0.1, 20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53] # for route 40001001011
+# INIT_CAMERA_PARAMS = [0,1, 18, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060] # for new test scene route
 INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17] # for new test scene route using road intersections
-# gradient descent hyperparameters
-NUM_ITERATIONS = 1000
+NUM_ITERATIONS = 1000  # optimizer hyperparameters
 DEPTH_SCALING_FACTOR = 189
 LIDAR_DIST_THRESHOLD = (22, 154)
 
@@ -239,16 +238,16 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, input_matchi
     elif isinstance(input_matching_data, pd.DataFrame):
         lidar_match_df = df_3d[len(df_3d)-len(input_matching_data):].reset_index(drop=True)
         match_df = pd.concat([lidar_match_df, input_matching_data], axis=1)
-        error1 = _compute_mse(match_df, 'PROJ_SCREEN_X', 'LANDMARK_SCREEN_X',
+        alignment_error = _compute_mse(match_df, 'PROJ_SCREEN_X', 'LANDMARK_SCREEN_X',
                                        'PROJ_SCREEN_Y', 'LANDMARK_SCREEN_Y')
         # compute alignment error for other parts of the road
-        df_3d_filtered = df_3d[:len(df_3d)-len(input_matching_data)]
-        max_match_y = lidar_match_df['PROJ_SCREEN_Y'].max()
-        df_3d_filtered = df_3d_filtered[(df_3d_filtered.BOUND == 1) & (df_3d_filtered.PROJ_SCREEN_Y > max_match_y)]
-        df_3d_filtered['MATCH_2D_DIST'] = df_3d_filtered.apply(lambda row: compute_match(
-            row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'], df_2d['X'], df_2d['Y'])[1], axis=1)
-        error2 = np.mean(df_3d_filtered['MATCH_2D_DIST'])
-        alignment_error = error1 + error2
+        # df_3d_filtered = df_3d[:len(df_3d)-len(input_matching_data)]
+        # max_match_y = lidar_match_df['PROJ_SCREEN_Y'].max()
+        # df_3d_filtered = df_3d_filtered[(df_3d_filtered.BOUND == 1) & (df_3d_filtered.PROJ_SCREEN_Y > max_match_y)]
+        # df_3d_filtered['MATCH_2D_DIST'] = df_3d_filtered.apply(lambda row: compute_match(
+        #     row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'], df_2d['X'], df_2d['Y'])[1], axis=1)
+        # error2 = np.mean(df_3d_filtered['MATCH_2D_DIST'])
+        # alignment_error = error1 + error2
         # alignment_error = 0.9 * error1 + 0.1 * error2
     align_errors.append(alignment_error)
     return alignment_error
@@ -488,10 +487,10 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
         if is_optimize:
             align_errors = []
             # terminate if gradient norm is less than gtol
-            gtol = 1e-6
+            # gtol = 1e-6
             # eps specifies the absolute step size used for numerical approximation of the jacobian via forward
             # differences
-            eps = 0.1
+            # eps = 0.1
             if landmark_file:
                 matching_data = lm_df
             else:
@@ -499,14 +498,16 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
             result = minimize(objective_function_2d, INIT_CAMERA_PARAMS[2:],
                               args=(input_3d_gdf, input_2d_df, img_width, img_height, matching_data, align_errors),
                               method='Nelder-Mead',
+                              options={'maxiter': NUM_ITERATIONS, 'disp': True})
                               # method='SLSQP',
                               # method='TNC',
                               # method='BFGS',
                               # method='CG',
                               # jac=True,
-                              options={'gtol': gtol, 'ftol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
+                              # options={'gtol': gtol, 'ftol': gtol, 'eps': eps, 'maxiter': NUM_ITERATIONS, 'disp': True})
             optimized_cam_params = result.x
             print(f'optimizing result for image {input_2d_mapped_image}: {result}')
+            print(f'Status: {result.message}, total evaluations: {result.nfev}')
             print(f'alignment errors: {align_errors}')
             print(f'optimized_cam_params: {optimized_cam_params}')
             input_3d_gdf = transform_3d_points(input_3d_gdf, get_full_camera_parameters(optimized_cam_params),
@@ -534,11 +535,20 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
             proj_base, proj_ext = os.path.splitext(out_proj_file)
             if 'Boundary' in input_3d_gdf.columns:
                 input_3d_gdf.Boundary = input_3d_gdf.Boundary.apply(lambda x: True if x > 0 else False)
-            output_latlon_from_geometry(input_3d_gdf, 'geometry_y', f'{proj_base}_latlon{proj_ext}')
-            if 'I' in input_3d_gdf.columns:
-                cr_ldf = input_3d_gdf[input_3d_gdf['I'] > 0].reset_index(drop=True)
-                output_latlon_from_geometry(cr_ldf, 'geometry_y',
-                                            f'{proj_base}_crossroad_intersect_latlon{proj_ext}')
+            if is_optimize:
+                # output optimized camera parameter for the image
+                cam_para_df = pd.DataFrame(data=[optimized_cam_params.tolist()], columns=['translation_x',
+                                                                                          'translation_y',
+                                                                                          'translation_z',
+                                                                                          'rotation_x',
+                                                                                          'rotation_y',
+                                                                                          'rotation_z'])
+                cam_para_df.to_csv(f'{proj_base}_cam_paras.csv', index=False)
+            # output_latlon_from_geometry(input_3d_gdf, 'geometry_y', f'{proj_base}_latlon{proj_ext}')
+            # if 'I' in input_3d_gdf.columns:
+            #     cr_ldf = input_3d_gdf[input_3d_gdf['I'] > 0].reset_index(drop=True)
+            #     output_latlon_from_geometry(cr_ldf, 'geometry_y',
+            #                                 f'{proj_base}_crossroad_intersect_latlon{proj_ext}')
 
 
 if __name__ == '__main__':
@@ -564,7 +574,7 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_landmark_file', type=str,
-                        default='data/new_test_scene/new_test_scene_landmarks.csv',
+                        default='data/new_test_scene/new_test_scene_landmarks_881000952181.csv',
                         help='input csv file that includes landmark mapping info to be leveraged for optimizer')
     parser.add_argument('--output_file_base', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/road_alignment_with_lidar',
