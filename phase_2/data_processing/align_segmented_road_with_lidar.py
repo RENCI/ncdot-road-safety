@@ -29,7 +29,8 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET
 # initial camera parameter list for optimization
 # INIT_CAMERA_PARAMS = [0.1, 20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53] # for route 40001001011
 # INIT_CAMERA_PARAMS = [0,1, 18, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060] # for new test scene route
-INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17] # for new test scene route using road intersections
+# for new test scene route 881000952181 test image using road intersections
+INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17]
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 DEPTH_SCALING_FACTOR = 189
 LIDAR_DIST_THRESHOLD = (22, 154)

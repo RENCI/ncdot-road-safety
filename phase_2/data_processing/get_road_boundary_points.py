@@ -88,7 +88,7 @@ def get_image_road_points(image_file_name, boundary_only=True):
                 start = tuple(process_contour[0][sp])
                 end = tuple(process_contour[0][ep])
                 far = tuple(process_contour[0][fp])
-                if 40000 > fdist > 2000:
+                if 100000 > fdist > 2000:
                     # print(f'fdist: {fdist}, x: {far[0]}, y: {far[1]}')
                     cv2.line(binary_data, start, far, (255, 255, 255), 2)
                     cv2.line(binary_data, far, end, (255, 255, 255), 2)
