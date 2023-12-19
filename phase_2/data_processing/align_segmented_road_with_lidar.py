@@ -12,7 +12,7 @@ from math import dist, radians, tan, atan2, degrees
 from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
-    get_aerial_lidar_road_geo_df, compute_match, compute_match_3d, create_gdf_from_df
+    get_aerial_lidar_road_geo_df, compute_match, compute_match_3d, create_gdf_from_df, add_lidar_x_y_from_lat_lon
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points
 from convert_and_classify_aerial_lidar import output_latlon_from_geometry
@@ -300,11 +300,7 @@ def get_mapping_data(input_file, input_image_name):
     # LIDAR road vertices in input_3d is in NAD83(2011) / North Carolina (ftUS) CRS with EPSG:6543, and
     # the cam_lat/cam_lon is in WGS84 CRS with EPSG:4326, need to transform cam_lat/cam_lon to the same CRS as
     # input_3d
-    mapped_image_df = df[df['MAPPED_IMAGE'] == input_image_name]
-    mapped_image_gdf = gpd.GeoDataFrame(mapped_image_df, geometry=gpd.points_from_xy(mapped_image_df.LONGITUDE,
-                                                                                     mapped_image_df.LATITUDE),
-                                        crs='EPSG:4326')
-    cam_geom_df = mapped_image_gdf.geometry.to_crs(epsg=6543)
+    cam_geom_df = add_lidar_x_y_from_lat_lon(df[df['MAPPED_IMAGE'] == input_image_name])
     proj_cam_x = cam_geom_df.iloc[0].x
     proj_cam_y = cam_geom_df.iloc[0].y
     print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')

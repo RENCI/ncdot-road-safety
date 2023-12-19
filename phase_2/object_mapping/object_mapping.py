@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import os
+import sys
 import os.path
 import time
 import numpy as np
@@ -30,7 +31,12 @@ and a score value for each of these. The score is the number of individual views
 '''
 
 # preset parameters
-MAX_OBJ_DIST_FROM_CAM = 25  # Max distance from camera to objects (in meters)
+# Max distance from camera to objects (in meters). May need to increase it if trying to geolocate poles more than
+# 25 meters away from the camera, e.g., it needs to be set to 105 in order to geolocate the test pole in the new
+# test scene since the test pole is about 100 meters away from the camera. This parameter needs to be adjusted
+# in conjunction with the depth scaling factor in compute_mapping_input.py since the predicted depth is used as
+# a constraint with computed distance from the camera to computed intersection points
+MAX_OBJ_DIST_FROM_CAM = 25
 MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
 SCALING_FACTOR = 640.0 / 256
 
@@ -83,13 +89,10 @@ def compute_intersect(obj1, obj2):
         x = (b1 * y + c1) / a1
     else:
         x = (b2 * y + c2) / a2
-
     if (x < 0) or (y < 0):
         return -2, -2, 0, 0
-
     if (x > MAX_OBJ_DIST_FROM_CAM) or (y > MAX_OBJ_DIST_FROM_CAM):
         return -3, -3, 0, 0
-
     mx, my = a1 * x + lat_c1_x1, a2 * x + lon_c1_y1
     # if obj1[BASE_IMAGE_NAME] == '926005500131' or obj2[BASE_IMAGE_NAME] == '926005500131':
     #    print(f'Object1: {obj1[BASE_IMAGE_NAME]}, Object2: {obj2[BASE_IMAGE_NAME]}, {x}, {y}, {mx}, {my}')
@@ -111,7 +114,6 @@ def compute_energy(objs_dist, objs, objs_connectivity, obj):
         if objs_connectivity[obj, i]:
             # increase energy by penalizing distance between triangulated distance and depth estimate
             depth_pen = DEPTH_WEIGHT * abs(objs_dist[obj, i] - (objs[obj])[DEPTH])
-            # print(f'obj: {obj}, i: {i}, objs_dist[obj, i]: {objs_dist[obj, i]}, (objs[obj])[DEPTH]: {(objs[obj])[DEPTH]}')
             energy += depth_pen
             # if Object == 63 or Object == 64:
             #     print(f"object depth: {objs[obj][DEPTH]}, i: {i}, dist: {objs_dist[obj, i]}, depth_pen: {depth_pen}")
@@ -120,6 +122,7 @@ def compute_energy(objs_dist, objs, objs_connectivity, obj):
             if objs_dist[obj, i] > depth_max:
                 depth_max = objs_dist[obj, i]
     # increase energy by penalizing excessive spread for an object with multiple view ray intersections
+    print(f'energy: {energy}, depth_min: {depth_min}, depth_max: {depth_max}')
     return energy + OBJ_MULTI_VIEW * (depth_max - depth_min)
 
 
@@ -212,6 +215,7 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
                 compute_intersect(objects_base[i], objects_base[j])
             objects_intersects[j, i, 0], objects_intersects[j, i, 1] = \
                 objects_intersects[i, j, 0], objects_intersects[i, j, 1]
+
             if objects_dist[i, j] > 0:
                 num_intersects += 1
 
@@ -401,11 +405,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
                         # default='data/pole_input.csv',
-                        default='data/test_mapping_input.csv',
+                        # default='data/test_mapping_input.csv',
+                        default='../data_processing/data/new_test_scene/output/test_mapping_input_with_cam_paras.csv',
                         help='input file name with path')
     parser.add_argument('--output_file', type=str,
                         # default='data/pole_detection.csv',
-                        default='data/test_pole_detection.csv',
+                        # default='data/test_pole_detection.csv',
+                        default='../data_processing/data/new_test_scene/output/test_mapping_output_with_cam_paras.csv',
                         help='output file name with path')
     parser.add_argument('--output_intersect_base_images', action='store_true',
                         help='output list of intersection base images for categorization')
@@ -420,3 +426,4 @@ if __name__ == '__main__':
     output_intersect_base_images = args.output_intersect_base_images
     compute_planar = args.compute_planar
     main(input_file, output_file, output_intersect=output_intersect_base_images, is_planar=compute_planar)
+    sys.exit(0)

@@ -22,6 +22,17 @@ class LIDARClass(Enum):
     POLE = 15
 
 
+def add_lidar_x_y_from_lat_lon(df):
+    """
+    add X, Y columns representing LIDAR X, Y projection from LONGITUDE and LATITUDE columns in input df
+    :param df: input dataframe that must include LONGITUDE and LATITUDE columns
+    :return: df with added X, Y columns representing LIDAR X, Y projection converted from input LATITUDE and LONGITUDE
+    """
+    mapped_image_gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.LONGITUDE, df.LATITUDE),
+                                        crs='EPSG:4326')
+    return mapped_image_gdf.geometry.to_crs(epsg=6543)
+
+
 def next_location(lat, lon, bearing, distance, is_degree=True):
     # Convert degrees to radians
     if is_degree:
@@ -80,6 +91,22 @@ def save_data_to_image(data, output_image_name):
     Image.fromarray(np.uint8(data), 'L').save(output_image_name)
 
 
+def normalize(rad_angle, is_degree):
+    """
+    normalize rad_angle in radians to the range of (0, 2*pi) and convert it to degree as needed
+    :param rad_angle: input angle in radians
+    :param is_degree: whether to return normalized angle in degree or not
+    :return: normalized angle
+    """
+    if rad_angle < 0:
+        rad_angle += 2 * pi
+    rad_angle = rad_angle % (2 * pi)
+    if is_degree:
+        return degrees(rad_angle)
+    else:
+        return rad_angle
+
+
 def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2, is_degree):
     lon_delta_rad = radians(lon2-lon1)
     lat1_rad = radians(lat1)
@@ -88,13 +115,7 @@ def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2, is_degree):
     x = cos(lat1_rad)*sin(lat2_rad) - sin(lat1_rad)*cos(lat2_rad)*cos(lon_delta_rad)
     theta = atan2(y, x)
     # normalize angle to be between 0 and 360
-    if theta < 0:
-        theta += 2 * pi
-    theta = theta % (2 * pi)
-    if is_degree:
-        return degrees(theta)
-    else:
-        return theta
+    return normalize(theta, is_degree=is_degree)
 
 
 def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_image, is_degree=True):
