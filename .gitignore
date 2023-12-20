@@ -10,6 +10,7 @@ server/log
 server/data
 .idea
 __pycache__/
+.ipynb_checkpoints/
 data_processing/metadata/
 phase_2/data_processing/data/
 data_processing/images/
