@@ -36,7 +36,7 @@ and a score value for each of these. The score is the number of individual views
 # test scene since the test pole is about 100 meters away from the camera. This parameter needs to be adjusted
 # in conjunction with the depth scaling factor in compute_mapping_input.py since the predicted depth is used as
 # a constraint with computed distance from the camera to computed intersection points
-MAX_OBJ_DIST_FROM_CAM = 25
+MAX_OBJ_DIST_FROM_CAM = 105
 MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
 SCALING_FACTOR = 640.0 / 256
 

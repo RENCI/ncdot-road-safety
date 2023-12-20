@@ -9,12 +9,13 @@ import cv2
 from math import sqrt, atan2, degrees
 from utils import SegmentationClass, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
     get_depth_data, get_depth_of_pixel, compute_match, bearing_between_two_latlon_points, \
-    add_lidar_x_y_from_lat_lon, create_gdf_from_df, normalize
+    add_lidar_x_y_from_lat_lon
 from align_segmented_road_with_lidar import transform_to_world_coordinate_system, INIT_CAMERA_PARAMS, \
     CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL
 
 
-SCALING_FACTOR = 25  # may need to be increased in conjunction with MAX_OBJ_DIST_FROM_CAM set in object_mapping.py
+# may need to be updated (e.g., set to 25) in conjunction with MAX_OBJ_DIST_FROM_CAM set in object_mapping.py
+SCALING_FACTOR = 55
 POLE_X_SIZE_THRESHOLD = 10
 POLE_Y_SIZE_THRESHOLD = 20
 POLE_ASPECT_RATIO_THRESHOLD = 10  # 12
@@ -46,7 +47,7 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
         print(f'no camera location found for {mapped_image}')
         return
 
-    if cam_paras_file_pattern:
+    if front_only:
         image_suffix_list = ('1.png', )
     else:
         image_suffix_list = ('5.png', '1.png', '2.png')
@@ -170,27 +171,18 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
 
                         # find the nearest LIDAR projected point from the pole ground location
                         # (x0, object_features[i].bbox[2])
-                        obj_depth = get_depth_of_pixel(object_features[i].bbox[2], x0,
-                                                       image_pfm, min_depth, max_depth, scaling=SCALING_FACTOR)
-                        print(f'obj_depth: {obj_depth}, depth: {depth}')
-                        lidar_df['ROAD_Z'] = lidar_df.apply(lambda row: get_depth_of_pixel(
-                            row['ROAD_Y'], row['ROAD_X'], image_pfm, min_depth, max_depth, scaling=SCALING_FACTOR),
-                                                            axis=1)
-                        lidar_df['DIFF_ROAD_Z'] = lidar_df.apply(lambda row: abs(depth - row['ROAD_Z']),
-                                                                 axis=1)
-                        sub_lidar_df = lidar_df[lidar_df['DIFF_ROAD_Z'] <= 1].reset_index(drop=True)
                         nearest_idx = compute_match(x0, object_features[i].bbox[2],
-                                                    sub_lidar_df['ROAD_X'], sub_lidar_df['ROAD_Y'])[0]
-                        print(sub_lidar_df.iloc[nearest_idx])
+                                                    lidar_df['ROAD_X'], lidar_df['ROAD_Y'])[0]
+                        print(lidar_df.iloc[nearest_idx])
                         ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
-                                                                        sub_lidar_df.iloc[nearest_idx].lat,
-                                                                        sub_lidar_df.iloc[nearest_idx].lon,
+                                                                        lidar_df.iloc[nearest_idx].lat,
+                                                                        lidar_df.iloc[nearest_idx].lon,
                                                                         is_degree=True)
-                        ref_x = sub_lidar_df.iloc[nearest_idx].ROAD_X
-                        print(f'input_image_base_name: {input_image_base_name}, x0: {x0}, ref_x: {ref_x}, '
-                              f'closet lidar lat: {sub_lidar_df.iloc[nearest_idx].lat}, '
-                              f'lon: {sub_lidar_df.iloc[nearest_idx].lon}')
-                        hangle = (abs(x0 - ref_x)/image_width) * width_to_hfov[image_width]
+                        ref_x = lidar_df.iloc[nearest_idx].ROAD_X
+                        # use ref_bearing only without accounting for any offset since the nearest LIDAR
+                        # point should be the point that is hit by the ray cast from camera to object if the
+                        # LIDAR raster grid has enough resolution
+                        hangle = 0
                     else:
                         ref_x = image_width / 2
                         hangle = (abs(x0 - ref_x)/image_width) * width_to_hfov[image_width]
@@ -249,15 +241,17 @@ if __name__ == '__main__':
                         help='input depth prediction output image postfix to concatenate with image basename')
     parser.add_argument('--lidar_project_info_file_pattern', type=str,
                         default='data/new_test_scene/output/lidar_project_info_{}.csv',
-                        # default='',
                         help='input LIDAR projection info file pattern')
     parser.add_argument('--lidar_project_cam_params_pattern', type=str,
-                        default='data/new_test_scene/output/lidar_project_info_{}_cam_paras.csv',
+                        # default='data/new_test_scene/output/lidar_project_info_{}_cam_paras.csv',
+                        default='',
                         help='input LIDAR projection info file pattern')
     parser.add_argument('--output_file', type=str,
                         # default='/projects/ncdot/geotagging/input/oneformer/route_40001001011_segment_object_mapping_input.csv',
                         default='data/new_test_scene/output/test_mapping_input_with_cam_paras.csv',
                         help='output file that contains image base names and corresponding segmented object depths')
+    parser.add_argument('--front_only', action="store_true",
+                        help='whether to compute mapping inputs for front view images only')
 
 
     args = parser.parse_args()
@@ -270,6 +264,7 @@ if __name__ == '__main__':
     lidar_project_info_file_pattern = args.lidar_project_info_file_pattern
     lidar_project_cam_params_pattern = args.lidar_project_cam_params_pattern
     output_file = args.output_file
+    front_only = args.front_only
 
     df = pd.read_csv(input_seg_map_info_with_path, index_col=None,
                      usecols=['ROUTEID', 'MAPPED_IMAGE', model_col_header], dtype=str)

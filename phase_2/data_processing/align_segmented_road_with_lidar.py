@@ -475,12 +475,13 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
         input_3d_gdf.to_csv(out_proj_file, index=False)
     else:
         print(input_3d_gdf.columns)
-        li_df = input_3d_gdf[input_3d_gdf['I'] == 1].sort_values('CAM_DIST')
-        ri_df = input_3d_gdf[input_3d_gdf['I'] == 2].sort_values('CAM_DIST')
-        print(
-            f"lidar sorted left intersection: {li_df[['geometry_y']]}")
-        print(
-            f"lidar sorted right intersection: {ri_df[['geometry_y']]}")
+        if 'I' in input_3d_gdf.columns:
+            li_df = input_3d_gdf[input_3d_gdf['I'] == 1].sort_values('CAM_DIST')
+            ri_df = input_3d_gdf[input_3d_gdf['I'] == 2].sort_values('CAM_DIST')
+            print(
+                f"lidar sorted left intersection: {li_df[['geometry_y']]}")
+            print(
+                f"lidar sorted right intersection: {ri_df[['geometry_y']]}")
         if is_optimize:
             align_errors = []
             # terminate if gradient norm is less than gtol
@@ -554,9 +555,9 @@ if __name__ == '__main__':
                         # default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
                         #        'RoadEdge_40001001011_vertices.shp',
                         # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
-                        # default='data/new_test_scene/new_test_scene_road_raster_10.csv',
+                        default='data/new_test_scene/new_test_scene_all_raster_10.csv',
                         # default='data/new_test_scene/new_test_scene_road_bounds.csv',
-                        default='data/new_test_scene/new_test_scene_road.csv',
+                        # default='data/new_test_scene/new_test_scene_road.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         # default='data/d13_route_40001001011/oneformer',
