@@ -45,21 +45,21 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
             clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
 
     df = df[(df['distance'] > dist_th[0]) & (df['distance'] < dist_th[1]) & (df['bearing_diff'] < math.pi / 3)]
-    print(df.shape)
-
     if include_all_cols:
         df = df.drop(columns=['bearing_diff'])
         return df.copy(), cam_bearing, df.columns
     else:
         if 'X' in df.columns:
-            if 'I' in df.columns and 'BOUND' in df.columns:
-                inc_cols = ['X', 'Y', 'Z', 'I', 'BOUND']
-            elif 'I' in df.columns:
-                inc_cols = ['X', 'Y', 'Z', 'I']
-            elif 'BOUND' in df.columns:
-                inc_cols = ['X', 'Y', 'Z', 'BOUND']
+            if 'C' in df.columns:
+                inc_cols = ['X', 'Y', 'Z', 'C']
             else:
                 inc_cols = ['X', 'Y', 'Z']
+            if 'I' in df.columns:
+                inc_cols.append(['I'])
+            if 'BOUND' in df.columns:
+                inc_cols.append(['BOUND'])
+        elif 'C' in df.columns:
+            inc_cols = ['POINT_X', 'POINT_Y', 'POINT_Z', 'C']
         else:
             inc_cols = ['POINT_X', 'POINT_Y', 'POINT_Z']
         df = df[inc_cols]

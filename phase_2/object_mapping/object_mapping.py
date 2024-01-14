@@ -36,8 +36,12 @@ and a score value for each of these. The score is the number of individual views
 # test scene since the test pole is about 100 meters away from the camera. This parameter needs to be adjusted
 # in conjunction with the depth scaling factor in compute_mapping_input.py since the predicted depth is used as
 # a constraint with computed distance from the camera to computed intersection points
-MAX_OBJ_DIST_FROM_CAM = 105
+MAX_OBJ_DIST_FROM_CAM = 55
 MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
+# this SCALING_FACTOR is applied to the predicted depth, then the product is compared with the distance between
+# the camera and the intersection point for energy, so if the real distance from camera to the geotagged location
+# is around 100, the predicted absolute depth needs to be about 55 (i.e., about one half of the real distance),
+# in order to have a small difference between the computed distance and the predicted depth
 SCALING_FACTOR = 640.0 / 256
 
 # MRF optimization parameters
@@ -114,6 +118,7 @@ def compute_energy(objs_dist, objs, objs_connectivity, obj):
         if objs_connectivity[obj, i]:
             # increase energy by penalizing distance between triangulated distance and depth estimate
             depth_pen = DEPTH_WEIGHT * abs(objs_dist[obj, i] - (objs[obj])[DEPTH])
+            print(f'{objs_dist[obj, i]} - {(objs[obj])[DEPTH]} - depth_pen: {depth_pen}')
             energy += depth_pen
             # if Object == 63 or Object == 64:
             #     print(f"object depth: {objs[obj][DEPTH]}, i: {i}, dist: {objs_dist[obj, i]}, depth_pen: {depth_pen}")
@@ -152,8 +157,6 @@ def get_input_object(lat, lon, bearing, depth, base_img, planar):
         y_obj_pos = my + 1.0 * cos(br1) * SCALING_FACTOR  # normalized positions (at 1m distance from camera)
         x_obj_pos = mx + 1.0 * sin(br1) * SCALING_FACTOR
         lat_obj_p1, lon_obj_p1 = meters_to_lat_lon(x_obj_pos, y_obj_pos)
-        # if base_img == '926005500021' or base_img == '926005500131':
-        #     print(base_img, lat_obj_p1, lon_obj_p1, bearing, depth, lat, lon, lat_obj_p, lon_obj_p)
         return (lat_obj_p1, lon_obj_p1, bearing, depth, 0, lat, lon, lat_obj_p, lon_obj_p, base_img)
     else:
         mx, my = lat, lon
@@ -404,14 +407,12 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
-                        # default='data/pole_input.csv',
-                        # default='data/test_mapping_input.csv',
-                        default='../data_processing/data/new_test_scene/output/test_mapping_input_with_cam_paras.csv',
+                        # default='../data_processing/data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_input.csv',
+                        default='../data_processing/data/new_test_scene/output/test_mapping_input.csv',
                         help='input file name with path')
     parser.add_argument('--output_file', type=str,
-                        # default='data/pole_detection.csv',
-                        # default='data/test_pole_detection.csv',
-                        default='../data_processing/data/new_test_scene/output/test_mapping_output_with_cam_paras.csv',
+                        # default='../data_processing/data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_output.csv',
+                        default='../data_processing/data/new_test_scene/output/test_mapping_output.csv',
                         help='output file name with path')
     parser.add_argument('--output_intersect_base_images', action='store_true',
                         help='output list of intersection base images for categorization')

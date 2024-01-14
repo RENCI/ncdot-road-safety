@@ -8,28 +8,33 @@ from utils import load_pickle_data
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_2d', type=str,
-                    # default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/input_2d_92600542024.pkl',
-                    default='data/new_test_scene/output/input_2d_88100095218.pkl',
+                    # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/input_2d_92600542024.pkl',
+                    default='data/new_test_scene/output/input_2d_88100095228.pkl',
                     help='2d vertices')
 parser.add_argument('--input_3d_proj', type=str,
-                    # default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/'
+                    # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/'
                     #         'lidar_project_info_926005420241.csv',
-                    default='data/new_test_scene/output/lidar_project_info_881000952181.csv',
+                    default='data/new_test_scene/output/lidar_project_info_881000952281.csv',
                     help='3d projection vertices')
 parser.add_argument('--overlay_bg_image_path', type=str,
                     # default='data/d13_route_40001001011/other/926005420241.jpg',
-                    default='data/new_test_scene/images/881000952181.jpg',
+                    default='data/new_test_scene/images/881000952281.jpg',
                     help='original background image for overlay with the scatter plots')
 parser.add_argument('--image_crossroad_intersect_file', type=str,
-                    default='data/new_test_scene/output/image_881000952181_crossroad_intersects.csv',
+                    # default='data/new_test_scene/output/image_881000952181_crossroad_intersects.csv',
+                    default='',
                     help='csv file that includes interpolated crossroad intersection points to overlay on the display')
 parser.add_argument('--landmark_file', type=str,
-                    default='data/new_test_scene/new_test_scene_landmarks_881000952181.csv',
+                    default='data/new_test_scene/new_test_scene_landmarks_881000952281.csv',
+                    # default = '',
                     help='input csv file that includes landmark mapping info')
 parser.add_argument('--use_lidar_proj_cols', type=list,
-                    # default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'I', 'BOUND'],
-                    default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
+                    default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'C'],
                     help='list of columns to load when reading the input lidar projection data from input_3d_proj')
+parser.add_argument('--colormap', type=dict,
+                    default={6: 'purple', 2: 'red', 15: 'orange', 1: 'green', 11: 'blue'},
+                    # default={3: 'purple', 5: 'blue', 2: 'green', 4: 'orange', 14: 'pink', 1: 'yellow', 11: 'red'},
+                    help='colormap to map LIDAR point classification to color')
 parser.add_argument('--show_intersect_only', action="store_true",
                     help='show the intersection alignment only')
 parser.add_argument('--show_bg_img', action="store_true",
@@ -43,6 +48,7 @@ overlay_bg_image_path = args.overlay_bg_image_path
 image_crossroad_intersect_file = args.image_crossroad_intersect_file
 landmark_file = args.landmark_file
 use_lidar_proj_cols = args.use_lidar_proj_cols
+colormap = args.colormap
 show_intersect_only = args.show_intersect_only
 show_bg_img = args.show_bg_img
 
@@ -59,7 +65,7 @@ print(input_3d_proj_df.shape, min(input_3d_proj_df.PROJ_SCREEN_X), max(input_3d_
 print(min(input_3d_proj_df.PROJ_SCREEN_Y), max(input_3d_proj_df.PROJ_SCREEN_Y))
 print(image_width, image_height)
 if landmark_file:
-    landmark_df = pd.read_csv(landmark_file, usecols=['LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
+    landmark_df = pd.read_csv(landmark_file, usecols=['LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y', 'C'])
     landmark_size = len(landmark_df)
     input_3d_proj_lm_df = input_3d_proj_df[len(input_3d_proj_df)-landmark_size:]
     print(len(input_3d_proj_lm_df))
@@ -82,7 +88,12 @@ elif 'BOUND' in use_lidar_proj_cols:
     remain_ldf = input_3d_proj_df[input_3d_proj_df['BOUND'] == 0]
 else:
     remain_ldf = input_3d_proj_df
-plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10, c='orange')
+
+if colormap:
+    plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10,
+                c=remain_ldf['C'].map(colormap), label=remain_ldf['C'])
+else:
+    plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10)
 
 if show_bg_img:
     plt.imshow(bg_img, extent=[0, image_width-1, 0, image_height-1])

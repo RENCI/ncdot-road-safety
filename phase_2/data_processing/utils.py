@@ -8,8 +8,12 @@ from enum import Enum
 
 
 class SegmentationClass(Enum):
+    # ROAD 1 and POLE 2 are classification code for old test route
+    # ROAD = 1
+    # POLE = 2
+    # ROAD 0 and POLE 5 are classification code for new test route
     ROAD = 0
-    POLE = 5  # 2
+    POLE = 5
     BUILDING = 2
     SIDEWALK = 1
     WALL = 3
@@ -20,7 +24,10 @@ class LIDARClass(Enum):
     ROAD = 11
     BUILDING = 6
     POLE = 15
-
+    GROUND = 2
+    LOW_VEG = 3
+    MEDIUM_VEG = 4
+    HIGH_VEG = 5
 
 def add_lidar_x_y_from_lat_lon(df):
     """
@@ -198,6 +205,7 @@ def get_aerial_lidar_road_geo_df(input_file):
     gdf.X = gdf.X.astype(float)
     gdf.Y = gdf.Y.astype(float)
     gdf.Z = gdf.Z.astype(float)
+    gdf.C = gdf.C.astype(int)
     if 'Boundary' in gdf.columns:
         gdf.Boundary = gdf.Boundary.apply(lambda x: 1 if x == 'True' else 0)
 

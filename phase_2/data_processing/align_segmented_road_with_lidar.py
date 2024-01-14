@@ -3,7 +3,6 @@ import os
 import time
 import pickle
 import pandas as pd
-import geopandas as gpd
 import numpy as np
 from pypfm import PFMLoader
 from scipy.spatial.transform import Rotation
@@ -13,6 +12,7 @@ from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
     get_aerial_lidar_road_geo_df, compute_match, compute_match_3d, create_gdf_from_df, add_lidar_x_y_from_lat_lon
+
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points
 from convert_and_classify_aerial_lidar import output_latlon_from_geometry
@@ -28,12 +28,13 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 # INIT_CAMERA_PARAMS = [0.1, 20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53] # for route 40001001011
-# INIT_CAMERA_PARAMS = [0,1, 18, 3.7, -7.2, -3.3, -4.5, 1.1, -0.060] # for new test scene route
 # for new test scene route 881000952181 test image using road intersections
-INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17]
+# INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17]
+# for new test scene route 881000952281 test image using road intersections
+INIT_CAMERA_PARAMS = [0.1, 20, 7.2, -7.3, 8.6, -4.3, 3.1, -0.24]
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 DEPTH_SCALING_FACTOR = 189
-LIDAR_DIST_THRESHOLD = (22, 154)
+LIDAR_DIST_THRESHOLD = (1, 154)
 
 
 def rotate_point(point, quaternion):
@@ -209,7 +210,6 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, input_matchi
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
-
     if isinstance(input_matching_data, list):
         if len(input_matching_data) <= 0:
             if 'Z' in df_2d.columns:
@@ -218,12 +218,16 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, input_matchi
                     get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['X'],
                     get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['Y'])[1],
                                                      axis=1)
-            else:
+            elif 'Boundary' in df_2d.columns:
                 df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
                     row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
                     df_2d[df_2d.Boundary == row['Boundary']]['X'],
                     df_2d[df_2d.Boundary == row['Boundary']]['Y'])[1],
                                                      axis=1)
+            else:
+                df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
+                    row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
+                    df_2d['X'], df_2d['Y'])[1], axis=1)
             alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
         else:
             left_intersects = input_matching_data[0]
@@ -414,11 +418,10 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
                                                                 end_of_route=eor)
     print(f'len(vertices): {len(vertices[0])}')
     input_3d_points = vertices[0]
-    print(f'len(input_3d_points): {len(input_3d_points)}')
-    # print(f'input 3d numpy array shape: {input_3d_points.shape}')
+    print(f'len(input_3d_points): {len(input_3d_points)}, {cols}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=cols)
     if landmark_file:
-        lm_df = pd.read_csv(landmark_file, usecols=['X', 'Y', 'Z', 'LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
+        lm_df = pd.read_csv(landmark_file, usecols=['X', 'Y', 'Z', 'LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y', 'C'])
         lm_3d_df = lm_df.drop(columns=['LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
         # concatenate lm_3d_df with input_3d_df for subsequent transformations
         if 'I' in cols:
@@ -442,6 +445,8 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
         pd.concat([li_df, ri_df]).to_csv(
             os.path.join(os.path.dirname(out_proj_file), f'image_{input_2d_mapped_image}1_crossroad_intersects.csv'),
             index=False)
+    else:
+        intersect_points = []
 
     if 'BOUND' in cols:
         input_3d_df['BOUND'] = input_3d_df['BOUND'].astype(int)
@@ -449,6 +454,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
     input_3d_df['X'] = input_3d_df['X'].astype(float)
     input_3d_df['Y'] = input_3d_df['Y'].astype(float)
     input_3d_df['Z'] = input_3d_df['Z'].astype(float)
+    input_3d_df['C'] = input_3d_df['C'].astype(int)
     input_3d_gdf = create_gdf_from_df(input_3d_df)
     # calculate the bearing of each 3D point to the camera
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
@@ -474,7 +480,6 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
         input_2d_df.to_csv(out_match_file, index=False)
         input_3d_gdf.to_csv(out_proj_file, index=False)
     else:
-        print(input_3d_gdf.columns)
         if 'I' in input_3d_gdf.columns:
             li_df = input_3d_gdf[input_3d_gdf['I'] == 1].sort_values('CAM_DIST')
             ri_df = input_3d_gdf[input_3d_gdf['I'] == 2].sort_values('CAM_DIST')
@@ -552,12 +557,9 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        # default='/home/hongyi/Downloads/NCRouteArcs_and_LiDAR_Road_Edge/'
-                        #        'RoadEdge_40001001011_vertices.shp',
                         # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
+                        # default='data/d13_route_40001001011/lidar/route_40001001011_all.csv',
                         default='data/new_test_scene/new_test_scene_all_raster_10.csv',
-                        # default='data/new_test_scene/new_test_scene_road_bounds.csv',
-                        # default='data/new_test_scene/new_test_scene_road.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         # default='data/d13_route_40001001011/oneformer',
@@ -572,15 +574,16 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_landmark_file', type=str,
-                        default='data/new_test_scene/new_test_scene_landmarks_881000952181.csv',
+                        default='data/new_test_scene/new_test_scene_landmarks_881000952281.csv',
+                        # default='',
                         help='input csv file that includes landmark mapping info to be leveraged for optimizer')
     parser.add_argument('--output_file_base', type=str,
-                        # default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/road_alignment_with_lidar',
+                        # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/road_alignment_with_lidar',
                         default='data/new_test_scene/output/road_alignment_with_lidar',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have an alignment output file for each input image')
     parser.add_argument('--lidar_proj_output_file_base', type=str,
-                        # default='data/d13_route_40001001011/oneformer/output/aerial_lidar_test/lidar_project_info',
+                        # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info',
                         default='data/new_test_scene/output/lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')

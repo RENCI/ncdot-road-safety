@@ -48,19 +48,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar', type=str,
                         # default='data/new_test_scene/new_test_scene_all_raster_10.csv',
-                        default='data/new_test_scene/new_test_scene_road_raster_10.csv',
+                        default='data/d13_route_40001001011/lidar/route_40001001011_all.csv',
                         help='input rasterized lidar file with road points x, y, z in EPSG:6543 coordinate projection')
     parser.add_argument('--input_lidar_bound', type=str,
-                        default='data/new_test_scene/new_test_scene_road_bounds.csv',
+                        # default='data/new_test_scene/new_test_scene_road_bounds.csv',
+                        default='',
                         help='input lidar file with road edge/bound points x, y, z in EPSG:6543 coordinate projection')
     parser.add_argument('--output_lidar_boundary', type=str,
                         default='',
                         # default='data/new_test_scene/new_test_scene_all_raster_10_classified.csv',
                         help='output rasterized lidar file with road points classified as edge or not')
-    parser.add_argument('--lidar_class_to_keep', default=['6', '11', '15'],
-                        help='filter lidar data to only keep desired classes')
+    parser.add_argument('--lidar_class_to_keep',
+                        # default=['6', '11', '15'],
+                        default=[],
+                        help='filter lidar data to only keep desired classes; if it is empty, keep all classes')
     parser.add_argument('--output_latlon_lidar_basename', type=str,
-                        default='data/new_test_scene/new_test_scene_road',
+                        default='data/d13_route_40001001011/lidar/route_40001001011_all',
                         help='output lidar file with road points lat, lon, z in EPSG:4326 coordinate projection')
 
     args = parser.parse_args()

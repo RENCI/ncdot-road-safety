@@ -9,7 +9,7 @@ import cv2
 from math import sqrt, atan2, degrees
 from utils import SegmentationClass, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
     get_depth_data, get_depth_of_pixel, compute_match, bearing_between_two_latlon_points, \
-    add_lidar_x_y_from_lat_lon
+    add_lidar_x_y_from_lat_lon, LIDARClass
 from align_segmented_road_with_lidar import transform_to_world_coordinate_system, INIT_CAMERA_PARAMS, \
     CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL
 
@@ -70,7 +70,6 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
             input_image_base_name = os.path.basename(os.path.splitext(input_image_name)[0])
             image_pfm = get_depth_data(loader, os.path.join(input_depth_image,
                                                             f'{input_image_base_name}{depth_image_postfix}.pfm'))
-            # print(f'image_pfm shape: {image_pfm.shape}')
             min_depth = image_pfm.min()
             max_depth = image_pfm.max()
             # input_data[input_data == POLE] = 255
@@ -160,35 +159,57 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                         cam_bearing_df = transform_to_world_coordinate_system(cam_bearing_df, cam_para_list)
                         delta_bearing = degrees(atan2(cam_bearing_df.iloc[0]['WORLD_X'],
                                                       -cam_bearing_df.iloc[0]['WORLD_Z']))
-                        print(f'delta_bearing: {delta_bearing}, ref_bearing: {ref_bearing}')
                         ref_bearing += delta_bearing
-                        print(f'after applying delta, ref_bearing: {ref_bearing}')
 
                     if lidar_file_name and os.path.exists(lidar_file_name):
-                        lidar_df = pd.read_csv(lidar_file_name, usecols=['ROAD_X', 'ROAD_Y', 'BEARING',
-                                                                         'geometry_y'])
+                        lidar_df = pd.read_csv(lidar_file_name, usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y',
+                                                                         'ROAD_X', 'ROAD_Y', 'BEARING',
+                                                                         'geometry_y', 'Z', 'C'])
                         lidar_df[['lon', 'lat']] = lidar_df['geometry_y'].apply(lambda x: pd.Series(extract_lon_lat(x)))
 
                         # find the nearest LIDAR projected point from the pole ground location
                         # (x0, object_features[i].bbox[2])
-                        nearest_idx = compute_match(x0, object_features[i].bbox[2],
-                                                    lidar_df['ROAD_X'], lidar_df['ROAD_Y'])[0]
-                        print(lidar_df.iloc[nearest_idx])
+                        nearest_idx, nearest_dist = compute_match(x0, object_features[i].bbox[2],
+                                                                  lidar_df['PROJ_SCREEN_X'], lidar_df['PROJ_SCREEN_Y'])
+                        print(f'nearest_idx: {nearest_idx}, nearest_dist: {nearest_dist}, ldf: {lidar_df.iloc[nearest_idx]}')
+                        # see if there are LIDAR points projected within the object bounding box
+                        filtered_lidar_df = lidar_df[
+                            ((lidar_df.C == LIDARClass.MEDIUM_VEG.value) | (lidar_df.C == LIDARClass.HIGH_VEG.value)) &
+                            (lidar_df['PROJ_SCREEN_X'] >= object_features[i].bbox[1]) &
+                            (lidar_df['PROJ_SCREEN_X'] <= object_features[i].bbox[3]) &
+                            (lidar_df['PROJ_SCREEN_Y'] >= object_features[i].bbox[0]) &
+                            (lidar_df['PROJ_SCREEN_Y'] <= object_features[i].bbox[2])]
+                        if len(filtered_lidar_df) > 0:
+                            nearest_fidx, nearest_fdist = compute_match(x0, y0,
+                                                                        filtered_lidar_df['PROJ_SCREEN_X'],
+                                                                        filtered_lidar_df['PROJ_SCREEN_Y'])
+                            # compare the distance between nearest_fidx to all pole pixels with nearest_dist
+                            # to determine whether to use nearest_fidx or nearest_idx
+                            obj_feat_df = pd.DataFrame(data=object_features[i].coords, columns=['Y', 'X'])
+                            _, nearest_fdist = compute_match(lidar_df.iloc[nearest_fidx].PROJ_SCREEN_X,
+                                                             lidar_df.iloc[nearest_fidx].PROJ_SCREEN_Y,
+                                                             obj_feat_df['X'], obj_feat_df['Y'])
+                            print(f'nearest_fidx: {nearest_fidx}, nearest_fdist: {nearest_fdist}')
+                            if nearest_fdist < nearest_dist:
+                                # use closest LIDAR data lying inside pole bounding box instead of closest LIDAR point
+                                # to the lowest pole pixel
+                                nearest_idx = nearest_fidx
+                                print(f'nearest filtered ldf: {lidar_df.iloc[nearest_idx]}')
+
+                        print(lidar_file_name, nearest_idx)
                         ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
                                                                         lidar_df.iloc[nearest_idx].lat,
                                                                         lidar_df.iloc[nearest_idx].lon,
                                                                         is_degree=True)
-                        ref_x = lidar_df.iloc[nearest_idx].ROAD_X
                         # use ref_bearing only without accounting for any offset since the nearest LIDAR
                         # point should be the point that is hit by the ray cast from camera to object if the
                         # LIDAR raster grid has enough resolution
+                        ref_x = lidar_df.iloc[nearest_idx].PROJ_SCREEN_X
                         hangle = 0
                     else:
                         ref_x = image_width / 2
                         hangle = (abs(x0 - ref_x)/image_width) * width_to_hfov[image_width]
                     minus_bearing = True if x0 < ref_x else False
-                    print(f'ref_bearing: {ref_bearing}, ref_x: {ref_x}, hangle: {hangle}, '
-                          f'minus_bearing: {minus_bearing}')
                 elif suffix == '5.png':
                     # left view image
                     minus_bearing = True
@@ -221,11 +242,12 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_seg_map_info_with_path', type=str,
-                        # default='/projects/ncdot/test_route_segmentation/test_route_road_pole_labels.csv',
                         # default='data/d13_route_40001001011/other/test_route_road_pole_labels_test_image.csv',
                         default='data/new_test_scene/test_route_road_pole_labels_test_images.csv',
                         help='input csv file that includes input segmented image path and name for computing depth')
-    parser.add_argument('--route_id', type=str, default='40001001012',
+    parser.add_argument('--route_id', type=str,
+                        # default='40001001011',
+                        default='40001001012',
                         help='route id to filter input_seg_map_info_with_path data with')
     parser.add_argument('--model_col_header', type=str, default='ONEFORMER',
                         help='input model column header in the input_seg_map_info_with_path to get segmentation path')
@@ -235,20 +257,22 @@ if __name__ == '__main__':
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_depth_image_path', type=str,
                         default='../midas/images/output/new_test_scene',
+                        # default='../midas/images/output/d13_route_40001001011',
                         help='input path that includes depth prediction output images')
     parser.add_argument('--input_depth_image_postfix', type=str,
                         default='-dpt_beit_large_512',
                         help='input depth prediction output image postfix to concatenate with image basename')
     parser.add_argument('--lidar_project_info_file_pattern', type=str,
                         default='data/new_test_scene/output/lidar_project_info_{}.csv',
+                        # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info_{}.csv',
                         help='input LIDAR projection info file pattern')
     parser.add_argument('--lidar_project_cam_params_pattern', type=str,
                         # default='data/new_test_scene/output/lidar_project_info_{}_cam_paras.csv',
                         default='',
                         help='input LIDAR projection info file pattern')
     parser.add_argument('--output_file', type=str,
-                        # default='/projects/ncdot/geotagging/input/oneformer/route_40001001011_segment_object_mapping_input.csv',
-                        default='data/new_test_scene/output/test_mapping_input_with_cam_paras.csv',
+                        # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_input.csv',
+                        default='data/new_test_scene/output/test_mapping_input.csv',
                         help='output file that contains image base names and corresponding segmented object depths')
     parser.add_argument('--front_only', action="store_true",
                         help='whether to compute mapping inputs for front view images only')
