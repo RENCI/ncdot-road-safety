@@ -14,7 +14,7 @@ from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_
     get_aerial_lidar_road_geo_df, compute_match, compute_match_3d, create_gdf_from_df, add_lidar_x_y_from_lat_lon
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
-from get_road_boundary_points import get_image_road_points
+from get_road_boundary_points import get_image_road_points, get_image_lane_points
 from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 
 
@@ -29,9 +29,9 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET
 # initial camera parameter list for optimization
 # INIT_CAMERA_PARAMS = [0.1, 20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53] # for route 40001001011
 # for new test scene route 881000952181 test image using road intersections
-# INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17]
+INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17]
 # for new test scene route 881000952281 test image using road intersections
-INIT_CAMERA_PARAMS = [0.1, 20, 7.2, -7.3, 8.6, -4.3, 3.1, -0.24]
+# INIT_CAMERA_PARAMS = [0.1, 20, 7.2, -7.3, 8.6, -4.3, 3.1, -0.24]
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 DEPTH_SCALING_FACTOR = 189
 LIDAR_DIST_THRESHOLD = (1, 154)
@@ -353,7 +353,7 @@ def get_full_camera_parameters(cam_p):
 
 
 def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark_file, out_match_file, out_proj_file,
-                         to_output_csv, align_in_3d, input_depth_filename_pattern, is_optimize):
+                         align_in_3d, use_lane, input_depth_filename_pattern, is_optimize):
     """
     :param image_name_with_path: image file name with whole path
     :param ldf: lidar 3D point geodataframe
@@ -364,7 +364,6 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
     have an alignment output file for each input image
     :param out_proj_file: output file base with path for aligned road info which will be appended with image name
     to have lidar projection info for each input image
-    :param to_output_csv: whether to output data in csv format for external alignment
     :param align_in_3d: whether to align road in 3D world coordinate system or in 2D screen coordinate system
     :param input_depth_filename_pattern: input depth filename pattern which could end with either pfm indicating
     MiDAS model depth prediction file or png indicating ZoeDepth prediction file
@@ -373,24 +372,16 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
     """
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
-    img_width, img_height, input_list, intersect_points = get_image_road_points(image_name_with_path)
-
+    if use_lane:
+        lane_image_name = f'{os.path.dirname(image_name_with_path)}/mask_{input_2d_mapped_image}1.jpg'
+        img_width, img_height, input_list, intersect_points = get_image_lane_points(lane_image_name)
+    else:
+        img_width, img_height, input_list, intersect_points = get_image_road_points(image_name_with_path)
     input_2d_points = input_list[0]
 
-    if to_output_csv:
-        if input_2d_points.shape[1] == 2:
-            np.savetxt(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}1.csv'),
-                       input_2d_points, delimiter=',', header='X,Y', comments='', fmt='%d')
-        elif input_2d_points.shape[1] == 3:
-            np.savetxt(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}1.csv'),
-                       input_2d_points, delimiter=',', header='X,Y,Boundary', comments='', fmt='%d')
-        else:
-            print(f'input_2d_points.shape[1] must be either 2, or 3, but it is {input_2d_points.shape[1]}, exiting')
-            exit(1)
-    else:
-        # output 2d road boundary points for showing alignment overlay plot
-        with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
-            pickle.dump(input_list, f)
+    # output 2d road boundary points for showing alignment overlay plot
+    with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
+        pickle.dump(input_list, f)
 
     if input_2d_points.shape[1] == 2:
         input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
@@ -526,27 +517,19 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
         input_3d_gdf['ROAD_X'] = input_3d_gdf['MATCH_2D_INDEX'].apply(lambda x: input_2d_df.iloc[x]['X'])
         input_3d_gdf['ROAD_Y'] = input_3d_gdf['MATCH_2D_INDEX'].apply(lambda x: input_2d_df.iloc[x]['Y'])
 
-        if to_output_csv:
-            input_3d_gdf.to_csv(out_proj_file,
-                                columns=['X', 'Y', 'Z', 'I', 'INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
-                                         'WORLD_X', 'WORLD_Y', 'WORLD_Z', 'PROJ_X', 'PROJ_Y',
-                                         'PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
-                                float_format='%.3f',
-                                index=False)
-        else:
-            input_3d_gdf.to_csv(out_proj_file, index=False)
-            proj_base, proj_ext = os.path.splitext(out_proj_file)
-            if 'Boundary' in input_3d_gdf.columns:
-                input_3d_gdf.Boundary = input_3d_gdf.Boundary.apply(lambda x: True if x > 0 else False)
-            if is_optimize:
-                # output optimized camera parameter for the image
-                cam_para_df = pd.DataFrame(data=[optimized_cam_params.tolist()], columns=['translation_x',
-                                                                                          'translation_y',
-                                                                                          'translation_z',
-                                                                                          'rotation_x',
-                                                                                          'rotation_y',
-                                                                                          'rotation_z'])
-                cam_para_df.to_csv(f'{proj_base}_cam_paras.csv', index=False)
+        input_3d_gdf.to_csv(out_proj_file, index=False)
+        proj_base, proj_ext = os.path.splitext(out_proj_file)
+        if 'Boundary' in input_3d_gdf.columns:
+            input_3d_gdf.Boundary = input_3d_gdf.Boundary.apply(lambda x: True if x > 0 else False)
+        if is_optimize:
+            # output optimized camera parameter for the image
+            cam_para_df = pd.DataFrame(data=[optimized_cam_params.tolist()], columns=['translation_x',
+                                                                                      'translation_y',
+                                                                                      'translation_z',
+                                                                                      'rotation_z',
+                                                                                      'rotation_y',
+                                                                                      'rotation_x'])
+            cam_para_df.to_csv(f'{proj_base}_cam_paras.csv', index=False)
             # output_latlon_from_geometry(input_3d_gdf, 'geometry_y', f'{proj_base}_latlon{proj_ext}')
             # if 'I' in input_3d_gdf.columns:
             #     cr_ldf = input_3d_gdf[input_3d_gdf['I'] > 0].reset_index(drop=True)
@@ -559,7 +542,8 @@ if __name__ == '__main__':
     parser.add_argument('--input_lidar_with_path', type=str,
                         # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
                         # default='data/d13_route_40001001011/lidar/route_40001001011_all.csv',
-                        default='data/new_test_scene/new_test_scene_all_raster_10.csv',
+                        # default='data/new_test_scene/new_test_scene_all_raster_10.csv',
+                        default='data/new_test_scene/new_test_scene_all_raster_10_with_road_bounds.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         # default='data/d13_route_40001001011/oneformer',
@@ -574,28 +558,28 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_landmark_file', type=str,
-                        default='data/new_test_scene/new_test_scene_landmarks_881000952281.csv',
+                        default='data/new_test_scene/new_test_scene_landmarks_881000952181.csv',
                         # default='',
                         help='input csv file that includes landmark mapping info to be leveraged for optimizer')
     parser.add_argument('--output_file_base', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/road_alignment_with_lidar',
-                        default='data/new_test_scene/output/road_alignment_with_lidar',
+                        default='data/new_test_scene/lane_test/road_alignment_with_lidar',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have an alignment output file for each input image')
     parser.add_argument('--lidar_proj_output_file_base', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info',
-                        default='data/new_test_scene/output/lidar_project_info',
+                        default='data/new_test_scene/lane_test/lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
-    parser.add_argument('--output_2d_3d_points_for_external_alignment', action="store_true",
-                        help='output 2d road edge boundary pixels and 3d lidar points in world coordinate system for '
-                             'alignment using external tools')
     parser.add_argument('--input_depth_image_filename_pattern', type=str,
-                        help='the image pfm depth file pattern with image_base_name to be passed in via string format '
-                             'or the zoedepth predicted depth file pattern',
                         # default='../midas/images/output/d13_route_40001001011/{image_base_name}-dpt_beit_large_512.pfm')
                         # default='data/d13_route_40001001011/zoedepth_output/m12_nk/{image_base_name}.png')
-                        default='')
+                        default='',
+                        help='the image pfm depth file pattern with image_base_name to be passed in via string format '
+                             'or the zoedepth predicted depth file pattern',
+                        )
+    parser.add_argument('--use_lane_seg', action="store_false",
+                        help='whether to use lane segmentation images')
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
                              'world coordinate system using predicted depth')
@@ -610,8 +594,8 @@ if __name__ == '__main__':
     input_landmark_file = args.input_landmark_file
     output_file_base = args.output_file_base
     lidar_proj_output_file_base = args.lidar_proj_output_file_base
-    output_2d_3d_points_for_external_alignment = args.output_2d_3d_points_for_external_alignment
     input_depth_image_filename_pattern = args.input_depth_image_filename_pattern
+    use_lane_seg = args.use_lane_seg
     align_road_in_3d = args.align_road_in_3d
     optimize = args.optimize
 
@@ -628,7 +612,7 @@ if __name__ == '__main__':
                                                                      input_landmark_file,
                                                                      f'{output_file_base}_{img}.csv',
                                                                      f'{lidar_proj_output_file_base}_{img}.csv',
-                                                                     output_2d_3d_points_for_external_alignment,
                                                                      align_road_in_3d,
+                                                                     use_lane_seg,
                                                                      input_depth_image_filename_pattern, optimize))
     print(f'execution time: {time.time() - start_time}')
