@@ -63,6 +63,78 @@ def process_boundary_in_image(img):
         return binary_data, updated_contours
 
 
+def get_image_lane_points(image_file_name):
+    image_width, image_height, img = get_data_from_image(image_file_name)
+    print(np.count_nonzero(img), len(img[img == 1]), len(img[img == 2]))
+    img[img == 2] = 0
+    kernel = np.ones((1, 3), np.uint8)
+    eroded = cv2.erode(img, kernel, iterations=1)
+    img = cv2.dilate(eroded, kernel, iterations=1)
+
+    mask = morphology.skeletonize(img)
+    img[img != 0] = 0
+    img[mask == 1] = 255
+    lane_indices = np.where(img == 255)
+    lane_contour = np.column_stack((lane_indices[1], lane_indices[0]))
+
+    # Sort lane_points based on y-coordinates
+    sorted_lane_contour = lane_contour[lane_contour[:, 1].argsort()]
+    # Find rows with 3 points
+    unique_rows, counts = np.unique(sorted_lane_contour[:, 1], return_counts=True)
+    # Extract rows with three points
+    # Extract indices of rows with three points
+    rows_with_3_pts = unique_rows[counts == 3]
+    first_row_idx = last_row_idx = -1
+    diff_th = 5
+    for i in range(len(rows_with_3_pts)):
+        if first_row_idx == -1:
+            first_row = lane_contour[lane_contour[:, 1] == rows_with_3_pts[i]]
+            # sort x-coordinates of the first row
+            first_row = first_row[first_row[:, 1].argsort()]
+            # find the row where the middle point is part of the middle lane
+            if first_row[2, 0] - first_row[1, 0] > diff_th and first_row[1, 0] - first_row[0, 0] > diff_th:
+                first_row_idx = i
+        if last_row_idx == -1:
+            last_row = lane_contour[lane_contour[:, 1] == rows_with_3_pts[-(i+1)]]
+            # sort x-coordinates of the last row
+            last_row = last_row[last_row[:, 1].argsort()]
+            # find the row where the middle point is part of the middle lane
+            if last_row[2, 0] - last_row[1, 0] > diff_th and last_row[1, 0] - last_row[0, 0] > diff_th:
+                last_row_idx = len(rows_with_3_pts) - (i + 1)
+        if first_row_idx > -1 and last_row_idx > -1:
+            break
+    if first_row_idx == -1 or last_row_idx == -1:
+        print(f'cannot find start and end middle lane points to create a central axis for filtering: '
+              f'first_row_idx: {first_row_idx}, last_row_idx: {last_row_idx}, returning')
+        return image_width, image_height, [], []
+
+    # find the central axis from the last row middle lane pixel (lower) to the first row middle lane pixel (upper)
+    axis = first_row[1] - last_row[1]
+    # centroid is the middle point of the axis
+    centroid = last_row[1] + axis / 2.0
+    # normalize the axis
+    axis = axis / np.linalg.norm(axis)
+
+    vector_to_centroid = lane_contour - centroid
+    # Project the vector to the axis via dot product
+    projection_on_axis = np.dot(vector_to_centroid, axis)
+
+    # Calculate the perpendicular vector (error vector)
+    perpendicular_vector = vector_to_centroid - np.outer(projection_on_axis, axis)
+
+    # Calculate the distance of each point to the axis
+    distance_to_axis = np.linalg.norm(perpendicular_vector, axis=1)
+
+    # Filter out points based on the threshold distance
+    filtered_lane_contour = lane_contour[distance_to_axis > 25]
+    # img[img != 0] = 0
+    # img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
+    # binary_data = np.uint8(img)
+    # cv2.line(binary_data, first_row[1], last_row[1], (255, 255, 255), 2)
+    # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
+    return image_width, image_height, [filtered_lane_contour], []
+
+
 def get_image_road_points(image_file_name, boundary_only=True):
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
     # assign road with 255 and the rest with 0
