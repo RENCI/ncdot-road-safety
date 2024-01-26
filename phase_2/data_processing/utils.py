@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image
 from math import radians, cos, sin, asin, sqrt, atan2, degrees, pi
 import pickle
+import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 from enum import Enum
@@ -235,10 +236,23 @@ def create_gdf_from_df(input_df, x_col_name='X', y_col_name='Y'):
     return gdf.merge(geom_df, left_index=True, right_index=True)
 
 
-def compute_match(x, y, series_x, series_y):
+def compute_match(x, y, series_x, series_y, grid=False):
     # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
-    # (series_x, series_y) pairs has minimal distance to point(x, y)
-    distances = (series_x - x) ** 2 + (series_y - y) ** 2
+    # (series_x, series_y) pairs has minimal distance to point(x, y). If grid is set to True, grid-based matching
+    # will be applied meaning only those values of series_x and series_y within a grid will be used for matching
+    if grid is True:
+        grid_th = 100
+        match_df = pd.DataFrame({'series_x': series_x, 'series_y': series_y})
+        match_df['distance_x'] = abs(match_df['series_x'] - x)
+        match_df['distance_y'] = abs(match_df['series_y'] - y)
+        max_grid_x, max_grid_y = max(match_df['distance_x']), max(match_df['distance_y'])
+        grid_df = match_df[(match_df.distance_x < grid_th) & (match_df.distance_y < grid_th)]
+        if len(grid_df) <= 0:
+            # no possible for a match within the grid
+            return [-1, max(max_grid_x, max_grid_y)]
+        distances = (grid_df['series_x'] - x) ** 2 + (grid_df['series_y'] - y) ** 2
+    else:
+        distances = (series_x - x) ** 2 + (series_y - y) ** 2
     min_idx = distances.idxmin()
     return [min_idx, distances[min_idx]]
 

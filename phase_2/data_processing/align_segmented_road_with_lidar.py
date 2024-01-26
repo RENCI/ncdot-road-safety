@@ -11,7 +11,8 @@ from math import dist, radians, tan, atan2, degrees
 from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
-    get_aerial_lidar_road_geo_df, compute_match, compute_match_3d, create_gdf_from_df, add_lidar_x_y_from_lat_lon
+    get_aerial_lidar_road_geo_df, compute_match, compute_match_3d, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
+    LIDARClass
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points, get_image_lane_points
@@ -34,7 +35,9 @@ INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17]
 # INIT_CAMERA_PARAMS = [0.1, 20, 7.2, -7.3, 8.6, -4.3, 3.1, -0.24]
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 DEPTH_SCALING_FACTOR = 189
-LIDAR_DIST_THRESHOLD = (1, 154)
+# reduced the LIDAR distance threshold to get less farther away LIDAR points to align with lane lines which
+# don't capture the farther away lane paint
+LIDAR_DIST_THRESHOLD = (1, 124) # (1, 154)
 
 
 def rotate_point(point, quaternion):
@@ -212,6 +215,7 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, input_matchi
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
     if isinstance(input_matching_data, list):
         if len(input_matching_data) <= 0:
+            df_out = df_3d
             if 'Z' in df_2d.columns:
                 df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
                     row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
@@ -225,10 +229,14 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, input_matchi
                     df_2d[df_2d.Boundary == row['Boundary']]['Y'])[1],
                                                      axis=1)
             else:
-                df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
+                if 'BOUND' in df_3d.columns:
+                    # only use road bound LIDAR data for alignment
+                    df_out = df_3d[df_3d.BOUND == 1].copy()
+
+                df_out['MATCH_2D_DIST'] = df_out.apply(lambda row: compute_match(
                     row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-                    df_2d['X'], df_2d['Y'])[1], axis=1)
-            alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
+                    df_2d['X'], df_2d['Y'], grid=True)[1], axis=1)
+            alignment_error = df_out['MATCH_2D_DIST'].sum() / len(df_out)
         else:
             left_intersects = input_matching_data[0]
             right_intersects = input_matching_data[1]
@@ -373,7 +381,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
     if use_lane:
-        lane_image_name = f'{os.path.dirname(image_name_with_path)}/mask_{input_2d_mapped_image}1.jpg'
+        lane_image_name = f'{os.path.dirname(image_name_with_path)}/{input_2d_mapped_image}1_lanes.png'
         img_width, img_height, input_list, intersect_points = get_image_lane_points(lane_image_name)
     else:
         img_width, img_height, input_list, intersect_points = get_image_road_points(image_name_with_path)
@@ -407,12 +415,21 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
                                                                 end_of_route=eor)
-    print(f'len(vertices): {len(vertices[0])}')
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}, {cols}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=cols)
     if landmark_file:
         lm_df = pd.read_csv(landmark_file, usecols=['X', 'Y', 'Z', 'LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y', 'C'])
+        # remove road segments on intersecting roads around intersection landmarks since those intersecting roads
+        # aren't included in lane lines. The removal code is preliminary for testing purposes. More robust general
+        # solution will be implemented if lane line based alignment works well after testing
+        max_lm_x = max(lm_df[lm_df.C == LIDARClass.ROAD.value].X)
+        min_lm_y = min(lm_df[lm_df.C == LIDARClass.ROAD.value].Y)
+        max_lm_y = max(lm_df[lm_df.C == LIDARClass.ROAD.value].Y)
+        print(f'before dropping intersecting segment: {len(input_3d_df)}')
+        input_3d_df = input_3d_df[((input_3d_df.Y <= min_lm_y) & (input_3d_df.X <= max_lm_x)) |
+                                  (input_3d_df.Y >= max_lm_y)]
+        print(f'after dropping intersecting segment: {len(input_3d_df)}')
         lm_3d_df = lm_df.drop(columns=['LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
         # concatenate lm_3d_df with input_3d_df for subsequent transformations
         if 'I' in cols:
@@ -449,7 +466,7 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
     input_3d_gdf = create_gdf_from_df(input_3d_df)
     # calculate the bearing of each 3D point to the camera
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
-        cam_lat, cam_lon, geom.y, geom.x, is_degree=False)  - cam_br)
+        cam_lat, cam_lon, geom.y, geom.x, is_degree=False) - cam_br)
 
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
@@ -485,10 +502,11 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
             # eps specifies the absolute step size used for numerical approximation of the jacobian via forward
             # differences
             # eps = 0.1
-            if landmark_file:
+            if landmark_file and not use_lane:
                 matching_data = lm_df
             else:
                 matching_data = intersect_points
+
             result = minimize(objective_function_2d, INIT_CAMERA_PARAMS[2:],
                               args=(input_3d_gdf, input_2d_df, img_width, img_height, matching_data, align_errors),
                               method='Nelder-Mead',
@@ -563,12 +581,12 @@ if __name__ == '__main__':
                         help='input csv file that includes landmark mapping info to be leveraged for optimizer')
     parser.add_argument('--output_file_base', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/road_alignment_with_lidar',
-                        default='data/new_test_scene/lane_test/road_alignment_with_lidar',
+                        default='data/new_test_scene/lane_test/base_road_alignment_with_lidar',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have an alignment output file for each input image')
     parser.add_argument('--lidar_proj_output_file_base', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info',
-                        default='data/new_test_scene/lane_test/lidar_project_info',
+                        default='data/new_test_scene/lane_test/base_lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
     parser.add_argument('--input_depth_image_filename_pattern', type=str,
@@ -578,7 +596,7 @@ if __name__ == '__main__':
                         help='the image pfm depth file pattern with image_base_name to be passed in via string format '
                              'or the zoedepth predicted depth file pattern',
                         )
-    parser.add_argument('--use_lane_seg', action="store_false",
+    parser.add_argument('--use_lane_seg', action="store_true",
                         help='whether to use lane segmentation images')
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
