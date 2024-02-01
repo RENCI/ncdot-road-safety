@@ -29,7 +29,7 @@ parser.add_argument('--landmark_file', type=str,
                     # default='',
                     help='input csv file that includes landmark mapping info')
 parser.add_argument('--use_lidar_proj_cols', type=list,
-                    default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'C'],
+                    default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'C', 'BOUND'],
                     help='list of columns to load when reading the input lidar projection data from input_3d_proj')
 parser.add_argument('--colormap', type=dict,
                     default={6: 'purple', 2: 'red', 15: 'orange', 1: 'green', 11: 'blue'},
@@ -73,7 +73,8 @@ if show_intersect_only:
     input_3d_proj_df = input_3d_proj_df[input_3d_proj_df['I'] > 0]
 elif show_lidar_road_only:
     input_3d_proj_df = input_3d_proj_df[input_3d_proj_df.C == LIDARClass.ROAD.value]
-
+    if 'BOUND' in input_3d_proj_df.columns:
+        input_3d_proj_df = input_3d_proj_df[input_3d_proj_df.BOUND == 1]
 
 input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.PROJ_SCREEN_X > 0) &
                                     (input_3d_proj_df.PROJ_SCREEN_X < image_width) &
@@ -81,15 +82,19 @@ input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.PROJ_SCREEN_X > 0) &
                                     (input_3d_proj_df.PROJ_SCREEN_Y < image_height)]
 
 plt.scatter(input_2d_points[:, 0], image_height - input_2d_points[:, 1], s=20)
-if 'BOUND' in use_lidar_proj_cols:
+if not show_lidar_road_only and 'BOUND' in use_lidar_proj_cols:
     bound_ldf = input_3d_proj_df[input_3d_proj_df['BOUND'] > 0]
     plt.scatter(bound_ldf['PROJ_SCREEN_X'], image_height - bound_ldf['PROJ_SCREEN_Y'], s=10, c='c')
+
 if 'I' in use_lidar_proj_cols and 'BOUND' in use_lidar_proj_cols:
     remain_ldf = input_3d_proj_df[(input_3d_proj_df['I'] == 0) & (input_3d_proj_df['BOUND'] == 0)]
 elif 'I' in use_lidar_proj_cols:
     remain_ldf = input_3d_proj_df[input_3d_proj_df['I'] == 0]
 elif 'BOUND' in use_lidar_proj_cols:
-    remain_ldf = input_3d_proj_df[input_3d_proj_df['BOUND'] == 0]
+    if show_lidar_road_only:
+        remain_ldf = input_3d_proj_df
+    else:
+        remain_ldf = input_3d_proj_df[input_3d_proj_df['BOUND'] == 0]
 else:
     remain_ldf = input_3d_proj_df
 
