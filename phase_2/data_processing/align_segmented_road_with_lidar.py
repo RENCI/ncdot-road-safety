@@ -29,15 +29,14 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET
     CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL = 0, 1, 2, 3, 4, 5, 6, 7
 # initial camera parameter list for optimization
 # INIT_CAMERA_PARAMS = [0.1, 20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53] # for route 40001001011
-# for new test scene route 881000952181 test image using road intersections
-INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17]
-# for new test scene route 881000952281 test image using road intersections
-# INIT_CAMERA_PARAMS = [0.1, 20, 7.2, -7.3, 8.6, -4.3, 3.1, -0.24]
+# INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17] # new test scene route 881000952181 test image
+# INIT_CAMERA_PARAMS = [0.1, 20, 7.2, -7.3, 8.6, -4.3, 3.1, -0.24] # new test scene route 881000952281 test image
+INIT_CAMERA_PARAMS = [0.1, 20, 5.4, -7.1, 14, -0.049, 1.7, -0.18] # new test scene route 881000954101 test image
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 DEPTH_SCALING_FACTOR = 189
 # reduced the LIDAR distance threshold to get less farther away LIDAR points to align with lane lines which
 # don't capture the farther away lane paint
-LIDAR_DIST_THRESHOLD = (1, 124) # (1, 154)
+LIDAR_DIST_THRESHOLD = (1, 124)  # (1, 154)
 
 
 def rotate_point(point, quaternion):
@@ -576,17 +575,17 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_landmark_file', type=str,
-                        default='data/new_test_scene/new_test_scene_landmarks_881000952181.csv',
-                        # default='',
+                        # default='data/new_test_scene/new_test_scene_landmarks_881000952181.csv',
+                        default='',
                         help='input csv file that includes landmark mapping info to be leveraged for optimizer')
     parser.add_argument('--output_file_base', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/road_alignment_with_lidar',
-                        default='data/new_test_scene/lane_test/base_road_alignment_with_lidar',
+                        default='data/new_test_scene/lane_test/road_alignment_with_lidar',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have an alignment output file for each input image')
     parser.add_argument('--lidar_proj_output_file_base', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info',
-                        default='data/new_test_scene/lane_test/base_lidar_project_info',
+                        default='data/new_test_scene/lane_test/lidar_project_info',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
     parser.add_argument('--input_depth_image_filename_pattern', type=str,
