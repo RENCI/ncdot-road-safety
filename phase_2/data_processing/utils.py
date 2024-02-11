@@ -30,6 +30,7 @@ class LIDARClass(Enum):
     MEDIUM_VEG = 4
     HIGH_VEG = 5
 
+
 def add_lidar_x_y_from_lat_lon(df):
     """
     add X, Y columns representing LIDAR X, Y projection from LONGITUDE and LATITUDE columns in input df
@@ -143,15 +144,17 @@ def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_imag
         cam_br = bearing_between_two_latlon_points(cam_lat2, cam_lon2, cam_lat, cam_lon, is_degree)
         # compute next interpolated camera location based on cam_br
         cam_lat2, cam_lon2 = next_location(cam_lat, cam_lon, cam_br, 8, is_degree)
+        map_base_img2 = mapping_df.iloc[mapped_image_df.index - 1]['MAPPED_IMAGE']
         end_of_route = True
     else:
         cam_lat2 = float(next_row.iloc[0]['LATITUDE'])
         cam_lon2 = float(next_row.iloc[0]['LONGITUDE'])
         # compute bearing
         cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2, is_degree)
+        map_base_img2 = next_row.iloc[0]['MAPPED_IMAGE']
         end_of_route = False
 
-    return cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, end_of_route
+    return cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, map_base_img2, end_of_route
 
 
 # haversine distance formula between two points specified by their GPS coordinates

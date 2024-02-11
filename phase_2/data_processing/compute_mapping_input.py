@@ -15,7 +15,7 @@ from align_segmented_road_with_lidar import transform_to_world_coordinate_system
 
 
 # may need to be updated (e.g., set to 25) in conjunction with MAX_OBJ_DIST_FROM_CAM set in object_mapping.py
-SCALING_FACTOR = 55
+SCALING_FACTOR = 35
 POLE_X_SIZE_THRESHOLD = 10
 POLE_Y_SIZE_THRESHOLD = 20
 POLE_ASPECT_RATIO_THRESHOLD = 10  # 12
@@ -40,7 +40,7 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                           lidar_file_pattern, cam_paras_file_pattern):
     # compute depth of segmented object taking the 10%-trimmed mean of the depths of its constituent pixels
     # to gain robustness with respect to segmentation errors, in particular along the object borders
-    cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, _ = get_camera_latlon_and_bearing_for_image_from_mapping(mdf,
+    cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, _, _ = get_camera_latlon_and_bearing_for_image_from_mapping(mdf,
                                                                                                            mapped_image)
     if cam_lat is None:
         # no camera location
@@ -86,9 +86,11 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
 
                 y0, x0 = object_features[i].centroid
                 depth = get_depth_of_pixel(y0, x0, image_pfm, min_depth, max_depth, scaling=SCALING_FACTOR)
+                print(f'x0: {x0}, y0: {y0}, xdiff: {xdiff}, ydiff: {ydiff}', flush=True)
                 if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                     major_axis_len = object_features[i].major_axis_length
                     minor_axis_len = object_features[i].minor_axis_length
+                    print(f'major: {major_axis_len}, minor: {minor_axis_len}', flush=True)
                     if major_axis_len / minor_axis_len < POLE_ASPECT_RATIO_THRESHOLD:
                         # filter out detected short sticks
                         continue
@@ -105,6 +107,7 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                     img_dilation = cv2.dilate(img_erosion, kernel, iterations=1)
                     # use the resulting image with erosion followed by dilation as a mask to
                     obj_only = cv2.bitwise_and(labeled_data, img_dilation)
+                    print(f'len(np.unique(obj_only)):{len(np.unique(obj_only))}', flush=True)
                     if len(np.unique(obj_only)) <= 1:
                         # The object gets filtered out, so discard it
                         continue
@@ -122,6 +125,7 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                             filtered_out = True
                         break
                 if filtered_out:
+                    print(f'filtered out: {x0}, {y0}, {xdiff}, {ydiff}, {depth}')
                     continue
 
                 ref_bearing = cam_br
@@ -171,7 +175,9 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                         # (x0, object_features[i].bbox[2])
                         nearest_idx, nearest_dist = compute_match(x0, object_features[i].bbox[2],
                                                                   lidar_df['PROJ_SCREEN_X'], lidar_df['PROJ_SCREEN_Y'])
-                        print(f'nearest_idx: {nearest_idx}, nearest_dist: {nearest_dist}, ldf: {lidar_df.iloc[nearest_idx]}')
+                        print(f'object x, y: {x0}, {object_features[i].bbox[2]}, nearest_idx: {nearest_idx}, '
+                              f'nearest_dist: {nearest_dist}, ldf: {lidar_df.iloc[nearest_idx]}')
+
                         # see if there are LIDAR points projected within the object bounding box
                         filtered_lidar_df = lidar_df[
                             ((lidar_df.C == LIDARClass.MEDIUM_VEG.value) | (lidar_df.C == LIDARClass.HIGH_VEG.value)) &
@@ -263,7 +269,7 @@ if __name__ == '__main__':
                         default='-dpt_beit_large_512',
                         help='input depth prediction output image postfix to concatenate with image basename')
     parser.add_argument('--lidar_project_info_file_pattern', type=str,
-                        default='data/new_test_scene/output/lidar_project_info_{}.csv',
+                        default='data/new_test_scene/lane_test/lidar_project_info_{}.csv',
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info_{}.csv',
                         help='input LIDAR projection info file pattern')
     parser.add_argument('--lidar_project_cam_params_pattern', type=str,
@@ -272,7 +278,7 @@ if __name__ == '__main__':
                         help='input LIDAR projection info file pattern')
     parser.add_argument('--output_file', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_input.csv',
-                        default='data/new_test_scene/output/test_mapping_input.csv',
+                        default='data/new_test_scene/lane_test/test_mapping_input.csv',
                         help='output file that contains image base names and corresponding segmented object depths')
     parser.add_argument('--front_only', action="store_true",
                         help='whether to compute mapping inputs for front view images only')

@@ -36,7 +36,7 @@ and a score value for each of these. The score is the number of individual views
 # test scene since the test pole is about 100 meters away from the camera. This parameter needs to be adjusted
 # in conjunction with the depth scaling factor in compute_mapping_input.py since the predicted depth is used as
 # a constraint with computed distance from the camera to computed intersection points
-MAX_OBJ_DIST_FROM_CAM = 55
+MAX_OBJ_DIST_FROM_CAM = 35
 MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
 # this SCALING_FACTOR is applied to the predicted depth, then the product is compared with the distance between
 # the camera and the intersection point for energy, so if the real distance from camera to the geotagged location
@@ -408,11 +408,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
                         # default='../data_processing/data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_input.csv',
-                        default='../data_processing/data/new_test_scene/output/test_mapping_input.csv',
+                        default='../data_processing/data/new_test_scene/lane_test/test_mapping_input.csv',
                         help='input file name with path')
     parser.add_argument('--output_file', type=str,
                         # default='../data_processing/data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_output.csv',
-                        default='../data_processing/data/new_test_scene/output/test_mapping_output.csv',
+                        default='../data_processing/data/new_test_scene/lane_test/test_mapping_output.csv',
                         help='output file name with path')
     parser.add_argument('--output_intersect_base_images', action='store_true',
                         help='output list of intersection base images for categorization')
