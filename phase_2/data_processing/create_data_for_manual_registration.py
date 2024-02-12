@@ -69,7 +69,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
                         # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10.csv',
-                        default='data/new_test_scene/new_test_scene_all_raster_10.csv',
+                        default='data/new_test_scene/new_test_scene_all_raster_10_with_road_bounds.csv',
                         help='input file that contains x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         # default='data/d13_route_40001001011/oneformer',
@@ -88,7 +88,8 @@ if __name__ == '__main__':
                         default='',
                         help='input landmark location to compute distance from each LIDAR point')
     parser.add_argument('--input_road_lidar_with_intersection', type=str,
-                        default='data/new_test_scene/new_test_scene_road_raster_10.csv',
+                        # default='data/new_test_scene/new_test_scene_road_raster_10.csv',
+                        default='',
                         help='input file that contains road x, y, z vertices from lidar along with a I column '
                              'indicating whether the vertex is part of crossroad intersection or not')
     parser.add_argument('--output_lidar_file_base', type=str,

@@ -363,12 +363,24 @@ def get_full_camera_parameters(cam_p):
     return combined
 
 
-def derive_next_camera_params(cam_para1, cam_loc, next_cam_loc):
+def derive_transformed_z_axis(v1, v2):
+    v1_norm = v1 / np.linalg.norm(v1)
+    v2_norm = v2 / np.linalg.norm(v2)
+    # compute the rotation axis
+    rot_axis = np.cross(v1_norm, v2_norm)
+
+    # compute the cosine of the rotation angle
+    cos_theta = np.dot(v1_norm, v2_norm)
+    rot_matrix = np.eye(3) + np.sin(np.arccos(cos_theta)) * np.array([[0, -rot_axis[2], rot_axis[1]],
+                                                                      [rot_axis[2], 0, -rot_axis[0]],
+                                                                      [-rot_axis[1], rot_axis[0], 0]])
+    return np.dot(rot_matrix, np.array([0, 0, 1]))
+
+
+def derive_next_camera_params(cam_para1, new_z_axis):
     cam_para2 = cam_para1.copy()
     rot_mat = Rotation.from_euler('xyz', np.array([cam_para1[CAMERA_ROLL], cam_para1[CAMERA_PITCH],
                                                    cam_para1[CAMERA_YAW]]), degrees=True).as_matrix()
-    new_z_axis = np.array([next_cam_loc[0] - cam_loc[0], next_cam_loc[1] - cam_loc[1], next_cam_loc[2] - cam_loc[2]])
-    new_z_axis /= np.linalg.norm(new_z_axis)
     # Change the z-axis vector in the rotation matrix
     rot_mat[:3, 2] = new_z_axis
     cam_para2[CAMERA_ROLL], cam_para2[CAMERA_PITCH], cam_para2[CAMERA_YAW] = \
@@ -502,9 +514,12 @@ def align_image_to_lidar(image_name_with_path, ldf, input_mapping_file, landmark
 
     init_cam_paras = NEXT_CAM_PARAS.copy()
 
+    v1 = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
+    v2 = np.array([proj_cam_x3 - proj_cam_x2, proj_cam_y3 - proj_cam_y2, proj_cam_z3 - proj_cam_z2])
+
+    transformed_z_axis = derive_transformed_z_axis(v1, v2)
     # update NEXT_CAM_PARAS with next camera's parameter to be used in the next image row iteration
-    NEXT_CAM_PARAS = derive_next_camera_params(init_cam_paras, (proj_cam_x2, proj_cam_y2, proj_cam_z2),
-                                               (proj_cam_x3, proj_cam_y3, proj_cam_z3))
+    NEXT_CAM_PARAS = derive_next_camera_params(init_cam_paras, transformed_z_axis)
     if input_depth_filename_pattern:
         input_2d_df = get_image_depth(input_depth_filename_pattern, input_2d_mapped_image, input_2d_df, img_width,
                                       img_height, input_3d_gdf['INITIAL_WORLD_Z'].min(),
