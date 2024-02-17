@@ -413,7 +413,8 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     global NEXT_CAM_PARAS
 
     image_name_with_path = os.path.join(base_image_dir, f'{row["imageBaseName"]}.png')
-    out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{row["imageBaseName"]}.csv')
+    out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{row["imageBaseName"]}.csv') \
+        if is_optimize else os.path.join(out_proj_file_path, f'base_lidar_project_info_{row["imageBaseName"]}.csv')
 
     # get input image base name
     input_2d_mapped_image = row["imageBaseName"][:-1]
@@ -619,7 +620,7 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
             #     output_latlon_from_geometry(cr_ldf, 'geometry_y',
             #                                 f'{proj_base}_crossroad_intersect_latlon{proj_ext}')
 
-        return init_cam_paras, optimized_cam_params
+        return init_cam_paras, optimized_cam_params.tolist()
 
 
 if __name__ == '__main__':
