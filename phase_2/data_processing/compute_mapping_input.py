@@ -173,11 +173,37 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
 
                         # find the nearest LIDAR projected point from the pole ground location
                         # (x0, object_features[i].bbox[2])
-                        nearest_idx, nearest_dist = compute_match(x0, object_features[i].bbox[2],
-                                                                  lidar_df['PROJ_SCREEN_X'], lidar_df['PROJ_SCREEN_Y'])
-                        print(f'object x, y: {x0}, {object_features[i].bbox[2]}, nearest_idx: {nearest_idx}, '
-                              f'nearest_dist: {nearest_dist}, ldf: {lidar_df.iloc[nearest_idx]}')
+                        # nearest_idx, nearest_dist = compute_match(x0, object_features[i].bbox[2],
+                        #                                           lidar_df['PROJ_SCREEN_X'], lidar_df['PROJ_SCREEN_Y'])
+                        # print(f'object x, y: {x0}, {object_features[i].bbox[2]}, nearest_idx: {nearest_idx}, '
+                        #       f'nearest_dist: {nearest_dist}, ldf: {lidar_df.iloc[nearest_idx]}')
 
+                        # Calculate signed distances of LIDAR projected points along X and Y directions
+                        # from the pole ground location
+                        lidar_df['Dist_X'] = lidar_df['PROJ_SCREEN_X'] - x0
+                        lidar_df['Dist_Y'] = lidar_df['PROJ_SCREEN_Y'] - object_features[i].bbox[2]
+                        ldf_sorted_x = lidar_df.sort_values(by='Dist_X')
+                        ldf_sorted_y = lidar_df.sort_values(by='Dist_Y')
+                        # Find the closest point on the left and right along X direction
+                        closest_left_x = ldf_sorted_x[ldf_sorted_x['Dist_X'] <= 0].nlargest(1, 'Dist_X').iloc[0]
+                        closest_right_x = ldf_sorted_x[ldf_sorted_x['Dist_X'] > 0].nsmallest(1, 'Dist_X').iloc[0]
+                        # Find the closest point above and below along Y direction
+                        closest_down_y = ldf_sorted_y[ldf_sorted_y['Dist_Y'] <= 0].nlargest(1, 'Dist_Y').iloc[0]
+                        closest_up_y = ldf_sorted_y[ldf_sorted_y['Dist_Y'] > 0].nsmallest(1, 'Dist_Y').iloc[0]
+
+                        # Indices of the closest points
+                        closest_indices = {
+                            'left_x': closest_left_x.name,
+                            'right_x': closest_right_x.name,
+                            'down_y': closest_down_y.name,
+                            'up_y': closest_up_y.name
+                        }
+                        print(f'closest_indices: {closest_indices}')
+                        # Average location of the closest points
+                        avg_x = (closest_left_x['PROJ_SCREEN_X'] + closest_right_x['PROJ_SCREEN_X']) / 2
+                        avg_y = (closest_down_y['PROJ_SCREEN_Y'] + closest_up_y['PROJ_SCREEN_Y']) / 2
+                        nearest_dist = (avg_x - x0) ** 2 + (avg_y - object_features[i].bbox[2]) ** 2
+                        nearest_idx = -1
                         # see if there are LIDAR points projected within the object bounding box
                         filtered_lidar_df = lidar_df[
                             ((lidar_df.C == LIDARClass.MEDIUM_VEG.value) | (lidar_df.C == LIDARClass.HIGH_VEG.value)) &
@@ -203,14 +229,29 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                                 print(f'nearest filtered ldf: {lidar_df.iloc[nearest_idx]}')
 
                         print(lidar_file_name, nearest_idx)
-                        ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
-                                                                        lidar_df.iloc[nearest_idx].lat,
-                                                                        lidar_df.iloc[nearest_idx].lon,
-                                                                        is_degree=True)
-                        # use ref_bearing only without accounting for any offset since the nearest LIDAR
-                        # point should be the point that is hit by the ray cast from camera to object if the
-                        # LIDAR raster grid has enough resolution
-                        ref_x = lidar_df.iloc[nearest_idx].PROJ_SCREEN_X
+                        if nearest_idx >= 0:
+                            ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
+                                                                            lidar_df.iloc[nearest_idx].lat,
+                                                                            lidar_df.iloc[nearest_idx].lon,
+                                                                            is_degree=True)
+                            # use ref_bearing only without accounting for any offset since the nearest LIDAR
+                            # point should be the point that is hit by the ray cast from camera to object if the
+                            # LIDAR raster grid has enough resolution
+                            ref_x = lidar_df.iloc[nearest_idx].PROJ_SCREEN_X
+                        else:
+                            # use the average of four LIDAR points computed above
+                            # avg_lat = (closest_left_x['lat'] + closest_right_x['lat'] +
+                            #            closest_down_y['lat'] + closest_up_y['lat']) / 4
+                            # avg_lon = (closest_left_x['lon'] + closest_right_x['lon'] +
+                            #            closest_down_y['lon'] + closest_up_y['lon']) / 4
+                            avg_lat = (closest_left_x['lat'] + closest_right_x['lat']) / 2
+                            avg_lon = (closest_left_x['lon'] + closest_right_x['lon']) / 2
+                            ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
+                                                                            avg_lat,
+                                                                            avg_lon,
+                                                                            is_degree=True)
+                            ref_x = avg_x
+                            print(f'ref_bearing: {ref_bearing}, avg_lat: {avg_lat}, avg_lon: {avg_lon}')
                         hangle = 0
                     else:
                         ref_x = image_width / 2
