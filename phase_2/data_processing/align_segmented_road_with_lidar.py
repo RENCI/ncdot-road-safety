@@ -7,7 +7,7 @@ import numpy as np
 from pypfm import PFMLoader
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import UnivariateSpline
 from math import dist, radians, tan, atan2, degrees
 from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
@@ -43,6 +43,7 @@ DEPTH_SCALING_FACTOR = 189
 # don't capture the farther away lane paint
 LIDAR_DIST_THRESHOLD = (0, 124)  # (1, 154)
 SPLINE_FIT_DIST_THRESHOLD = 15
+SPLINE_SMOOTHING_FACTOR = 100
 
 
 def rotate_point(point, quaternion):
@@ -514,13 +515,12 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
 
-    # compute base camera parameters
-    # cam_df = pd.DataFrame(data={'LATITUDE': [cam_lat2, cam_lat3], 'LONGITUDE': [cam_lon2, cam_lon3]})
-    # cam_gdf = add_lidar_x_y_from_lat_lon(cam_df)
-    # proj_cam_x2 = cam_gdf.iloc[0].x
-    # proj_cam_y2 = cam_gdf.iloc[0].y
-    # cam2_nearest_lidar_idx = compute_match(proj_cam_x2, proj_cam_y2, ldf['X'], ldf['Y'])[0]
-    # proj_cam_z2 = ldf.iloc[cam2_nearest_lidar_idx].Z
+    cam_df = pd.DataFrame(data={'LATITUDE': [cam_lat2, cam_lat3], 'LONGITUDE': [cam_lon2, cam_lon3]})
+    cam_gdf = add_lidar_x_y_from_lat_lon(cam_df)
+    proj_cam_x2 = cam_gdf.iloc[0].x
+    proj_cam_y2 = cam_gdf.iloc[0].y
+    cam2_nearest_lidar_idx = compute_match(proj_cam_x2, proj_cam_y2, ldf['X'], ldf['Y'])[0]
+    proj_cam_z2 = ldf.iloc[cam2_nearest_lidar_idx].Z
     # proj_cam_x3 = cam_gdf.iloc[1].x
     # proj_cam_y3 = cam_gdf.iloc[1].y
     # proj_cam_z3 = ldf.iloc[compute_match(proj_cam_x3, proj_cam_y3, ldf['X'], ldf['Y'])[0]].Z
@@ -530,21 +530,33 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
     filtered_road_ldf = input_3d_gdf[input_3d_gdf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
     filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
-    x = filtered_road_ldf['X'].values
-    y = filtered_road_ldf['Y'].values
-    z = filtered_road_ldf['Z'].values
+    x = filtered_road_ldf['INITIAL_WORLD_X'].values
+    y = filtered_road_ldf['INITIAL_WORLD_Y'].values
+    z = filtered_road_ldf['INITIAL_WORLD_Z'].values
     unique_x, unique_indices = np.unique(x, return_index=True)
     unique_y = y[unique_indices]
     unique_z = z[unique_indices]
-    spline_xy = CubicSpline(unique_x, unique_y)
-    spline_xz = CubicSpline(unique_x, unique_z)
-    cam_tan_x = spline_xy.derivative(nu=1)(filtered_road_ldf['X'].iloc[0])
-    cam_tan_y = spline_xy.derivative(nu=1)(filtered_road_ldf['Y'].iloc[0])
-    cam_tan_z = spline_xz.derivative(nu=1)(filtered_road_ldf['Z'].iloc[0])
+    print(f'unique_x: {unique_x}')
+    print(f'unique_y: {unique_y}')
+    print(f'unique_z: {unique_z}')
+    spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
+    spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
+    print(filtered_road_ldf['INITIAL_WORLD_X'].iloc[0], filtered_road_ldf['INITIAL_WORLD_Y'].iloc[0], filtered_road_ldf['INITIAL_WORLD_Z'].iloc[0])
+    cam_tan_x = spline_xy.derivative()(filtered_road_ldf['INITIAL_WORLD_X'].iloc[0])
+    cam_tan_y = spline_xy.derivative()(filtered_road_ldf['INITIAL_WORLD_Y'].iloc[0])
+    cam_tan_z = spline_xz.derivative()(filtered_road_ldf['INITIAL_WORLD_Z'].iloc[0])
+    print(cam_tan_x, cam_tan_y, cam_tan_z)
     v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
+    v = v / np.linalg.norm(v)
+    print(f'v: {v}, image: {row["imageBaseName"]}, PREV_CAM_BEARING_VEC: {PREV_CAM_BEARING_VEC}')
+    cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
+    cam_v = cam_v / np.linalg.norm(cam_v)
+    print(f'cam_v: {cam_v}, proj_cam_y2: {proj_cam_y2}, cam_lidar_z: {cam_lidar_z}')
     if PREV_CAM_BEARING_VEC is not None and PREV_CAM_PARAS is not None:
         transformed_z_axis = derive_transformed_z_axis(PREV_CAM_BEARING_VEC, v)
+        print(f'transformed_z_axis: {transformed_z_axis}', flush=True)
         init_cam_paras = derive_next_camera_params(PREV_CAM_PARAS, transformed_z_axis)
+        print(f'derived camera parameters: {init_cam_paras}')
     else:
         init_cam_paras = INIT_CAMERA_PARAMS
 
