@@ -303,7 +303,7 @@ def linear_interpolation(point1, point2, n):
     return [(round(x1 + i * step_size * (x2 - x1)), round(y1 + i * step_size * (y2 - y1))) for i in range(0, n)]
 
 
-def get_mapping_data(input_file, input_image_name, get_cam_3_loc=False):
+def get_mapping_data(input_file, input_image_name):
     df = pd.read_csv(input_file, usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE'], dtype=str)
     df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
 
@@ -320,12 +320,7 @@ def get_mapping_data(input_file, input_image_name, get_cam_3_loc=False):
     proj_cam_x = cam_geom_df.iloc[0].x
     proj_cam_y = cam_geom_df.iloc[0].y
     print(f'cam lat-long: {cam_lat}-{cam_lon}, proj cam y-x: {proj_cam_y}-{proj_cam_x}, cam_br: {cam_br}')
-    if get_cam_3_loc:
-        _, _, _, cam_lat3, cam_lon3, _, _ = \
-            get_camera_latlon_and_bearing_for_image_from_mapping(df, base_img2, is_degree=False)
-        return cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor, cam_lat3, cam_lon3
-    else:
-        return cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor
+    return cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor
 
 
 def get_input_file_with_images(input_file):
@@ -438,8 +433,8 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
         exit(1)
 
     # compute base camera parameters
-    cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor, cam_lat3, cam_lon3 = \
-        get_mapping_data(input_mapping_file, input_2d_mapped_image, get_cam_3_loc=True)
+    cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = \
+        get_mapping_data(input_mapping_file, input_2d_mapped_image)
     # get the lidar road vertex with the closest distance to the camera location
     cam_nearest_lidar_idx = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])[0]
     # next_idx = get_next_road_index(cam_nearest_lidar_idx, input_3d_gdf, 'BEARING')
@@ -512,18 +507,15 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     input_3d_gdf = init_transform_from_lidar_to_world_coordinate_system(input_3d_gdf, proj_cam_x, proj_cam_y,
                                                                         cam_lidar_z)
 
-    cam_df = pd.DataFrame(data={'LATITUDE': [cam_lat2, cam_lat3], 'LONGITUDE': [cam_lon2, cam_lon3]})
+    cam_df = pd.DataFrame(data={'LATITUDE': [cam_lat2], 'LONGITUDE': [cam_lon2]})
     cam_gdf = add_lidar_x_y_from_lat_lon(cam_df)
     proj_cam_x2 = cam_gdf.iloc[0].x
     proj_cam_y2 = cam_gdf.iloc[0].y
     cam2_nearest_lidar_idx = compute_match(proj_cam_x2, proj_cam_y2, ldf['X'], ldf['Y'])[0]
     proj_cam_z2 = ldf.iloc[cam2_nearest_lidar_idx].Z
-    # proj_cam_x3 = cam_gdf.iloc[1].x
-    # proj_cam_y3 = cam_gdf.iloc[1].y
-    # proj_cam_z3 = ldf.iloc[compute_match(proj_cam_x3, proj_cam_y3, ldf['X'], ldf['Y'])[0]].Z
-    # v1 = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
-    # v2 = np.array([proj_cam_x3 - proj_cam_x2, proj_cam_y3 - proj_cam_y2, proj_cam_z3 - proj_cam_z2])
-
+    v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
+    v = v / np.linalg.norm(v)
+    print(f'v: {v}, proj_cam_y2: {proj_cam_y2}, cam_lidar_z: {cam_lidar_z}')
     # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
     # filtered_road_ldf = input_3d_gdf[input_3d_gdf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
     # filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
@@ -546,9 +538,7 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     # v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
     # v = v / np.linalg.norm(v)
     # print(f'v: {v}, image: {row["imageBaseName"]}, PREV_CAM_BEARING_VEC: {PREV_CAM_BEARING_VEC}')
-    v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
-    v = v / np.linalg.norm(v)
-    print(f'v: {v}, proj_cam_y2: {proj_cam_y2}, cam_lidar_z: {cam_lidar_z}')
+
     if PREV_CAM_BEARING_VEC is not None and PREV_CAM_PARAS is not None:
         init_cam_paras = derive_next_camera_params(PREV_CAM_BEARING_VEC, v, PREV_CAM_PARAS)
         print(f'derived camera parameters: {init_cam_paras}')
@@ -693,7 +683,7 @@ if __name__ == '__main__':
                         help='the image pfm depth file pattern with image_base_name to be passed in via string format '
                              'or the zoedepth predicted depth file pattern',
                         )
-    parser.add_argument('--use_lane_seg', action="store_false",
+    parser.add_argument('--use_lane_seg', action="store_true",
                         help='whether to use lane segmentation images')
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
