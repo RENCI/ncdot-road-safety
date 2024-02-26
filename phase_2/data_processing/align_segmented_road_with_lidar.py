@@ -368,7 +368,10 @@ def get_full_camera_parameters(cam_p):
     return combined
 
 
-def derive_transformed_z_axis(v1, v2):
+def derive_next_camera_params(v1, v2, cam_para1):
+    rot_mat1 = Rotation.from_euler('xyz', np.array([cam_para1[CAMERA_ROLL], cam_para1[CAMERA_PITCH],
+                                                    cam_para1[CAMERA_YAW]]), degrees=True).as_matrix()
+
     v1_norm = v1 / np.linalg.norm(v1)
     v2_norm = v2 / np.linalg.norm(v2)
     # compute the rotation axis
@@ -376,20 +379,14 @@ def derive_transformed_z_axis(v1, v2):
 
     # compute the cosine of the rotation angle
     cos_theta = np.dot(v1_norm, v2_norm)
-    rot_matrix = np.eye(3) + np.sin(np.arccos(cos_theta)) * np.array([[0, -rot_axis[2], rot_axis[1]],
-                                                                      [rot_axis[2], 0, -rot_axis[0]],
-                                                                      [-rot_axis[1], rot_axis[0], 0]])
-    return np.dot(rot_matrix, np.array([0, 0, 1]))
+    rot_mat12 = np.eye(3) + np.sin(np.arccos(cos_theta)) * np.array([[0, -rot_axis[2], rot_axis[1]],
+                                                                     [rot_axis[2], 0, -rot_axis[0]],
+                                                                     [-rot_axis[1], rot_axis[0], 0]])
+    rot_mat2 = np.matmul(rot_mat1, rot_mat12)
 
-
-def derive_next_camera_params(cam_para1, new_z_axis):
     cam_para2 = cam_para1.copy()
-    rot_mat = Rotation.from_euler('xyz', np.array([cam_para1[CAMERA_ROLL], cam_para1[CAMERA_PITCH],
-                                                   cam_para1[CAMERA_YAW]]), degrees=True).as_matrix()
-    # Change the z-axis vector in the rotation matrix
-    rot_mat[:3, 2] = new_z_axis
     cam_para2[CAMERA_ROLL], cam_para2[CAMERA_PITCH], cam_para2[CAMERA_YAW] = \
-        Rotation.from_matrix(rot_mat).as_euler('xyz', degrees=True)
+        Rotation.from_matrix(rot_mat2).as_euler('xyz', degrees=True)
 
     return cam_para2
 
@@ -528,34 +525,32 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     # v2 = np.array([proj_cam_x3 - proj_cam_x2, proj_cam_y3 - proj_cam_y2, proj_cam_z3 - proj_cam_z2])
 
     # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
-    filtered_road_ldf = input_3d_gdf[input_3d_gdf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
-    filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
-    x = filtered_road_ldf['INITIAL_WORLD_X'].values
-    y = filtered_road_ldf['INITIAL_WORLD_Y'].values
-    z = filtered_road_ldf['INITIAL_WORLD_Z'].values
-    unique_x, unique_indices = np.unique(x, return_index=True)
-    unique_y = y[unique_indices]
-    unique_z = z[unique_indices]
-    print(f'unique_x: {unique_x}')
-    print(f'unique_y: {unique_y}')
-    print(f'unique_z: {unique_z}')
-    spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
-    spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
-    print(filtered_road_ldf['INITIAL_WORLD_X'].iloc[0], filtered_road_ldf['INITIAL_WORLD_Y'].iloc[0], filtered_road_ldf['INITIAL_WORLD_Z'].iloc[0])
-    cam_tan_x = spline_xy.derivative()(filtered_road_ldf['INITIAL_WORLD_X'].iloc[0])
-    cam_tan_y = spline_xy.derivative()(filtered_road_ldf['INITIAL_WORLD_Y'].iloc[0])
-    cam_tan_z = spline_xz.derivative()(filtered_road_ldf['INITIAL_WORLD_Z'].iloc[0])
-    print(cam_tan_x, cam_tan_y, cam_tan_z)
-    v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
+    # filtered_road_ldf = input_3d_gdf[input_3d_gdf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
+    # filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
+    # x = filtered_road_ldf['INITIAL_WORLD_X'].values
+    # y = filtered_road_ldf['INITIAL_WORLD_Y'].values
+    # z = filtered_road_ldf['INITIAL_WORLD_Z'].values
+    # unique_x, unique_indices = np.unique(x, return_index=True)
+    # unique_y = y[unique_indices]
+    # unique_z = z[unique_indices]
+    # print(f'unique_x: {unique_x}')
+    # print(f'unique_y: {unique_y}')
+    # print(f'unique_z: {unique_z}')
+    # spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
+    # spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
+    # print(filtered_road_ldf['INITIAL_WORLD_X'].iloc[0], filtered_road_ldf['INITIAL_WORLD_Y'].iloc[0], filtered_road_ldf['INITIAL_WORLD_Z'].iloc[0])
+    # cam_tan_x = spline_xy.derivative()(filtered_road_ldf['INITIAL_WORLD_X'].iloc[0])
+    # cam_tan_y = spline_xy.derivative()(filtered_road_ldf['INITIAL_WORLD_Y'].iloc[0])
+    # cam_tan_z = spline_xz.derivative()(filtered_road_ldf['INITIAL_WORLD_Z'].iloc[0])
+    # print(cam_tan_x, cam_tan_y, cam_tan_z)
+    # v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
+    # v = v / np.linalg.norm(v)
+    # print(f'v: {v}, image: {row["imageBaseName"]}, PREV_CAM_BEARING_VEC: {PREV_CAM_BEARING_VEC}')
+    v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
     v = v / np.linalg.norm(v)
-    print(f'v: {v}, image: {row["imageBaseName"]}, PREV_CAM_BEARING_VEC: {PREV_CAM_BEARING_VEC}')
-    cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
-    cam_v = cam_v / np.linalg.norm(cam_v)
-    print(f'cam_v: {cam_v}, proj_cam_y2: {proj_cam_y2}, cam_lidar_z: {cam_lidar_z}')
+    print(f'v: {v}, proj_cam_y2: {proj_cam_y2}, cam_lidar_z: {cam_lidar_z}')
     if PREV_CAM_BEARING_VEC is not None and PREV_CAM_PARAS is not None:
-        transformed_z_axis = derive_transformed_z_axis(PREV_CAM_BEARING_VEC, v)
-        print(f'transformed_z_axis: {transformed_z_axis}', flush=True)
-        init_cam_paras = derive_next_camera_params(PREV_CAM_PARAS, transformed_z_axis)
+        init_cam_paras = derive_next_camera_params(PREV_CAM_BEARING_VEC, v, PREV_CAM_PARAS)
         print(f'derived camera parameters: {init_cam_paras}')
     else:
         init_cam_paras = INIT_CAMERA_PARAMS
@@ -698,7 +693,7 @@ if __name__ == '__main__':
                         help='the image pfm depth file pattern with image_base_name to be passed in via string format '
                              'or the zoedepth predicted depth file pattern',
                         )
-    parser.add_argument('--use_lane_seg', action="store_true",
+    parser.add_argument('--use_lane_seg', action="store_false",
                         help='whether to use lane segmentation images')
     parser.add_argument('--align_road_in_3d', action="store_true",
                         help='align road in 3D world coordinate system by projecting road boundary pixels to 3D '
