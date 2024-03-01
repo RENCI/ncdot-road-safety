@@ -363,6 +363,11 @@ def get_full_camera_parameters(cam_p):
     return combined
 
 
+def get_updated_z_axis_from_rotation_angles(x_angle, y_angle, z_angle, v_initial):
+    rot_mat = Rotation.from_euler('xyz', np.array([x_angle, y_angle, z_angle]), degrees=True).as_matrix()
+    return np.dot(rot_mat, v_initial)
+
+
 def derive_next_camera_params(v1, v2, cam_para1):
     rot_mat1 = Rotation.from_euler('xyz', np.array([cam_para1[CAMERA_ROLL], cam_para1[CAMERA_PITCH],
                                                     cam_para1[CAMERA_YAW]]), degrees=True).as_matrix()
@@ -611,6 +616,10 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
                                                img_width, img_height)
             # update PREV_CAM_PARAS to be used in the next image row iteration
             PREV_CAM_PARAS = full_optimized_cam_paras
+            PREV_CAM_BEARING_VEC = get_updated_z_axis_from_rotation_angles(full_optimized_cam_paras[CAMERA_ROLL],
+                                                                           full_optimized_cam_paras[CAMERA_PITCH],
+                                                                           full_optimized_cam_paras[CAMERA_YAW],
+                                                                           np.array([0, 0, 1]))
         else:
             optimized_cam_params = []
             input_3d_gdf = transform_3d_points(input_3d_gdf, init_cam_paras, img_width, img_height)
