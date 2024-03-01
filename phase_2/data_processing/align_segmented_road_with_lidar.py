@@ -13,7 +13,7 @@ from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
     get_aerial_lidar_road_geo_df, compute_match, compute_match_3d, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    LIDARClass
+    LIDARClass, angle_between
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points, get_image_lane_points
@@ -34,7 +34,7 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET
 # INIT_CAMERA_PARAMS = [0.1, 20, 1.6, -8.3, -3.9, 1.1, -0.91, -0.53] # for route 40001001011
 # INIT_CAMERA_PARAMS = [0.1, 20, 6.1, -9.1, 8.6, -4.3, 2.8, 0.17] # new test scene route 881000952181 test image
 # INIT_CAMERA_PARAMS = [0.1, 20, 7.2, -7.3, 8.6, -4.3, 3.1, -0.24] # new test scene route 881000952281 test image
-INIT_CAMERA_PARAMS = [0.1, 20, 5.4, -7.1, 14, -0.049, 1.7, -0.18] # new test scene route 881000954101 test image
+INIT_CAMERA_PARAMS = [0.1, 20, 5.4, -7.1, 14, -0.049, 1.7, -0.18]  # new test scene route 881000954101 test image
 PREV_CAM_PARAS = None
 PREV_CAM_BEARING_VEC = None
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
@@ -44,7 +44,7 @@ DEPTH_SCALING_FACTOR = 189
 LIDAR_DIST_THRESHOLD = (0, 124)  # (1, 154)
 SPLINE_FIT_DIST_THRESHOLD = 15
 SPLINE_SMOOTHING_FACTOR = 100
-
+USE_ROAD_TANGENT_ANGLE_THRESHOLD = 70
 
 def rotate_point(point, quaternion):
     rotated_point = quaternion.apply(point)
@@ -513,32 +513,31 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     proj_cam_y2 = cam_gdf.iloc[0].y
     cam2_nearest_lidar_idx = compute_match(proj_cam_x2, proj_cam_y2, ldf['X'], ldf['Y'])[0]
     proj_cam_z2 = ldf.iloc[cam2_nearest_lidar_idx].Z
-    v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
-    v = v / np.linalg.norm(v)
-    print(f'v: {v}, proj_cam_y2: {proj_cam_y2}, cam_lidar_z: {cam_lidar_z}')
-    # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
-    # filtered_road_ldf = input_3d_gdf[input_3d_gdf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
-    # filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
-    # x = filtered_road_ldf['INITIAL_WORLD_X'].values
-    # y = filtered_road_ldf['INITIAL_WORLD_Y'].values
-    # z = filtered_road_ldf['INITIAL_WORLD_Z'].values
-    # unique_x, unique_indices = np.unique(x, return_index=True)
-    # unique_y = y[unique_indices]
-    # unique_z = z[unique_indices]
-    # print(f'unique_x: {unique_x}')
-    # print(f'unique_y: {unique_y}')
-    # print(f'unique_z: {unique_z}')
-    # spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
-    # spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
-    # print(filtered_road_ldf['INITIAL_WORLD_X'].iloc[0], filtered_road_ldf['INITIAL_WORLD_Y'].iloc[0], filtered_road_ldf['INITIAL_WORLD_Z'].iloc[0])
-    # cam_tan_x = spline_xy.derivative()(filtered_road_ldf['INITIAL_WORLD_X'].iloc[0])
-    # cam_tan_y = spline_xy.derivative()(filtered_road_ldf['INITIAL_WORLD_Y'].iloc[0])
-    # cam_tan_z = spline_xz.derivative()(filtered_road_ldf['INITIAL_WORLD_Z'].iloc[0])
-    # print(cam_tan_x, cam_tan_y, cam_tan_z)
-    # v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
-    # v = v / np.linalg.norm(v)
-    # print(f'v: {v}, image: {row["imageBaseName"]}, PREV_CAM_BEARING_VEC: {PREV_CAM_BEARING_VEC}')
+    cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
+    cam_v = cam_v / np.linalg.norm(cam_v)
+    print(f'v: {cam_v}, proj_cam_y2: {proj_cam_y2}, cam_lidar_z: {cam_lidar_z}')
 
+    # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
+    filtered_road_ldf = input_3d_gdf[input_3d_gdf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
+    filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
+    x = filtered_road_ldf['X'].values
+    y = filtered_road_ldf['Y'].values
+    z = filtered_road_ldf['Z'].values
+    unique_x, unique_indices = np.unique(x, return_index=True)
+    unique_y = y[unique_indices]
+    unique_z = z[unique_indices]
+    spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
+    spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
+    cam_tan_x = spline_xy.derivative()(filtered_road_ldf['X'].iloc[0])
+    cam_tan_y = spline_xy.derivative()(filtered_road_ldf['Y'].iloc[0])
+    cam_tan_z = spline_xz.derivative()(filtered_road_ldf['Z'].iloc[0])
+    road_v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
+    road_v = road_v / np.linalg.norm(road_v)
+    print(f'v: {road_v}, image: {row["imageBaseName"]}, PREV_CAM_BEARING_VEC: {PREV_CAM_BEARING_VEC}')
+    if angle_between(cam_v, road_v) < USE_ROAD_TANGENT_ANGLE_THRESHOLD:
+        v = road_v
+    else:
+        v = cam_v
     if PREV_CAM_BEARING_VEC is not None and PREV_CAM_PARAS is not None:
         init_cam_paras = derive_next_camera_params(PREV_CAM_BEARING_VEC, v, PREV_CAM_PARAS)
         print(f'derived camera parameters: {init_cam_paras}')
