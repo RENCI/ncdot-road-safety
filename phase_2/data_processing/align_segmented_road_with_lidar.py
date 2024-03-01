@@ -36,7 +36,8 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET
 # INIT_CAMERA_PARAMS = [0.1, 20, 7.2, -7.3, 8.6, -4.3, 3.1, -0.24] # new test scene route 881000952281 test image
 INIT_CAMERA_PARAMS = [0.1, 20, 5.4, -7.1, 14, -0.049, 1.7, -0.18]  # new test scene route 881000954101 test image
 PREV_CAM_PARAS = None
-PREV_CAM_BEARING_VEC = None
+PREV_CAM_BEARING_VEC = {'camera': {},
+                        'road': {}}
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 DEPTH_SCALING_FACTOR = 189
 # reduced the LIDAR distance threshold to get less farther away LIDAR points to align with lane lines which
@@ -520,7 +521,6 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     proj_cam_z2 = ldf.iloc[cam2_nearest_lidar_idx].Z
     cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
     cam_v = cam_v / np.linalg.norm(cam_v)
-    print(f'v: {cam_v}, proj_cam_y2: {proj_cam_y2}, cam_lidar_z: {cam_lidar_z}')
 
     # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
     filtered_road_ldf = input_3d_gdf[input_3d_gdf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
@@ -538,20 +538,25 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     cam_tan_z = spline_xz.derivative()(filtered_road_ldf['Z'].iloc[0])
     road_v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
     road_v = road_v / np.linalg.norm(road_v)
-    print(f'v: {road_v}, image: {row["imageBaseName"]}, PREV_CAM_BEARING_VEC: {PREV_CAM_BEARING_VEC}')
-    if angle_between(cam_v, road_v) < USE_ROAD_TANGENT_ANGLE_THRESHOLD:
-        v = road_v
-    else:
-        v = cam_v
-    if PREV_CAM_BEARING_VEC is not None and PREV_CAM_PARAS is not None:
-        init_cam_paras = derive_next_camera_params(PREV_CAM_BEARING_VEC, v, PREV_CAM_PARAS)
+    print(f'cam_v: {cam_v}, road_v: {road_v}, image: {row["imageBaseName"]}, PREV_CAM_VEC: {PREV_CAM_BEARING_VEC}')
+
+    if PREV_CAM_PARAS is not None:
+        bet_angle = angle_between(cam_v, road_v)
+        if bet_angle < USE_ROAD_TANGENT_ANGLE_THRESHOLD:
+            prev_v = PREV_CAM_BEARING_VEC['road']
+            v = road_v
+        else:
+            prev_v = PREV_CAM_BEARING_VEC['camera']
+            v = cam_v
+        init_cam_paras = derive_next_camera_params(prev_v, v, PREV_CAM_PARAS)
         print(f'derived camera parameters: {init_cam_paras}')
     else:
         init_cam_paras = INIT_CAMERA_PARAMS
 
     # update global variables to prepare for the next image row iteration
     PREV_CAM_PARAS = init_cam_paras
-    PREV_CAM_BEARING_VEC = v
+    PREV_CAM_BEARING_VEC['camera'] = cam_v
+    PREV_CAM_BEARING_VEC['road'] = road_v
 
     if input_depth_filename_pattern:
         input_2d_df = get_image_depth(input_depth_filename_pattern, input_2d_mapped_image, input_2d_df, img_width,
@@ -616,10 +621,6 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
                                                img_width, img_height)
             # update PREV_CAM_PARAS to be used in the next image row iteration
             PREV_CAM_PARAS = full_optimized_cam_paras
-            PREV_CAM_BEARING_VEC = get_updated_z_axis_from_rotation_angles(full_optimized_cam_paras[CAMERA_ROLL],
-                                                                           full_optimized_cam_paras[CAMERA_PITCH],
-                                                                           full_optimized_cam_paras[CAMERA_YAW],
-                                                                           np.array([0, 0, 1]))
         else:
             optimized_cam_params = []
             input_3d_gdf = transform_3d_points(input_3d_gdf, init_cam_paras, img_width, img_height)
