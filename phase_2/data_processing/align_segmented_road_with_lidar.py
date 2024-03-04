@@ -523,7 +523,8 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     cam_v = cam_v / np.linalg.norm(cam_v)
 
     # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
-    filtered_road_ldf = input_3d_gdf[input_3d_gdf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
+    filtered_road_bound_ldf = input_3d_gdf[input_3d_gdf.BOUND == 1]
+    filtered_road_ldf = filtered_road_bound_ldf[filtered_road_bound_ldf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
     filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
     x = filtered_road_ldf['X'].values
     y = filtered_road_ldf['Y'].values
@@ -545,9 +546,11 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
         if bet_angle < USE_ROAD_TANGENT_ANGLE_THRESHOLD:
             prev_v = PREV_CAM_BEARING_VEC['road']
             v = road_v
+            print('use road tangent')
         else:
             prev_v = PREV_CAM_BEARING_VEC['camera']
             v = cam_v
+            print('use camera vector')
         init_cam_paras = derive_next_camera_params(prev_v, v, PREV_CAM_PARAS)
         print(f'derived camera parameters: {init_cam_paras}')
     else:
@@ -661,8 +664,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_lidar_with_path', type=str,
                         # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
                         # default='data/d13_route_40001001011/lidar/route_40001001011_all.csv',
-                        # default='data/new_test_scene/new_test_scene_all_raster_10.csv',
-                        default='data/new_test_scene/new_test_scene_road_bounds.csv',
+                        default='data/new_test_scene/new_test_scene_all_raster_10_with_road_bounds.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         # default='data/d13_route_40001001011/oneformer',
