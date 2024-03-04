@@ -268,3 +268,8 @@ def compute_match_3d(x, y, z, series_x, series_y, series_z):
     distances = (series_x - x) ** 2 + (series_y - y) ** 2 + (series_z - z) ** 2
     min_idx = distances.idxmin()
     return [min_idx, distances[min_idx]]
+
+
+def angle_between(v1, v2):
+    """Calculate the angle in radians between two vectors."""
+    return degrees(np.arccos(np.clip(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)), -1.0, 1.0)))
