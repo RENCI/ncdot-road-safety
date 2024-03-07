@@ -9,16 +9,16 @@ from utils import load_pickle_data, LIDARClass
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_2d', type=str,
                     # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/input_2d_92600542024.pkl',
-                    default='data/new_test_scene/lane_test/input_2d_88100095513.pkl',
+                    default='data/new_test_scene/lane_test/input_2d_88100095421.pkl',
                     help='2d vertices')
 parser.add_argument('--input_3d_proj', type=str,
                     # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/'
                     #         'lidar_project_info_926005420241.csv',
-                    default='data/new_test_scene/lane_test/base_lidar_project_info_881000955131.csv',
+                    default='data/new_test_scene/lane_test/lidar_project_info_881000954211.csv',
                     help='3d projection vertices')
 parser.add_argument('--overlay_bg_image_path', type=str,
                     # default='data/d13_route_40001001011/other/926005420241.jpg',
-                    default='data/new_test_scene/images/881000955131.jpg',
+                    default='data/new_test_scene/images/881000954211.jpg',
                     help='original background image for overlay with the scatter plots')
 parser.add_argument('--image_crossroad_intersect_file', type=str,
                     # default='data/new_test_scene/output/image_881000952181_crossroad_intersects.csv',
@@ -29,13 +29,13 @@ parser.add_argument('--landmark_file', type=str,
                     default='',
                     help='input csv file that includes landmark mapping info')
 parser.add_argument('--use_lidar_proj_cols', type=list,
-                    # default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'C', 'BOUND'],
-                    default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
+                    default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'C', 'BOUND'],
+                    # default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
                     help='list of columns to load when reading the input lidar projection data from input_3d_proj')
 parser.add_argument('--colormap', type=dict,
-                    # default={6: 'purple', 2: 'red', 15: 'orange', 1: 'green', 11: 'blue'},
+                    default={6: 'purple', 2: 'cyan', 15: 'orange', 1: 'green', 11: 'blue', 12: 'yellow'},
                     # default={3: 'purple', 5: 'blue', 2: 'green', 4: 'orange', 14: 'pink', 1: 'yellow', 11: 'red'},
-                    default='',
+                    # default='',
                     help='colormap to map LIDAR point classification to color')
 parser.add_argument('--show_intersect_only', action="store_true",
                     help='show the intersection alignment only')
@@ -103,6 +103,9 @@ else:
 if colormap:
     plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10,
                 c=remain_ldf['C'].map(colormap), label=remain_ldf['C'])
+    focus_ldf = input_3d_proj_df[(input_3d_proj_df.C == 12) | (input_3d_proj_df.C == 15)]
+    print(focus_ldf)
+    plt.scatter(focus_ldf['PROJ_SCREEN_X'], image_height - focus_ldf['PROJ_SCREEN_Y'], s=10, c='r')
 else:
     plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10)
 

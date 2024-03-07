@@ -240,6 +240,14 @@ def create_gdf_from_df(input_df, x_col_name='X', y_col_name='Y'):
     return gdf.merge(geom_df, left_index=True, right_index=True)
 
 
+def convert_xy_to_lat_lon(x, y):
+    input_df = pd.DataFrame(data={'X': [x], 'Y': [y]})
+    input_gdf = create_gdf_from_df(input_df)
+    # calculate the bearing of each 3D point to the camera
+    lat_lon_geom = input_gdf['geometry_y'].iloc[0]
+    return lat_lon_geom.y, lat_lon_geom.x
+
+
 def compute_match(x, y, series_x, series_y, grid=False):
     # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
     # (series_x, series_y) pairs has minimal distance to point(x, y). If grid is set to True, grid-based matching

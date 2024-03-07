@@ -47,6 +47,7 @@ SPLINE_FIT_DIST_THRESHOLD = 15
 SPLINE_SMOOTHING_FACTOR = 100
 USE_ROAD_TANGENT_ANGLE_THRESHOLD = 70
 
+
 def rotate_point(point, quaternion):
     rotated_point = quaternion.apply(point)
     return rotated_point
