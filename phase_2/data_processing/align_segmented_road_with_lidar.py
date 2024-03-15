@@ -406,6 +406,7 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     :param out_proj_file_path: output path for aligned road info which will be appended with
     lidar_project_info_{image name} to have lidar projection info for each input image
     :param align_in_3d: whether to align road in 3D world coordinate system or in 2D screen coordinate system
+    :param use_lane: whether to use lane segmentation for road alignment or not
     :param input_depth_filename_pattern: input depth filename pattern which could end with either pfm indicating
     MiDAS model depth prediction file or png indicating ZoeDepth prediction file
     :param is_optimize: whether to optimize camera parameter or not
