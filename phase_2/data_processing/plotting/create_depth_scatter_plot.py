@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pypfm import PFMLoader
 from PIL import Image
-from utils import get_depth_data
+from data_processing.utils import get_depth_data
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')

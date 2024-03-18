@@ -127,11 +127,11 @@ def get_image_lane_points(image_file_name):
 
     # Filter out points based on the threshold distance
     filtered_lane_contour = lane_contour[distance_to_axis > 25]
-    # img[img != 0] = 0
-    # img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
-    # binary_data = np.uint8(img)
+    img[img != 0] = 0
+    img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
+    binary_data = np.uint8(img)
     # cv2.line(binary_data, first_row[1], last_row[1], (255, 255, 255), 2)
-    # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
+    Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
     return image_width, image_height, [filtered_lane_contour], []
 
 

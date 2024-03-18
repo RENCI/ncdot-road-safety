@@ -1,6 +1,6 @@
 import numpy as np
 from PIL import Image
-from math import radians, cos, sin, asin, sqrt, atan2, degrees, pi
+from math import radians, cos, sin, asin, atan2, degrees, pi
 import pickle
 import pandas as pd
 import geopandas as gpd
@@ -155,27 +155,6 @@ def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_imag
         end_of_route = False
 
     return cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, map_base_img2, end_of_route
-
-
-# haversine distance formula between two points specified by their GPS coordinates
-def haversine(lon1, lat1, geom):
-    """
-    Calculate the great circle distance between two points
-    on the earth (specified in decimal degrees) in meter
-    """
-    try:
-        lat2 = geom.y
-        lon2 = geom.x
-        # convert decimal degrees to radians
-        lon1, lat1, lon2, lat2 = map(radians, [float(lon1), float(lat1), float(lon2), float(lat2)])
-        # haversine formula
-        dist_lon = lon2 - lon1
-        dist_lat = lat2 - lat1
-        a = sin(dist_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dist_lon / 2) ** 2
-        return 6367000. * 2 * asin(sqrt(a))
-    except Exception as e:
-        print(f'lon1: {lon1}, lat1: {lat1}, geom: {geom}')
-        raise Exception(e)
 
 
 def load_pickle_data(input_data_file):

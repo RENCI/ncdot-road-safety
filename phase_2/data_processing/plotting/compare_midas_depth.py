@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 from pypfm import PFMLoader
 import matplotlib.pyplot as plt
-from utils import load_pickle_data, get_depth_data, get_depth_of_pixel
+from data_processing.utils import load_pickle_data, get_depth_data, get_depth_of_pixel
 
 
 if __name__ == '__main__':

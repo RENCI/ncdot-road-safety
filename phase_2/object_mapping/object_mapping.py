@@ -1,4 +1,20 @@
-#!/usr/bin/env python
+# ------------------------------------------
+# This module contains the adapted implementation of the MRF-based triangulation procedure introduced in
+# "Automatic Discovery and Geotagging of Objects from Street View Imagery" https://arxiv.org/abs/1708.08417.
+# See https://github.com/vlkryl/streetview_objectmapping/blob/master/objectmapping.py for the original
+# implementation and copyright info of the approach.
+#
+# This object mapping module takes a csv file as input where each line in
+# the csv file defines a detected object with FOUR floating point values: camera positions (GPS latitude and
+# longitude), bearing from north clockwise in degrees towards the object in the panoramic image and the depth estimate.
+#
+# The module performs triangulation, MRF optimization to establish the optimal object configuration and clustering.
+#
+# The output csv file contains the list of GPS-coordinates (latitude and longitude) of identified objects of interests
+# and a score value for each of these. The score is the number of individual views contributing to an object
+# (greater than or equal to 2).
+# ------------------------------------------
+
 import argparse
 import os
 import sys
@@ -10,25 +26,7 @@ import itertools
 from math import radians, cos, sin, asin, sqrt, dist
 from utils import lat_lon_to_meters, meters_to_lat_lon, hierarchical_clustering, \
     get_max_degree_dist_in_cluster_from_lat_lon
-
-'''
-------------------------------------------
-This module contains the adapted implementation of the MRF-based triangulation procedure introduced in
-"Automatic Discovery and Geotagging of Objects from Street View Imagery" https://arxiv.org/abs/1708.08417. 
-See https://github.com/vlkryl/streetview_objectmapping/blob/master/objectmapping.py for the original 
-implementation and copyright info of the approach.
-
-This object mapping module takes a csv file as input where each line in 
-the csv file defines a detected object with FOUR floating point values: camera positions (GPS latitude and 
-longitude), bearing from north clockwise in degrees towards the object in the panoramic image and the depth estimate.
-
-The module performs triangulation, MRF optimization to establish the optimal object configuration and clustering.
-
-The output csv file contains the list of GPS-coordinates (latitude and longitude) of identified objects of interests 
-and a score value for each of these. The score is the number of individual views contributing to an object 
-(greater than or equal to 2).
-------------------------------------------
-'''
+from common.utils import haversine
 
 # preset parameters
 # Max distance from camera to objects (in meters). May need to increase it if trying to geolocate poles more than
@@ -51,23 +49,6 @@ STANDALONE_PRICE = max(1 - DEPTH_WEIGHT - OBJ_MULTI_VIEW, 0)  # weight (1-alpha-
 
 # indices as constants in the input data array
 LAT_P1, LON_P1, BEARING, DEPTH, LAT_C, LON_C, LAT_P, LON_P, BASE_IMAGE_NAME = 0, 1, 2, 3, 5, 6, 7, 8, 9
-
-
-# haversine distance formula between two points specified by their GPS coordinates
-def haversine(lon1, lat1, lon2, lat2):
-    """
-    Calculate the great circle distance between two points 
-    on the earth (specified in decimal degrees) in meter
-    """
-    # convert decimal degrees to radians 
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    # haversine formula 
-    dist_lon = lon2 - lon1
-    dist_lat = lat2 - lat1
-    a = sin(dist_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dist_lon / 2) ** 2
-    c = 2 * asin(sqrt(a))
-    m = 6367000. * c
-    return m
 
 
 # calculating the intersection point between two rays (specified each by camera position and depth-estimated object

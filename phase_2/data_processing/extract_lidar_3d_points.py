@@ -6,7 +6,8 @@ import cv2
 import numpy as np
 import math
 from scipy.spatial import Delaunay
-from utils import haversine, bearing_between_two_latlon_points, get_next_road_index, get_aerial_lidar_road_geo_df
+from utils import bearing_between_two_latlon_points, get_next_road_index, get_aerial_lidar_road_geo_df
+from common.utils import haversine
 
 
 def get_lidar_data_from_shp(lidar_shp_file_path):
@@ -27,7 +28,7 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
                                        include_all_cols=False):
     clat, clon = cam_loc
     next_clat, next_clon = next_cam_loc
-    df['distance'] = df.apply(lambda row: haversine(clon, clat, row['geometry_y']), axis=1)
+    df['distance'] = df.apply(lambda row: haversine(clon, clat, row['geometry_y'].x, row['geometry_y'].y), axis=1)
     cam_bearing = bearing_between_two_latlon_points(clat, clon, next_clat, next_clon, is_degree=False)
     df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
         clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)

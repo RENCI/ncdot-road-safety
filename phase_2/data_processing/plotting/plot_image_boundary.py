@@ -1,8 +1,8 @@
 import sys
 import argparse
 import matplotlib.pyplot as plt
-from utils import get_data_from_image
-from get_road_boundary_points import get_image_road_points
+from data_processing.utils import get_data_from_image
+from data_processing.get_road_boundary_points import get_image_road_points
 
 
 if __name__ == '__main__':

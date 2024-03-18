@@ -5,8 +5,8 @@ from PIL import Image
 import cv2
 import numpy as np
 import pandas as pd
-from utils import load_pickle_data
-from get_road_boundary_points import process_boundary_in_image
+from data_processing.utils import load_pickle_data
+from data_processing.get_road_boundary_points import process_boundary_in_image
 
 
 def process_defects(defects):

@@ -12,6 +12,7 @@ from utils import SegmentationClass, get_data_from_image, get_camera_latlon_and_
     add_lidar_x_y_from_lat_lon, convert_xy_to_lat_lon, LIDARClass
 from align_segmented_road_with_lidar import transform_to_world_coordinate_system, INIT_CAMERA_PARAMS, \
     CAMERA_LIDAR_X_OFFSET, CAMERA_LIDAR_Y_OFFSET, CAMERA_LIDAR_Z_OFFSET, CAMERA_YAW, CAMERA_PITCH, CAMERA_ROLL
+from common.utils import haversine
 
 
 # may need to be updated (e.g., set to 25) in conjunction with MAX_OBJ_DIST_FROM_CAM set in object_mapping.py
@@ -167,7 +168,7 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
 
                     if lidar_file_name and os.path.exists(lidar_file_name):
                         lidar_df = pd.read_csv(lidar_file_name, usecols=['X', 'Y', 'PROJ_SCREEN_X', 'PROJ_SCREEN_Y',
-                                                                         'ROAD_X', 'ROAD_Y', 'BEARING',
+                                                                         'ROAD_X', 'ROAD_Y',
                                                                          'geometry_y', 'Z', 'C'])
                         lidar_df[['lon', 'lat']] = lidar_df['geometry_y'].apply(lambda x:
                                                                                 pd.Series(extract_lon_lat(x)))
@@ -255,7 +256,11 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                                                                             avg_lon,
                                                                             is_degree=True)
                             ref_x = avg_x
-                            print(f'ref_bearing: {ref_bearing}, avg_lat: {avg_lat}, avg_lon: {avg_lon}, '
+                            # use the CAM_DIST of the (avg_lat, avg_lon) as the depth rather than the predicted scaled
+                            # monucular depth
+                            depth = haversine(avg_lon, avg_lat, cam_lon, cam_lat)
+
+                            print(f'ref_bearing: {ref_bearing}, avg_lat: {avg_lat}, avg_lon: {avg_lon}, depth: {depth},'
                                   f'image: {mapped_image}{suffix}, '
                                   f'left_lat_lon: {closest_left_x["lat"]}: {closest_left_x["lon"]}, '
                                   f'right_lat_lon: {closest_right_x["lat"]}: {closest_right_x["lon"]}, '

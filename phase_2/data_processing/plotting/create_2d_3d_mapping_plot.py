@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
-from utils import load_pickle_data
+from data_processing.utils import load_pickle_data
 
 
 SCALING_FACTOR = 400

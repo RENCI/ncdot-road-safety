@@ -2,8 +2,8 @@ import argparse
 import matplotlib.pyplot as plt
 import pandas as pd
 from pypfm import PFMLoader
-from utils import get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel
-from align_segmented_road_with_lidar import transform_2d_points_to_3d, INIT_CAMERA_PARAMS, \
+from data_processing.utils import get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel
+from data_processing.align_segmented_road_with_lidar import transform_2d_points_to_3d, INIT_CAMERA_PARAMS, \
     FOCAL_LENGTH_Y, FOCAL_LENGTH_X
 
 

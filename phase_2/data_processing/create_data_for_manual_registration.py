@@ -3,10 +3,11 @@ import os
 import sys
 import pandas as pd
 import numpy as np
-from utils import bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df, haversine, create_gdf_from_df
+from utils import bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df, create_gdf_from_df
 from get_road_boundary_points import get_image_road_points, get_image_lane_points
 from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_coordinate_system, compute_match, \
     get_mapping_data, get_input_file_with_images, extract_lidar_3d_points_for_camera, LIDAR_DIST_THRESHOLD
+from common.utils import haversine
 
 
 def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file, input_loc=None,
@@ -49,7 +50,8 @@ def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_
 
     if input_loc:
         input_3d_gdf['DISTANCE_TO_POLE'] = input_3d_gdf.apply(lambda row: haversine(input_loc[1], input_loc[0],
-                                                                                    row['geometry_y']), axis=1)
+                                                                                    row['geometry_y'].x,
+                                                                                    row['geometry_y'].y), axis=1)
     if input_road_intersect:
         road_ldf = pd.read_csv(input_road_intersect)
         input_3d_gdf = input_3d_gdf.merge(road_ldf, on=['X', 'Y', 'Z'], how='left')
