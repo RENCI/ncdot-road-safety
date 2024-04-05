@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from pypfm import PFMLoader
 import skimage.measure
+from PIL import Image
 import cv2
 from math import sqrt, atan2, degrees
 from utils import SegmentationClass, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
@@ -69,13 +70,21 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
             object_features = skimage.measure.regionprops(labeled_data)
             loader = PFMLoader((image_width, image_height), color=False, compress=False)
             input_image_base_name = os.path.basename(os.path.splitext(input_image_name)[0])
-            image_pfm = get_depth_data(loader, os.path.join(input_depth_image,
-                                                            f'{input_image_base_name}{depth_image_postfix}.pfm'))
-            min_depth = image_pfm.min()
-            max_depth = image_pfm.max()
-            # input_data[input_data == POLE] = 255
-            # updated_image = Image.fromarray(input_data)
-            # updated_image.save(os.path.join(path, f'updated_{mapped_image}{suffix}'))
+            if 'depth_anything' in input_depth_image:
+                with Image.open(os.path.join(input_depth_image, f'{input_image_base_name}_depth.png')) as depth_img:
+                    depth_data = np.asarray(depth_img, dtype=np.uint8)
+                    # reduce depth_data shape from (image_height, image_width, 3) to (image_height, image_width)
+                    depth_data = depth_data[:, :, 0]
+                    min_depth = np.min(depth_data)
+                    max_depth = np.max(depth_data)
+            else:
+                depth_data = get_depth_data(loader, os.path.join(input_depth_image,
+                                                                 f'{input_image_base_name}{depth_image_postfix}.pfm'))
+                min_depth = depth_data.min()
+                max_depth = depth_data.max()
+                # input_data[input_data == POLE] = 255
+                # updated_image = Image.fromarray(input_data)
+                # updated_image.save(os.path.join(path, f'updated_{mapped_image}{suffix}'))
 
             obj_cnt = 0
             for i in range(count):
@@ -86,8 +95,8 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                     continue
 
                 y0, x0 = object_features[i].centroid
-                depth = get_depth_of_pixel(y0, x0, image_pfm, min_depth, max_depth, scaling=SCALING_FACTOR)
-                print(f'x0: {x0}, y0: {y0}, xdiff: {xdiff}, ydiff: {ydiff}', flush=True)
+                obj_depth = get_depth_of_pixel(y0, x0, depth_data, min_depth, max_depth, scaling=SCALING_FACTOR)
+                print(f'x0: {x0}, y0: {y0}, xdiff: {xdiff}, ydiff: {ydiff}, depth: {obj_depth}', flush=True)
                 if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                     major_axis_len = object_features[i].major_axis_length
                     minor_axis_len = object_features[i].minor_axis_length
@@ -115,18 +124,18 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                     # need to recompute properties of the object
                     updated_object_features = skimage.measure.regionprops(obj_only)
                     y0, x0 = updated_object_features[0].centroid
-                    depth = get_depth_of_pixel(y0, x0, image_pfm, min_depth, max_depth, scaling=SCALING_FACTOR)
+                    obj_depth = get_depth_of_pixel(y0, x0, depth_data, min_depth, max_depth, scaling=SCALING_FACTOR)
                     object_features[i] = updated_object_features[0]
 
                 # apply depth-height filtering
                 filtered_out = False
                 for key, val in D_H_THRESHOLD.items():
-                    if depth < key:
+                    if obj_depth < key:
                         if ydiff < val:
                             filtered_out = True
                         break
                 if filtered_out:
-                    print(f'filtered out: {x0}, {y0}, {xdiff}, {ydiff}, {depth}')
+                    print(f'filtered out: {x0}, {y0}, {xdiff}, {ydiff}, {obj_depth}')
                     continue
 
                 ref_bearing = cam_br
@@ -168,7 +177,7 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
 
                     if lidar_file_name and os.path.exists(lidar_file_name):
                         lidar_df = pd.read_csv(lidar_file_name, usecols=['X', 'Y', 'PROJ_SCREEN_X', 'PROJ_SCREEN_Y',
-                                                                         'ROAD_X', 'ROAD_Y',
+                                                                         'ROAD_X', 'ROAD_Y', 'CAM_DIST',
                                                                          'geometry_y', 'Z', 'C'])
                         lidar_df[['lon', 'lat']] = lidar_df['geometry_y'].apply(lambda x:
                                                                                 pd.Series(extract_lon_lat(x)))
@@ -182,28 +191,65 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
 
                         # Calculate signed distances of LIDAR projected points along X and Y directions
                         # from the pole ground location
+                        lidar_df = lidar_df[(lidar_df.PROJ_SCREEN_X >= 0) & (lidar_df.PROJ_SCREEN_X < image_width) &
+                                            (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)]
+                        lidar_df['DEPTH'] = lidar_df.apply(lambda row: get_depth_of_pixel(row['PROJ_SCREEN_Y'],
+                                                                                          row['PROJ_SCREEN_X'],
+                                                                                          depth_data,
+                                                                                          min_depth, max_depth,
+                                                                                          scaling=SCALING_FACTOR),
+                                                           axis=1)
                         lidar_df['DIST_X'] = lidar_df['PROJ_SCREEN_X'] - x0
                         lidar_df['DIST_Y'] = lidar_df['PROJ_SCREEN_Y'] - object_features[i].bbox[2]
+                        lidar_df['DIST_Z'] = lidar_df['DEPTH'] - obj_depth
                         lidar_df['DIST'] = lidar_df['DIST_X'].abs() / image_width + \
-                            lidar_df['DIST_Y'].abs() / image_height
-                        ldf_sorted = lidar_df.sort_values(by='DIST')
-                        # Find the closest point on the left and right along X direction
-                        closest_left_x = ldf_sorted[ldf_sorted['DIST_X'] <= 0].iloc[0]
-                        closest_right_x = ldf_sorted[ldf_sorted['DIST_X'] > 0].iloc[0]
-                        # Find the closest point above and below along Y direction
-                        closest_up_y = ldf_sorted[ldf_sorted['DIST_Y'] <= 0].iloc[0]
-                        closest_down_y = ldf_sorted[ldf_sorted['DIST_Y'] > 0].iloc[0]
+                            lidar_df['DIST_Y'].abs() / image_height + lidar_df['DIST_Z'].abs() / SCALING_FACTOR
 
-                        # Indices of the closest points
-                        closest_indices = {
-                            'left_x': closest_left_x.name,
-                            'right_x': closest_right_x.name,
-                            'down_y': closest_down_y.name,
-                            'up_y': closest_up_y.name
-                        }
-                        # Average location of the closest points
-                        avg_x = (closest_left_x['PROJ_SCREEN_X'] + closest_right_x['PROJ_SCREEN_X']) / 2
-                        avg_y = (closest_down_y['PROJ_SCREEN_Y'] + closest_up_y['PROJ_SCREEN_Y']) / 2
+                        ldf_sorted = lidar_df.sort_values(by='DIST')
+                        try:
+                            # Find the closest point on the left and right along X direction
+                            closest_left_x = ldf_sorted[ldf_sorted['DIST_X'] <= 0].iloc[0]
+                            closest_right_x = ldf_sorted[ldf_sorted['DIST_X'] > 0].iloc[0]
+                            # Find the closest point above and below along Y direction
+                            closest_up_y = ldf_sorted[ldf_sorted['DIST_Y'] <= 0].iloc[0]
+                            closest_down_y = ldf_sorted[ldf_sorted['DIST_Y'] > 0].iloc[0]
+
+                            # Indices of the closest points
+                            closest_indices = {
+                                'left_x': closest_left_x.name,
+                                'right_x': closest_right_x.name,
+                                'down_y': closest_down_y.name,
+                                'up_y': closest_up_y.name
+                            }
+                            # Average location of the closest points
+                            avg_x = (closest_left_x['PROJ_SCREEN_X'] + closest_right_x['PROJ_SCREEN_X']) / 2
+                            avg_y = (closest_down_y['PROJ_SCREEN_Y'] + closest_up_y['PROJ_SCREEN_Y']) / 2
+                            # use the weighted sum of four LIDAR points computed above
+                            dist_x_left = abs(closest_left_x['DIST_X'])
+                            dist_x_right = abs(closest_right_x['DIST_X'])
+                            avg_lx = (closest_left_x['X'] * dist_x_right + closest_right_x['X'] * dist_x_left) / \
+                                     (dist_x_left + dist_x_right)
+                            dist_y_up = abs(closest_up_y['DIST_Y'])
+                            dist_y_down = abs(closest_down_y['DIST_Y'])
+                            avg_ly = (closest_up_y['Y'] * dist_y_down + closest_down_y['Y'] * dist_y_up) / \
+                                     (dist_y_up + dist_y_down)
+                            print(f'left_lat_lon: {closest_left_x["lat"]}: {closest_left_x["lon"]}, '
+                                  f'right_lat_lon: {closest_right_x["lat"]}: {closest_right_x["lon"]}, '
+                                  f'up_lat_lon: {closest_up_y["lat"]}: {closest_up_y["lon"]}, '
+                                  f'down_lat_lon: {closest_down_y["lat"]}: {closest_down_y["lon"]}, '
+                                  f'closest_indices: {closest_indices}')
+                        except IndexError:
+                            # there might not be left or right or up or down LIDAR points to the object
+                            # use closest point instead
+                            closest_point = ldf_sorted.iloc[0]
+                            avg_x = closest_point['PROJ_SCREEN_X']
+                            avg_y = closest_point['PROJ_SCREEN_Y']
+                            avg_lx = closest_point['X']
+                            avg_ly = closest_point['Y']
+                            print(f'closest_point index: {closest_point.name}, '
+                                  f'closest_point_lon: {closest_point["lon"]}, '
+                                  f'closest_point_lat: {closest_point["lat"]}')
+
                         nearest_dist = (avg_x - x0) ** 2 + (avg_y - object_features[i].bbox[2]) ** 2
                         nearest_idx = -1
                         # see if there are LIDAR points projected within the object bounding box
@@ -241,15 +287,6 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                             # LIDAR raster grid has enough resolution
                             ref_x = lidar_df.iloc[nearest_idx].PROJ_SCREEN_X
                         else:
-                            # use the weighted sum of four LIDAR points computed above
-                            dist_x_left = abs(closest_left_x['DIST_X'])
-                            dist_x_right = abs(closest_right_x['DIST_X'])
-                            avg_lx = (closest_left_x['X'] * dist_x_right + closest_right_x['X'] * dist_x_left) / \
-                                     (dist_x_left + dist_x_right)
-                            dist_y_up = abs(closest_up_y['DIST_Y'])
-                            dist_y_down = abs(closest_down_y['DIST_Y'])
-                            avg_ly = (closest_up_y['Y'] * dist_y_down + closest_down_y['Y'] * dist_y_up) / \
-                                     (dist_y_up + dist_y_down)
                             avg_lat, avg_lon = convert_xy_to_lat_lon(avg_lx, avg_ly)
                             ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
                                                                             avg_lat,
@@ -258,15 +295,10 @@ def compute_mapping_input(mdf, input_depth_image, depth_image_postfix, mapped_im
                             ref_x = avg_x
                             # use the CAM_DIST of the (avg_lat, avg_lon) as the depth rather than the predicted scaled
                             # monucular depth
-                            depth = haversine(avg_lon, avg_lat, cam_lon, cam_lat)
-
+                            # depth = haversine(avg_lon, avg_lat, cam_lon, cam_lat)
+                            depth = obj_depth
                             print(f'ref_bearing: {ref_bearing}, avg_lat: {avg_lat}, avg_lon: {avg_lon}, depth: {depth},'
-                                  f'image: {mapped_image}{suffix}, '
-                                  f'left_lat_lon: {closest_left_x["lat"]}: {closest_left_x["lon"]}, '
-                                  f'right_lat_lon: {closest_right_x["lat"]}: {closest_right_x["lon"]}, '
-                                  f'up_lat_lon: {closest_up_y["lat"]}: {closest_up_y["lon"]}, '
-                                  f'down_lat_lon: {closest_down_y["lat"]}: {closest_down_y["lon"]}, '
-                                  f'closest_indices: {closest_indices}, x0: {x0}, y0: {object_features[i].bbox[2]}')
+                                  f'image: {mapped_image}{suffix}, x0: {x0}, y0: {object_features[i].bbox[2]}')
                         hangle = 0
                     else:
                         ref_x = image_width / 2
@@ -318,7 +350,8 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_depth_image_path', type=str,
-                        default='../midas/images/output/new_test_scene',
+                        # default='../midas/images/output/new_test_scene',
+                        default='../depth_anything/output/new_test_scene',
                         # default='../midas/images/output/d13_route_40001001011',
                         help='input path that includes depth prediction output images')
     parser.add_argument('--input_depth_image_postfix', type=str,

@@ -8,16 +8,15 @@ from pypfm import PFMLoader
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 from scipy.interpolate import UnivariateSpline
-from math import dist, radians, tan, atan2, degrees
+from math import radians, tan
 from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
-    get_next_road_index, get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
-    get_aerial_lidar_road_geo_df, compute_match, compute_match_3d, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
+    get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
+    get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
     LIDARClass, angle_between
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points, get_image_lane_points
-from convert_and_classify_aerial_lidar import output_latlon_from_geometry
 
 
 # indices as constants in the input camera parameter list where CAMERA_LIDAR_X/Y/Z_OFFSET indicate camera

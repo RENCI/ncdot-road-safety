@@ -34,7 +34,7 @@ from common.utils import haversine
 # test scene since the test pole is about 100 meters away from the camera. This parameter needs to be adjusted
 # in conjunction with the depth scaling factor in compute_mapping_input.py since the predicted depth is used as
 # a constraint with computed distance from the camera to computed intersection points
-MAX_OBJ_DIST_FROM_CAM = 35
+MAX_OBJ_DIST_FROM_CAM = 100
 MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
 # this SCALING_FACTOR is applied to the predicted depth, then the product is compared with the distance between
 # the camera and the intersection point for energy, so if the real distance from camera to the geotagged location
