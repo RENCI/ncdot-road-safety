@@ -1,62 +1,54 @@
-#!/usr/bin/env python
+# ------------------------------------------
+# This module contains the adapted implementation of the MRF-based triangulation procedure introduced in
+# "Automatic Discovery and Geotagging of Objects from Street View Imagery" https://arxiv.org/abs/1708.08417.
+# See https://github.com/vlkryl/streetview_objectmapping/blob/master/objectmapping.py for the original
+# implementation and copyright info of the approach.
+#
+# This object mapping module takes a csv file as input where each line in
+# the csv file defines a detected object with FOUR floating point values: camera positions (GPS latitude and
+# longitude), bearing from north clockwise in degrees towards the object in the panoramic image and the depth estimate.
+#
+# The module performs triangulation, MRF optimization to establish the optimal object configuration and clustering.
+#
+# The output csv file contains the list of GPS-coordinates (latitude and longitude) of identified objects of interests
+# and a score value for each of these. The score is the number of individual views contributing to an object
+# (greater than or equal to 2).
+# ------------------------------------------
+
 import argparse
 import os
+import sys
 import os.path
 import time
 import numpy as np
+import pandas as pd
 import itertools
 from math import radians, cos, sin, asin, sqrt, dist
 from utils import lat_lon_to_meters, meters_to_lat_lon, hierarchical_clustering, \
     get_max_degree_dist_in_cluster_from_lat_lon
-
-'''
-------------------------------------------
-This module contains the adapted implementation of the MRF-based triangulation procedure introduced in
-"Automatic Discovery and Geotagging of Objects from Street View Imagery" https://arxiv.org/abs/1708.08417. 
-See https://github.com/vlkryl/streetview_objectmapping/blob/master/objectmapping.py for the original 
-implementation and copyright info of the approach.
-
-This object mapping module takes a csv file as input where each line in 
-the csv file defines a detected object with FOUR floating point values: camera positions (GPS latitude and 
-longitude), bearing from north clockwise in degrees towards the object in the panoramic image and the depth estimate.
-
-The module performs triangulation, MRF optimization to establish the optimal object configuration and clustering.
-
-The output csv file contains the list of GPS-coordinates (latitude and longitude) of identified objects of interests 
-and a score value for each of these. The score is the number of individual views contributing to an object 
-(greater than or equal to 2).
-------------------------------------------
-'''
+from common.utils import haversine
 
 # preset parameters
-MAX_OBJ_DIST_FROM_CAM = 20  # Max distance from camera to objects (in meters)
+# Max distance from camera to objects (in meters). May need to increase it if trying to geolocate poles more than
+# 25 meters away from the camera, e.g., it needs to be set to 105 in order to geolocate the test pole in the new
+# test scene since the test pole is about 100 meters away from the camera. This parameter needs to be adjusted
+# in conjunction with the depth scaling factor in compute_mapping_input.py since the predicted depth is used as
+# a constraint with computed distance from the camera to computed intersection points
+MAX_OBJ_DIST_FROM_CAM = 100
 MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
+# this SCALING_FACTOR is applied to the predicted depth, then the product is compared with the distance between
+# the camera and the intersection point for energy, so if the real distance from camera to the geotagged location
+# is around 100, the predicted absolute depth needs to be about 55 (i.e., about one half of the real distance),
+# in order to have a small difference between the computed distance and the predicted depth
 SCALING_FACTOR = 640.0 / 256
 
 # MRF optimization parameters
-DEPTH_WEIGHT = 0.2  # weight alpha in Eq.(4)
+DEPTH_WEIGHT = 0.199  # weight alpha in Eq.(4)
 OBJ_MULTI_VIEW = 0.2  # weight beta in  Eq.(4)
 STANDALONE_PRICE = max(1 - DEPTH_WEIGHT - OBJ_MULTI_VIEW, 0)  # weight (1-alpha-beta) in Eq. (4)
 
 # indices as constants in the input data array
 LAT_P1, LON_P1, BEARING, DEPTH, LAT_C, LON_C, LAT_P, LON_P, BASE_IMAGE_NAME = 0, 1, 2, 3, 5, 6, 7, 8, 9
-
-
-# haversine distance formula between two points specified by their GPS coordinates
-def haversine(lon1, lat1, lon2, lat2):
-    """
-    Calculate the great circle distance between two points 
-    on the earth (specified in decimal degrees) in meter
-    """
-    # convert decimal degrees to radians 
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    # haversine formula 
-    dist_lon = lon2 - lon1
-    dist_lat = lat2 - lat1
-    a = sin(dist_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dist_lon / 2) ** 2
-    c = 2 * asin(sqrt(a))
-    m = 6367000. * c
-    return m
 
 
 # calculating the intersection point between two rays (specified each by camera position and depth-estimated object
@@ -82,13 +74,10 @@ def compute_intersect(obj1, obj2):
         x = (b1 * y + c1) / a1
     else:
         x = (b2 * y + c2) / a2
-
     if (x < 0) or (y < 0):
         return -2, -2, 0, 0
-
     if (x > MAX_OBJ_DIST_FROM_CAM) or (y > MAX_OBJ_DIST_FROM_CAM):
         return -3, -3, 0, 0
-
     mx, my = a1 * x + lat_c1_x1, a2 * x + lon_c1_y1
     # if obj1[BASE_IMAGE_NAME] == '926005500131' or obj2[BASE_IMAGE_NAME] == '926005500131':
     #    print(f'Object1: {obj1[BASE_IMAGE_NAME]}, Object2: {obj2[BASE_IMAGE_NAME]}, {x}, {y}, {mx}, {my}')
@@ -110,6 +99,7 @@ def compute_energy(objs_dist, objs, objs_connectivity, obj):
         if objs_connectivity[obj, i]:
             # increase energy by penalizing distance between triangulated distance and depth estimate
             depth_pen = DEPTH_WEIGHT * abs(objs_dist[obj, i] - (objs[obj])[DEPTH])
+            print(f'{objs_dist[obj, i]} - {(objs[obj])[DEPTH]} - depth_pen: {depth_pen}')
             energy += depth_pen
             # if Object == 63 or Object == 64:
             #     print(f"object depth: {objs[obj][DEPTH]}, i: {i}, dist: {objs_dist[obj, i]}, depth_pen: {depth_pen}")
@@ -118,6 +108,7 @@ def compute_energy(objs_dist, objs, objs_connectivity, obj):
             if objs_dist[obj, i] > depth_max:
                 depth_max = objs_dist[obj, i]
     # increase energy by penalizing excessive spread for an object with multiple view ray intersections
+    print(f'energy: {energy}, depth_min: {depth_min}, depth_max: {depth_max}')
     return energy + OBJ_MULTI_VIEW * (depth_max - depth_min)
 
 
@@ -136,6 +127,27 @@ def compute_avg_object(intersects, objs_connectivity, obj):
     return res, idx_list
 
 
+def get_input_object(lat, lon, bearing, depth, base_img, planar):
+    # calculating the object positions from camera position + bearing + depth_estimate
+    br1 = radians(bearing)
+    if not planar:
+        mx, my = lat_lon_to_meters(lat, lon)
+        y_obj_pos = my + depth * cos(br1) * SCALING_FACTOR  # depth-based positions
+        x_obj_pos = mx + depth * sin(br1) * SCALING_FACTOR
+        lat_obj_p, lon_obj_p = meters_to_lat_lon(x_obj_pos, y_obj_pos)
+        y_obj_pos = my + 1.0 * cos(br1) * SCALING_FACTOR  # normalized positions (at 1m distance from camera)
+        x_obj_pos = mx + 1.0 * sin(br1) * SCALING_FACTOR
+        lat_obj_p1, lon_obj_p1 = meters_to_lat_lon(x_obj_pos, y_obj_pos)
+        return (lat_obj_p1, lon_obj_p1, bearing, depth, 0, lat, lon, lat_obj_p, lon_obj_p, base_img)
+    else:
+        mx, my = lat, lon
+        y_obj_p = my + depth * cos(br1)  # depth-based positions
+        x_obj_p = mx + depth * sin(br1)
+        y_obj_p1 = my + 1.0 * cos(br1)  # normalized positions (at 1m distance from camera)
+        x_obj_p1 = mx + 1.0 * sin(br1)
+        return (x_obj_p1, y_obj_p1, bearing, depth, 0, mx, my, x_obj_p, y_obj_p, base_img)
+
+
 def main(input_filename, output_filename, output_intersect=False, is_planar=False):
     start = time.time()
     objects_base = []
@@ -150,47 +162,10 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
     ###############################
     # A L L  O B J E C T S        #
     ###############################
-    with open(input_filename, 'r') as f:
-        next(f)  # skip the first line
-        for line in f:
-            nums = line.split(',')
-            if len(nums) < 3:
-                print(f'Broken entry ignored with line {line}')
-            base_img = ''
-            if len(nums) == 5:
-                # first column can be ignored
-                lat, lon, bearing, depth, base_img = float(nums[1]), float(nums[2]), float(nums[3]), float(nums[4]), \
-                                                     str(nums[0])
-            elif len(nums) == 4:
-                lat, lon, bearing, depth = float(nums[0]), float(nums[1]), float(nums[2]), float(nums[3])
-            else:  # if a depth estimate is not available, set depth to default 5 meters
-                lat, lon, bearing, depth = float(nums[0]), float(nums[1]), float(nums[2]), 5
-            if depth <= 0:
-                # set depth to default 5 meters if input depth is negative
-                depth = 5
-
-            # calculating the object positions from camera position + bearing + depth_estimate
-            br1 = radians(bearing)
-            if not is_planar:
-                mx, my = lat_lon_to_meters(lat, lon)
-                y_obj_pos = my + depth * cos(br1) * SCALING_FACTOR  # depth-based positions
-                x_obj_pos = mx + depth * sin(br1) * SCALING_FACTOR
-                lat_obj_p, lon_obj_p = meters_to_lat_lon(x_obj_pos, y_obj_pos)
-                y_obj_pos = my + 1.0 * cos(br1) * SCALING_FACTOR  # normalized positions (at 1m distance from camera)
-                x_obj_pos = mx + 1.0 * sin(br1) * SCALING_FACTOR
-                lat_obj_p1, lon_obj_p1 = meters_to_lat_lon(x_obj_pos, y_obj_pos)
-                # if base_img == '926005500021' or base_img == '926005500131':
-                #     print(base_img, lat_obj_p1, lon_obj_p1, bearing, depth, lat, lon, lat_obj_p, lon_obj_p)
-                objects_base.append((lat_obj_p1, lon_obj_p1, bearing, depth, 0, lat, lon, lat_obj_p,
-                                     lon_obj_p, base_img))
-            else:
-                mx, my = lat, lon
-                y_obj_p = my + depth * cos(br1)  # depth-based positions
-                x_obj_p = mx + depth * sin(br1)
-                y_obj_p1 = my + 1.0 * cos(br1)  # normalized positions (at 1m distance from camera)
-                x_obj_p1 = mx + 1.0 * sin(br1)
-                objects_base.append((x_obj_p1, y_obj_p1, bearing, depth, 0, mx, my, x_obj_p, y_obj_p, base_img))
-
+    input_df = pd.read_csv(input_filename, usecols=['imageBaseName', 'lat', 'lon', 'bearing', 'depth'],
+                           dtype={'imageBaseName': str, 'lat': float, 'lon': float, 'bearing': float, 'depth': float})
+    input_df.apply(lambda row: objects_base.append(get_input_object(
+        row['lat'], row['lon'], row['bearing'], row['depth'], row['imageBaseName'], is_planar)), axis=1)
     print("All detected objects: {0:d}".format(len(objects_base)))
     #############################
     # A D M I S S I B L E       #
@@ -224,6 +199,7 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
                 compute_intersect(objects_base[i], objects_base[j])
             objects_intersects[j, i, 0], objects_intersects[j, i, 1] = \
                 objects_intersects[i, j, 0], objects_intersects[i, j, 1]
+
             if objects_dist[i, j] > 0:
                 num_intersects += 1
 
@@ -277,13 +253,15 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
 
     intersect_list = []
     intersect_index_pairs = []
+    print(f'objects_connectivity: {objects_connectivity}')
+    print(f'objects_intersects: {objects_intersects}')
     for i in range(len(objects_base)):
         res, id_list = compute_avg_object(objects_intersects, objects_connectivity, i)
+        print(f'res: {res}, id_list: {id_list}')
         if res[0]:
             intersect_list.append((res[0], res[1]))
             for oid in id_list:
                 intersect_index_pairs.append((i, oid))
-
     print("ICM intersections: {0:d}".format(len(intersect_list)))
     intersect_clusters, ret_clusters = hierarchical_clustering(intersect_list, max_dist_in_cluster)
 
@@ -409,8 +387,13 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
-    parser.add_argument('--input_file', type=str, default='data/pole_input.csv', help='input file name with path')
-    parser.add_argument('--output_file', type=str, default='data/pole_detection.csv',
+    parser.add_argument('--input_file', type=str,
+                        # default='../data_processing/data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_input.csv',
+                        default='../data_processing/data/new_test_scene/lane_test/test_mapping_input.csv',
+                        help='input file name with path')
+    parser.add_argument('--output_file', type=str,
+                        # default='../data_processing/data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_output.csv',
+                        default='../data_processing/data/new_test_scene/lane_test/test_mapping_output.csv',
                         help='output file name with path')
     parser.add_argument('--output_intersect_base_images', action='store_true',
                         help='output list of intersection base images for categorization')
@@ -425,3 +408,4 @@ if __name__ == '__main__':
     output_intersect_base_images = args.output_intersect_base_images
     compute_planar = args.compute_planar
     main(input_file, output_file, output_intersect=output_intersect_base_images, is_planar=compute_planar)
+    sys.exit(0)

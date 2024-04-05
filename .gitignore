@@ -10,9 +10,16 @@ server/log
 server/data
 .idea
 __pycache__/
+.ipynb_checkpoints/
 data_processing/metadata/
+phase_2/data_processing/data/
 data_processing/images/
+phase_2/midas/
+bak/
 server/metadata
 machine-learning/venv
 machine-learning/images
 machine-learning/logs
+phase_2/object_mapping/data
+phase_2/ZoeDepth
+phase_2/data_processing/Debugging.ipynb
