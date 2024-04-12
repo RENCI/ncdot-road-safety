@@ -45,7 +45,7 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
         df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
             clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
 
-    df = df[(df['distance'] > dist_th[0]) & (df['distance'] < dist_th[1]) & (df['bearing_diff'] < math.pi / 3)]
+    df = df[(df['distance'] > dist_th[0]) & (df['distance'] < dist_th[1]) & (df['bearing_diff'] < math.pi / 2)]
     if include_all_cols:
         df = df.drop(columns=['bearing_diff'])
         return df.copy(), cam_bearing, df.columns
