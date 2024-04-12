@@ -13,7 +13,7 @@ from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
     get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    LIDARClass, angle_between
+    angle_between
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points, get_image_lane_points
@@ -44,7 +44,7 @@ DEPTH_SCALING_FACTOR = 189
 LIDAR_DIST_THRESHOLD = (0, 124)  # (1, 154)
 SPLINE_FIT_DIST_THRESHOLD = 15
 SPLINE_SMOOTHING_FACTOR = 100
-USE_ROAD_TANGENT_ANGLE_THRESHOLD = 70
+USE_ROAD_TANGENT_ANGLE_THRESHOLD = 30
 
 
 def rotate_point(point, quaternion):
@@ -288,7 +288,7 @@ def get_input_file_with_images(input_file):
     # load input file to get the image names for alignment
     df = pd.read_csv(input_file, dtype=str)
     # make sure only use the front image (ending with 1) for alignment
-    df['imageBaseName'] = df['imageBaseName'].str[:-1] + '1'
+    # df['imageBaseName'] = df['imageBaseName'].str[:-1] + '1'
     print(f'input df shape: {df.shape}')
     df.drop_duplicates(subset=['imageBaseName'], inplace=True)
     print(f'input df shape after removing duplicates: {df.shape}')
@@ -368,14 +368,21 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_
     """
     global PREV_CAM_PARAS, PREV_CAM_BEARING_VEC
 
-    image_name_with_path = os.path.join(base_image_dir, f'{row["imageBaseName"]}.png')
-    out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{row["imageBaseName"]}.csv') \
-        if is_optimize else os.path.join(out_proj_file_path, f'base_lidar_project_info_{row["imageBaseName"]}.csv')
+    if len(row["imageBaseName"]) == 11:
+        image_name_with_path = os.path.join(base_image_dir, f'{row["imageBaseName"]}1.png')
+        # get input image base name
+        input_2d_mapped_image = row["imageBaseName"]
+    else:
+        image_name_with_path = os.path.join(base_image_dir, f'{row["imageBaseName"]}.png')
+        # get input image base name
+        input_2d_mapped_image = row["imageBaseName"][:-1]
 
-    # get input image base name
-    input_2d_mapped_image = row["imageBaseName"][:-1]
+    out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{input_2d_mapped_image}.csv') \
+        if is_optimize else os.path.join(out_proj_file_path, f'base_lidar_project_info_{input_2d_mapped_image}.csv')
+    print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
     if use_lane:
         lane_image_name = f'{os.path.dirname(image_name_with_path)}/{input_2d_mapped_image}1_lanes.png'
+        print(f'lane_image_name: {lane_image_name}')
         img_width, img_height, input_list, intersect_points = get_image_lane_points(lane_image_name)
     else:
         img_width, img_height, input_list, intersect_points = get_image_road_points(image_name_with_path)
@@ -441,32 +448,42 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_
     # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
     filtered_road_bound_ldf = input_3d_gdf[input_3d_gdf.BOUND == 1]
     filtered_road_ldf = filtered_road_bound_ldf[filtered_road_bound_ldf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
-    filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
-    x = filtered_road_ldf['X'].values
-    y = filtered_road_ldf['Y'].values
-    z = filtered_road_ldf['Z'].values
-    unique_x, unique_indices = np.unique(x, return_index=True)
-    unique_y = y[unique_indices]
-    unique_z = z[unique_indices]
-    spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
-    spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
-    cam_tan_x = spline_xy.derivative()(filtered_road_ldf['X'].iloc[0])
-    cam_tan_y = spline_xy.derivative()(filtered_road_ldf['Y'].iloc[0])
-    cam_tan_z = spline_xz.derivative()(filtered_road_ldf['Z'].iloc[0])
-    road_v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
-    road_v = road_v / np.linalg.norm(road_v)
-    print(f'cam_v: {cam_v}, road_v: {road_v}, image: {row["imageBaseName"]}, PREV_CAM_VEC: {PREV_CAM_BEARING_VEC}')
+
+    if len(filtered_road_ldf) > 4:
+        no_points_for_spline = False
+        filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
+        x = filtered_road_ldf['X'].values
+        y = filtered_road_ldf['Y'].values
+        z = filtered_road_ldf['Z'].values
+        unique_x, unique_indices = np.unique(x, return_index=True)
+        unique_y = y[unique_indices]
+        unique_z = z[unique_indices]
+        spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
+        spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
+        cam_tan_x = spline_xy.derivative()(filtered_road_ldf['X'].iloc[0])
+        cam_tan_y = spline_xy.derivative()(filtered_road_ldf['Y'].iloc[0])
+        cam_tan_z = spline_xz.derivative()(filtered_road_ldf['Z'].iloc[0])
+        road_v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
+        road_v = road_v / np.linalg.norm(road_v)
+        print(f'cam_v: {cam_v}, road_v: {road_v}, image: {row["imageBaseName"]}, PREV_CAM_VEC: {PREV_CAM_BEARING_VEC}')
+    else:
+        no_points_for_spline = True
+        # use camera vector since there are not enough LIDAR road edge points to get the road vector
+        prev_v = PREV_CAM_BEARING_VEC['camera']
+        v = cam_v
+        print('use camera vector')
 
     if PREV_CAM_PARAS is not None:
-        bet_angle = angle_between(cam_v, road_v)
-        if bet_angle < USE_ROAD_TANGENT_ANGLE_THRESHOLD:
-            prev_v = PREV_CAM_BEARING_VEC['road']
-            v = road_v
-            print('use road tangent')
-        else:
-            prev_v = PREV_CAM_BEARING_VEC['camera']
-            v = cam_v
-            print('use camera vector')
+        if no_points_for_spline is False:
+            bet_angle = angle_between(cam_v, road_v)
+            if bet_angle < USE_ROAD_TANGENT_ANGLE_THRESHOLD:
+                prev_v = PREV_CAM_BEARING_VEC['road']
+                v = road_v
+                print('use road tangent')
+            else:
+                prev_v = PREV_CAM_BEARING_VEC['camera']
+                v = cam_v
+                print('use camera vector')
         init_cam_paras = derive_next_camera_params(prev_v, v, PREV_CAM_PARAS)
         print(f'derived camera parameters: {init_cam_paras}')
     else:
