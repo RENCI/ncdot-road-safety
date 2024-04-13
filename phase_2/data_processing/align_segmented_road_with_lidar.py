@@ -448,8 +448,10 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_
     # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
     filtered_road_bound_ldf = input_3d_gdf[input_3d_gdf.BOUND == 1]
     filtered_road_ldf = filtered_road_bound_ldf[filtered_road_bound_ldf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
-
-    if len(filtered_road_ldf) > 4:
+    if filtered_road_ldf.CAM_DIST.min() > 4:
+        # road bound points are too far away from the camera location to be used to compute road tangent
+        no_points_for_spline = True
+    elif len(filtered_road_ldf) > 4:
         no_points_for_spline = False
         filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
         x = filtered_road_ldf['X'].values
@@ -468,15 +470,18 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_
         print(f'cam_v: {cam_v}, road_v: {road_v}, image: {row["imageBaseName"]}, PREV_CAM_VEC: {PREV_CAM_BEARING_VEC}')
     else:
         no_points_for_spline = True
+
+    if no_points_for_spline is True:
         # use camera vector since there are not enough LIDAR road edge points to get the road vector
         prev_v = PREV_CAM_BEARING_VEC['camera']
         v = cam_v
+        road_v = np.zeros(3)
         print('use camera vector')
 
     if PREV_CAM_PARAS is not None:
         if no_points_for_spline is False:
             bet_angle = angle_between(cam_v, road_v)
-            if bet_angle < USE_ROAD_TANGENT_ANGLE_THRESHOLD:
+            if bet_angle < USE_ROAD_TANGENT_ANGLE_THRESHOLD and not np.all(PREV_CAM_BEARING_VEC['road'] == 0):
                 prev_v = PREV_CAM_BEARING_VEC['road']
                 v = road_v
                 print('use road tangent')
