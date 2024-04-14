@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import skimage.measure
 from PIL import Image
+from scipy.optimize import curve_fit
 import cv2
 from utils import SegmentationClass, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
     get_depth_of_pixel, compute_match, bearing_between_two_latlon_points, convert_xy_to_lat_lon, LIDARClass
@@ -25,6 +26,11 @@ width_to_hfov = {
     2748: 24.86,
     2356: 38.19
 }
+
+
+# Define the quadratic function between relative monocular depth and absolute object to camera distance
+def quadratic_function(rel_depth, a, b, c):
+    return a * rel_depth**2 + b * rel_depth + c
 
 
 def extract_lon_lat(geom):
@@ -84,8 +90,32 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
             depth_data = np.asarray(depth_img, dtype=np.uint8)
             # reduce depth_data shape from (image_height, image_width, 3) to (image_height, image_width)
             depth_data = depth_data[:, :, 0]
-            min_depth = np.min(depth_data)
-            max_depth = np.max(depth_data)
+            # reverse depth map
+            depth_data = 255 - depth_data
+
+        if suffix == '1.png':
+            # front view image
+            xb_min = 0
+            xb_max = image_width
+        elif suffix == '5.png':
+            # left view image
+            xb_min = -image_width
+            xb_max = 0
+        else:
+            # right view image
+            xb_min = image_width
+            xb_max = image_width * 2
+        sub_lidar_df = lidar_df[(lidar_df.PROJ_SCREEN_X >= xb_min) & (lidar_df.PROJ_SCREEN_X < xb_max) &
+                                (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)]
+        sub_lidar_df['PROJ_SCREEN_X'] = sub_lidar_df['PROJ_SCREEN_X'] - xb_min
+
+        sub_lidar_df['DEPTH'] = sub_lidar_df.apply(lambda row: depth_data[row['PROJ_SCREEN_Y'], row['PROJ_SCREEN_X']],
+                                                   axis=1)
+        # convert absolute object to camera distance to meter for quadratic curve fitting
+        sub_lidar_df['CAM_DIST_M'] = sub_lidar_df['CAM_DIST'] / 3
+        popt, _ = curve_fit(quadratic_function, sub_lidar_df['DEPTH'].values, sub_lidar_df['CAM_DIST_M'].values)
+        c1, c2, c3 = popt
+        print(f'image: {input_image_base_name}, curve fit popt: {popt}')
         obj_cnt = 0
         for i in range(count):
             xdiff = object_features[i].bbox[3] - object_features[i].bbox[1]
@@ -95,7 +125,9 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                 continue
 
             y0, x0 = object_features[i].centroid
-            obj_depth = get_depth_of_pixel(y0, x0, depth_data, min_depth, max_depth, scaling=SCALING_FACTOR)
+            y0 = int(y0 + 0.5)
+            x0 = int(x0 + 0.5)
+            obj_depth = quadratic_function(depth_data[y0, x0], c1, c2, c3)
             print(f'x0: {x0}, y0: {y0}, xdiff: {xdiff}, ydiff: {ydiff}, depth: {obj_depth}', flush=True)
             if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                 major_axis_len = object_features[i].major_axis_length
@@ -124,7 +156,9 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                 # need to recompute properties of the object
                 updated_object_features = skimage.measure.regionprops(obj_only)
                 y0, x0 = updated_object_features[0].centroid
-                obj_depth = get_depth_of_pixel(y0, x0, depth_data, min_depth, max_depth, scaling=SCALING_FACTOR)
+                y0 = int(y0 + 0.5)
+                x0 = int(x0 + 0.5)
+                obj_depth = quadratic_function(depth_data[y0, x0], c1, c2, c3)
                 object_features[i] = updated_object_features[0]
 
             # apply depth-height filtering
@@ -147,32 +181,17 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
 
             # Calculate signed distances of LIDAR projected points along X and Y directions
             # from the pole ground location
-            if suffix == '1.png':
-                # front view image
-                xb_min = 0
-                xb_max = image_width
-            elif suffix == '5.png':
-                # left view image
-                xb_min = -image_width
-                xb_max = 0
-            else:
-                # right view image
-                xb_min = image_width
-                xb_max = image_width * 2
-            sub_lidar_df = lidar_df[(lidar_df.PROJ_SCREEN_X >= xb_min) & (lidar_df.PROJ_SCREEN_X < xb_max) &
-                                (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)]
-            sub_lidar_df['PROJ_SCREEN_X'] = sub_lidar_df['PROJ_SCREEN_X'] - xb_min
-            sub_lidar_df['DEPTH'] = sub_lidar_df.apply(lambda row: get_depth_of_pixel(row['PROJ_SCREEN_Y'],
-                                                                                      row['PROJ_SCREEN_X'],
-                                                                                      depth_data,
-                                                                                      min_depth, max_depth,
-                                                                                      scaling=SCALING_FACTOR),
+
+            sub_lidar_df['DEPTH'] = sub_lidar_df.apply(lambda row:
+                                                       quadratic_function(depth_data[row['PROJ_SCREEN_Y'],
+                                                                                     row['PROJ_SCREEN_X']],
+                                                                          c1, c2, c3),
                                                        axis=1)
             sub_lidar_df['DIST_X'] = sub_lidar_df['PROJ_SCREEN_X'] - x0
             sub_lidar_df['DIST_Y'] = sub_lidar_df['PROJ_SCREEN_Y'] - object_features[i].bbox[2]
             sub_lidar_df['DIST_Z'] = sub_lidar_df['DEPTH'] - obj_depth
             sub_lidar_df['DIST'] = sub_lidar_df['DIST_X'].abs() / image_width + \
-                sub_lidar_df['DIST_Y'].abs() / image_height + sub_lidar_df['DIST_Z'].abs() / SCALING_FACTOR
+                sub_lidar_df['DIST_Y'].abs() / image_height + sub_lidar_df['DIST_Z'].abs()
 
             ldf_sorted = sub_lidar_df.sort_values(by='DIST')
             try:
