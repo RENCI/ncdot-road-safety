@@ -295,26 +295,6 @@ def get_input_file_with_images(input_file):
     return df
 
 
-def get_image_depth(depth_filename, image_base_name, idf, wth, hgt, min_dep, max_dep):
-    if depth_filename.endswith('.pfm'):
-        loader = PFMLoader((wth, hgt), color=False, compress=False)
-        input_pfm = get_depth_data(loader, depth_filename.format(
-            image_base_name=f'{image_base_name}1'))
-        min_depth = input_pfm.min()
-        max_depth = input_pfm.max()
-        idf['Z'] = idf.apply(lambda row: get_depth_of_pixel(row['Y'], row['X'],
-                                                            input_pfm, min_depth, max_depth,
-                                                            scaling=DEPTH_SCALING_FACTOR), axis=1)
-    elif depth_filename.endswith('.png'):
-        input_depth_data = get_zoe_depth_data(depth_filename.format(
-            image_base_name=f'{image_base_name}1'))
-        idf['Z'] = idf.apply(lambda row: get_zoe_depth_of_pixel(row['Y'], row['X'], input_depth_data), axis=1)
-    # scale the estimated depth column Z to match the real LIDAR depth range (min_dep, max_dep)
-    min_max_scaler = MinMaxScaler(feature_range=(min_dep, max_dep))
-    idf['Z'] = min_max_scaler.fit_transform(idf[['Z']])
-    return idf
-
-
 def get_full_camera_parameters(cam_p):
     if len(cam_p) < len(INIT_CAMERA_PARAMS):
         combined = INIT_CAMERA_PARAMS[:len(INIT_CAMERA_PARAMS)-len(cam_p)]
