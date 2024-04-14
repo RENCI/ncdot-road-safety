@@ -13,7 +13,7 @@ from sklearn.preprocessing import MinMaxScaler
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_depth_data, get_depth_of_pixel, get_zoe_depth_data, get_zoe_depth_of_pixel, \
     get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    LIDARClass, angle_between
+    angle_between
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_road_points, get_image_lane_points
@@ -44,7 +44,7 @@ DEPTH_SCALING_FACTOR = 189
 LIDAR_DIST_THRESHOLD = (0, 124)  # (1, 154)
 SPLINE_FIT_DIST_THRESHOLD = 15
 SPLINE_SMOOTHING_FACTOR = 100
-USE_ROAD_TANGENT_ANGLE_THRESHOLD = 70
+USE_ROAD_TANGENT_ANGLE_THRESHOLD = 30
 
 
 def rotate_point(point, quaternion):
@@ -214,60 +214,20 @@ def mean_squared_error(points1, points2_df, points2_df_x_col, points2_df_y_col):
     return _compute_mse(merged_df, 'X1', points2_df_x_col, 'Y1', points2_df_y_col)
 
 
-def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, input_matching_data, align_errors):
+def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
-    if isinstance(input_matching_data, list):
-        if len(input_matching_data) <= 0:
-            df_out = df_3d
-            if 'Z' in df_2d.columns:
-                df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
-                    row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-                    get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['X'],
-                    get_2d_road_points_by_z(df_2d[df_2d.Boundary == row['Boundary']], 'Z', row['INITIAL_WORLD_Z'])['Y'])[1],
-                                                     axis=1)
-            elif 'Boundary' in df_2d.columns:
-                df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
-                    row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-                    df_2d[df_2d.Boundary == row['Boundary']]['X'],
-                    df_2d[df_2d.Boundary == row['Boundary']]['Y'])[1],
-                                                     axis=1)
-            else:
-                if 'BOUND' in df_3d.columns:
-                    # only use road bound LIDAR data for alignment
-                    df_out = df_3d[df_3d.BOUND == 1].copy()
+    df_out = df_3d
+    if 'BOUND' in df_3d.columns:
+        # only use road bound LIDAR data for alignment
+        df_out = df_3d[df_3d.BOUND == 1].copy()
 
-                df_out['MATCH_2D_DIST'] = df_out.apply(lambda row: compute_match(
-                    row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-                    df_2d['X'], df_2d['Y'], grid=True)[1], axis=1)
-            alignment_error = df_out['MATCH_2D_DIST'].sum() / len(df_out)
-        else:
-            left_intersects = input_matching_data[0]
-            right_intersects = input_matching_data[1]
-            lidar_li_df = df_3d[df_3d['I'] == 1].sort_values('CAM_DIST').reset_index(drop=True)
-            lidar_ri_df = df_3d[df_3d['I'] == 2].sort_values('CAM_DIST').reset_index(drop=True)
-            lalign_error = mean_squared_error(left_intersects, lidar_li_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
-                                              'PROJ_SCREEN_X', 'PROJ_SCREEN_Y')
-            ralign_error = mean_squared_error(right_intersects, lidar_ri_df[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']],
-                                              'PROJ_SCREEN_X', 'PROJ_SCREEN_Y')
-            print(f'lalign_error: {lalign_error}, ralign_error: {ralign_error}')
-            alignment_error = lalign_error + ralign_error
-    elif isinstance(input_matching_data, pd.DataFrame):
-        lidar_match_df = df_3d[len(df_3d)-len(input_matching_data):].reset_index(drop=True)
-        match_df = pd.concat([lidar_match_df, input_matching_data], axis=1)
-        alignment_error = _compute_mse(match_df, 'PROJ_SCREEN_X', 'LANDMARK_SCREEN_X',
-                                       'PROJ_SCREEN_Y', 'LANDMARK_SCREEN_Y')
-        # compute alignment error for other parts of the road
-        # df_3d_filtered = df_3d[:len(df_3d)-len(input_matching_data)]
-        # max_match_y = lidar_match_df['PROJ_SCREEN_Y'].max()
-        # df_3d_filtered = df_3d_filtered[(df_3d_filtered.BOUND == 1) & (df_3d_filtered.PROJ_SCREEN_Y > max_match_y)]
-        # df_3d_filtered['MATCH_2D_DIST'] = df_3d_filtered.apply(lambda row: compute_match(
-        #     row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'], df_2d['X'], df_2d['Y'])[1], axis=1)
-        # error2 = np.mean(df_3d_filtered['MATCH_2D_DIST'])
-        # alignment_error = error1 + error2
-        # alignment_error = 0.9 * error1 + 0.1 * error2
+    df_out['MATCH_2D_DIST'] = df_out.apply(lambda row: compute_match(
+        row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
+        df_2d['X'], df_2d['Y'], grid=True)[1], axis=1)
+    alignment_error = df_out['MATCH_2D_DIST'].sum() / len(df_out)
     align_errors.append(alignment_error)
     return alignment_error
 
@@ -328,7 +288,7 @@ def get_input_file_with_images(input_file):
     # load input file to get the image names for alignment
     df = pd.read_csv(input_file, dtype=str)
     # make sure only use the front image (ending with 1) for alignment
-    df['imageBaseName'] = df['imageBaseName'].str[:-1] + '1'
+    # df['imageBaseName'] = df['imageBaseName'].str[:-1] + '1'
     print(f'input df shape: {df.shape}')
     df.drop_duplicates(subset=['imageBaseName'], inplace=True)
     print(f'input df shape after removing duplicates: {df.shape}')
@@ -392,16 +352,13 @@ def derive_next_camera_params(v1, v2, cam_para1):
     return cam_para2
 
 
-def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_file,
-                         out_proj_file_path, use_lane, is_optimize):
+def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_file_path, use_lane, is_optimize):
     """
     :param row: the image metadata dataframe row to be processed
     :param base_image_dir: base path in which images are located
     :param ldf: lidar 3D point geodataframe
     :param input_mapping_file: input_mapping_file to read and extract camera location and its next camera location
     for determining bearing direction
-    :param landmark_file: input landmark file that can be used for optimizer's cost function to be minimized
-    have an alignment output file for each input image
     :param out_proj_file_path: output path for aligned road info which will be appended with
     lidar_project_info_{image name} to have lidar projection info for each input image
     :param use_lane: whether to use lane segmentation for road alignment or not
@@ -411,14 +368,21 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     """
     global PREV_CAM_PARAS, PREV_CAM_BEARING_VEC
 
-    image_name_with_path = os.path.join(base_image_dir, f'{row["imageBaseName"]}.png')
-    out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{row["imageBaseName"]}.csv') \
-        if is_optimize else os.path.join(out_proj_file_path, f'base_lidar_project_info_{row["imageBaseName"]}.csv')
+    if len(row["imageBaseName"]) == 11:
+        image_name_with_path = os.path.join(base_image_dir, f'{row["imageBaseName"]}1.png')
+        # get input image base name
+        input_2d_mapped_image = row["imageBaseName"]
+    else:
+        image_name_with_path = os.path.join(base_image_dir, f'{row["imageBaseName"]}.png')
+        # get input image base name
+        input_2d_mapped_image = row["imageBaseName"][:-1]
 
-    # get input image base name
-    input_2d_mapped_image = row["imageBaseName"][:-1]
+    out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{input_2d_mapped_image}.csv') \
+        if is_optimize else os.path.join(out_proj_file_path, f'base_lidar_project_info_{input_2d_mapped_image}.csv')
+    print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
     if use_lane:
         lane_image_name = f'{os.path.dirname(image_name_with_path)}/{input_2d_mapped_image}1_lanes.png'
+        print(f'lane_image_name: {lane_image_name}')
         img_width, img_height, input_list, intersect_points = get_image_lane_points(lane_image_name)
     else:
         img_width, img_height, input_list, intersect_points = get_image_road_points(image_name_with_path)
@@ -430,10 +394,8 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
 
     if input_2d_points.shape[1] == 2:
         input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
-    elif input_2d_points.shape[1] == 3:
-        input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y', 'Boundary'])
     else:
-        print(f'input_2d_points.shape[1] must be either 2, or 3, but it is {input_2d_points.shape[1]}, exiting')
+        print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, exiting')
         exit(1)
 
     # compute base camera parameters
@@ -457,43 +419,6 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}, {cols}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=cols)
-    if landmark_file:
-        lm_df = pd.read_csv(landmark_file, usecols=['X', 'Y', 'Z', 'LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y', 'C'])
-        # remove road segments on intersecting roads around intersection landmarks since those intersecting roads
-        # aren't included in lane lines. The removal code is preliminary for testing purposes. More robust general
-        # solution will be implemented if lane line based alignment works well after testing
-        max_lm_x = max(lm_df[lm_df.C == LIDARClass.ROAD.value].X)
-        min_lm_y = min(lm_df[lm_df.C == LIDARClass.ROAD.value].Y)
-        max_lm_y = max(lm_df[lm_df.C == LIDARClass.ROAD.value].Y)
-        print(f'before dropping intersecting segment: {len(input_3d_df)}')
-        input_3d_df = input_3d_df[((input_3d_df.Y <= min_lm_y) & (input_3d_df.X <= max_lm_x)) |
-                                  (input_3d_df.Y >= max_lm_y)]
-        print(f'after dropping intersecting segment: {len(input_3d_df)}')
-        lm_3d_df = lm_df.drop(columns=['LANDMARK_SCREEN_X', 'LANDMARK_SCREEN_Y'])
-        # concatenate lm_3d_df with input_3d_df for subsequent transformations
-        if 'I' in cols:
-            lm_3d_df['I'] = 0
-        if 'BOUND' in cols:
-            lm_3d_df['BOUND'] = 0
-        input_3d_df = pd.concat([input_3d_df, lm_3d_df], ignore_index=True)
-        lm_df.drop(columns=['X', 'Y', 'Z'], inplace=True)
-    if 'I' in cols:
-        input_3d_df['I'] = input_3d_df['I'].astype(int)
-        li_count = len(input_3d_df[input_3d_df.I == 1])
-        ri_count = len(input_3d_df[input_3d_df.I == 2])
-        print(f'li_count: {li_count}, ri_count: {ri_count}')
-        # interpolate intersect_points to have the same number of li_count and ri_count
-        li_points = linear_interpolation(intersect_points[0][0], intersect_points[0][1], li_count)
-        li_df = pd.DataFrame(li_points, columns=['X', 'Y'])
-        ri_points = linear_interpolation(intersect_points[1][0], intersect_points[1][1], ri_count)
-        print(f'left corner intersections: {intersect_points[0]}, right corner intersections: {intersect_points[1]}')
-        ri_df = pd.DataFrame(ri_points, columns=['X', 'Y'])
-        intersect_points = [li_points, ri_points]
-        pd.concat([li_df, ri_df]).to_csv(
-            os.path.join(os.path.dirname(out_proj_file), f'image_{input_2d_mapped_image}1_crossroad_intersects.csv'),
-            index=False)
-    else:
-        intersect_points = []
 
     if 'BOUND' in cols:
         input_3d_df['BOUND'] = input_3d_df['BOUND'].astype(int)
@@ -523,32 +448,47 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
     filtered_road_bound_ldf = input_3d_gdf[input_3d_gdf.BOUND == 1]
     filtered_road_ldf = filtered_road_bound_ldf[filtered_road_bound_ldf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
-    filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
-    x = filtered_road_ldf['X'].values
-    y = filtered_road_ldf['Y'].values
-    z = filtered_road_ldf['Z'].values
-    unique_x, unique_indices = np.unique(x, return_index=True)
-    unique_y = y[unique_indices]
-    unique_z = z[unique_indices]
-    spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
-    spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
-    cam_tan_x = spline_xy.derivative()(filtered_road_ldf['X'].iloc[0])
-    cam_tan_y = spline_xy.derivative()(filtered_road_ldf['Y'].iloc[0])
-    cam_tan_z = spline_xz.derivative()(filtered_road_ldf['Z'].iloc[0])
-    road_v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
-    road_v = road_v / np.linalg.norm(road_v)
-    print(f'cam_v: {cam_v}, road_v: {road_v}, image: {row["imageBaseName"]}, PREV_CAM_VEC: {PREV_CAM_BEARING_VEC}')
+    if filtered_road_ldf.CAM_DIST.min() > 4:
+        # road bound points are too far away from the camera location to be used to compute road tangent
+        no_points_for_spline = True
+    elif len(filtered_road_ldf) > 4:
+        no_points_for_spline = False
+        filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
+        x = filtered_road_ldf['X'].values
+        y = filtered_road_ldf['Y'].values
+        z = filtered_road_ldf['Z'].values
+        unique_x, unique_indices = np.unique(x, return_index=True)
+        unique_y = y[unique_indices]
+        unique_z = z[unique_indices]
+        spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
+        spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
+        cam_tan_x = spline_xy.derivative()(filtered_road_ldf['X'].iloc[0])
+        cam_tan_y = spline_xy.derivative()(filtered_road_ldf['Y'].iloc[0])
+        cam_tan_z = spline_xz.derivative()(filtered_road_ldf['Z'].iloc[0])
+        road_v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
+        road_v = road_v / np.linalg.norm(road_v)
+        print(f'cam_v: {cam_v}, road_v: {road_v}, image: {row["imageBaseName"]}, PREV_CAM_VEC: {PREV_CAM_BEARING_VEC}')
+    else:
+        no_points_for_spline = True
+
+    if no_points_for_spline is True:
+        # use camera vector since there are not enough LIDAR road edge points to get the road vector
+        prev_v = PREV_CAM_BEARING_VEC['camera']
+        v = cam_v
+        road_v = np.zeros(3)
+        print('use camera vector')
 
     if PREV_CAM_PARAS is not None:
-        bet_angle = angle_between(cam_v, road_v)
-        if bet_angle < USE_ROAD_TANGENT_ANGLE_THRESHOLD:
-            prev_v = PREV_CAM_BEARING_VEC['road']
-            v = road_v
-            print('use road tangent')
-        else:
-            prev_v = PREV_CAM_BEARING_VEC['camera']
-            v = cam_v
-            print('use camera vector')
+        if no_points_for_spline is False:
+            bet_angle = angle_between(cam_v, road_v)
+            if bet_angle < USE_ROAD_TANGENT_ANGLE_THRESHOLD and not np.all(PREV_CAM_BEARING_VEC['road'] == 0):
+                prev_v = PREV_CAM_BEARING_VEC['road']
+                v = road_v
+                print('use road tangent')
+            else:
+                prev_v = PREV_CAM_BEARING_VEC['camera']
+                v = cam_v
+                print('use camera vector')
         init_cam_paras = derive_next_camera_params(prev_v, v, PREV_CAM_PARAS)
         print(f'derived camera parameters: {init_cam_paras}')
     else:
@@ -559,13 +499,6 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
     PREV_CAM_BEARING_VEC['camera'] = cam_v
     PREV_CAM_BEARING_VEC['road'] = road_v
 
-    if 'I' in input_3d_gdf.columns:
-        li_df = input_3d_gdf[input_3d_gdf['I'] == 1].sort_values('CAM_DIST')
-        ri_df = input_3d_gdf[input_3d_gdf['I'] == 2].sort_values('CAM_DIST')
-        print(
-            f"lidar sorted left intersection: {li_df[['geometry_y']]}")
-        print(
-            f"lidar sorted right intersection: {ri_df[['geometry_y']]}")
     if is_optimize:
         # output base lidar project info to base_lidar_project_info_{image_base_name}.csv file since the base
         # camera orientation/bearing info is updated from the optimized version of its previous image using
@@ -579,13 +512,8 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
         # eps specifies the absolute step size used for numerical approximation of the jacobian via forward
         # differences
         # eps = 0.1
-        if landmark_file and not use_lane:
-            matching_data = lm_df
-        else:
-            matching_data = intersect_points
-
         result = minimize(objective_function_2d, init_cam_paras[2:],
-                          args=(input_3d_gdf, input_2d_df, img_width, img_height, matching_data, align_errors),
+                          args=(input_3d_gdf, input_2d_df, img_width, img_height, align_errors),
                           method='Nelder-Mead',
                           options={'maxiter': NUM_ITERATIONS, 'disp': True})
                           # method='SLSQP',
@@ -620,8 +548,6 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, landmark_
 
     input_3d_gdf.to_csv(out_proj_file, index=False)
     proj_base, proj_ext = os.path.splitext(out_proj_file)
-    if 'Boundary' in input_3d_gdf.columns:
-        input_3d_gdf.Boundary = input_3d_gdf.Boundary.apply(lambda x: True if x > 0 else False)
     if is_optimize:
         # output optimized camera parameter for the image
         cam_para_df = pd.DataFrame(data=[optimized_cam_params.tolist()], columns=['translation_x',
@@ -659,10 +585,6 @@ if __name__ == '__main__':
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
-    parser.add_argument('--input_landmark_file', type=str,
-                        # default='data/new_test_scene/new_test_scene_landmarks_881000952181.csv',
-                        default='',
-                        help='input csv file that includes landmark mapping info to be leveraged for optimizer')
     parser.add_argument('--lidar_proj_output_file_path', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info',
                         default='data/new_test_scene/lane_test',
@@ -678,7 +600,6 @@ if __name__ == '__main__':
     obj_base_image_dir = args.obj_base_image_dir
     obj_image_input = args.obj_image_input
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
-    input_landmark_file = args.input_landmark_file
     lidar_proj_output_file_path = args.lidar_proj_output_file_path
     use_lane_seg = args.use_lane_seg
     optimize = args.optimize
@@ -702,7 +623,6 @@ if __name__ == '__main__':
         obj_base_image_dir,
         lidar_df,
         input_sensor_mapping_file_with_path,
-        input_landmark_file,
         lidar_proj_output_file_path,
         use_lane_seg,
         optimize), axis=1, result_type='expand')
