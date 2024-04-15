@@ -114,6 +114,9 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
         # convert absolute object to camera distance to meter for quadratic curve fitting
         sub_lidar_df['CAM_DIST_M'] = sub_lidar_df['CAM_DIST'] / 3
         popt, _ = curve_fit(quadratic_function, sub_lidar_df['DEPTH'].values, sub_lidar_df['CAM_DIST_M'].values)
+
+        sub_lidar_df = sub_lidar_df.reset_index()
+
         c1, c2, c3 = popt
         print(f'image: {input_image_base_name}, curve fit popt: {popt}')
         obj_cnt = 0
@@ -240,6 +243,7 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
 
             nearest_dist = (avg_x - x0) ** 2 + (avg_y - object_features[i].bbox[2]) ** 2
             nearest_idx = -1
+
             # see if there are LIDAR points projected within the object bounding box
             filtered_lidar_df = sub_lidar_df[
                 ((sub_lidar_df.C == LIDARClass.MEDIUM_VEG.value) | (sub_lidar_df.C == LIDARClass.HIGH_VEG.value)) &
@@ -254,6 +258,7 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                 # compare the distance between nearest_fidx to all pole pixels with nearest_dist
                 # to determine whether to use nearest_fidx or nearest_idx
                 obj_feat_df = pd.DataFrame(data=object_features[i].coords, columns=['Y', 'X'])
+
                 _, nearest_fdist = compute_match(sub_lidar_df.iloc[nearest_fidx].PROJ_SCREEN_X,
                                                  sub_lidar_df.iloc[nearest_fidx].PROJ_SCREEN_Y,
                                                  obj_feat_df['X'], obj_feat_df['Y'])
