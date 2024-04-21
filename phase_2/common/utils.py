@@ -1,8 +1,10 @@
 # common/utils.py
-# This is a common module that contains utilities for both data_processing 
+# This is a common module that contains constants and utilities for both data_processing
 # and object_mapping modules
 
 from math import radians, sin, cos, asin, sqrt
+
+MAX_OBJ_DIST_FROM_CAM = 40
 
 
 # haversine distance formula between two points specified by their GPS coordinates

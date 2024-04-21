@@ -8,11 +8,11 @@ from PIL import Image
 from scipy.optimize import curve_fit
 import cv2
 from utils import SegmentationClass, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
-    get_depth_of_pixel, compute_match, bearing_between_two_latlon_points, convert_xy_to_lat_lon, LIDARClass
+    compute_match, bearing_between_two_latlon_points, convert_xy_to_lat_lon, LIDARClass
+from common.utils import MAX_OBJ_DIST_FROM_CAM
 
 
 # may need to be updated (e.g., set to 25) in conjunction with MAX_OBJ_DIST_FROM_CAM set in object_mapping.py
-SCALING_FACTOR = 35
 POLE_X_SIZE_THRESHOLD = 10
 POLE_Y_SIZE_THRESHOLD = 20
 POLE_ASPECT_RATIO_THRESHOLD = 10  # 12
@@ -21,10 +21,6 @@ POLE_EROSION_DILATION_KERNEL_SIZE = 10
 D_H_THRESHOLD = {
     17: 500,
     25: 210  # 350
-}
-width_to_hfov = {
-    2748: 24.86,
-    2356: 38.19
 }
 
 
@@ -38,7 +34,7 @@ def extract_lon_lat(geom):
     return lon, lat
 
 
-def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file_pattern):
+def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_pattern):
     # compute depth of segmented object taking the 10%-trimmed mean of the depths of its constituent pixels
     # to gain robustness with respect to segmentation errors, in particular along the object borders
     cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, _, _ = get_camera_latlon_and_bearing_for_image_from_mapping(
@@ -63,8 +59,7 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
 
     if lidar_file_name:
         lidar_df = pd.read_csv(lidar_file_name, usecols=['X', 'Y', 'PROJ_SCREEN_X', 'PROJ_SCREEN_Y',
-                                                         'ROAD_X', 'ROAD_Y', 'CAM_DIST',
-                                                         'geometry_y', 'Z', 'C'])
+                                                         'CAM_DIST', 'geometry_y', 'Z', 'C'])
         lidar_df[['lon', 'lat']] = lidar_df['geometry_y'].apply(lambda x: pd.Series(extract_lon_lat(x)))
     else:
         print(f'Projected LIDAR data for image {mapped_image} does not exist, so cannot compute mapping input, exiting')
@@ -74,9 +69,6 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
         # get camera location for the mapped image
         input_image_name = os.path.join(path, f'{mapped_image}{suffix}')
         image_width, image_height, input_data = get_data_from_image(input_image_name)
-        if image_width not in width_to_hfov:
-            print(f'no HFOV can be found for image width {image_width} of the image {input_image_name}')
-            continue
         # move other classes to background in order to get all pole objects
         input_data[input_data != SegmentationClass.POLE.value] = 0
         # perform connected component analysis
@@ -86,7 +78,7 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
             continue
         object_features = skimage.measure.regionprops(labeled_data)
         input_image_base_name = os.path.basename(os.path.splitext(input_image_name)[0])
-        with Image.open(os.path.join(input_depth_image, f'{input_image_base_name}_depth.png')) as depth_img:
+        with Image.open(os.path.join(input_depth_path, f'{input_image_base_name}_depth.png')) as depth_img:
             depth_data = np.asarray(depth_img, dtype=np.uint8)
             # reduce depth_data shape from (image_height, image_width, 3) to (image_height, image_width)
             depth_data = depth_data[:, :, 0]
@@ -105,20 +97,36 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
             # right view image
             xb_min = image_width
             xb_max = image_width * 2
+        lidar_df['CAM_DIST_M'] = lidar_df['CAM_DIST'] / 3
+
         sub_lidar_df = lidar_df[(lidar_df.PROJ_SCREEN_X >= xb_min) & (lidar_df.PROJ_SCREEN_X < xb_max) &
-                                (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)]
+                                (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
         sub_lidar_df['PROJ_SCREEN_X'] = sub_lidar_df['PROJ_SCREEN_X'] - xb_min
 
-        sub_lidar_df['DEPTH'] = sub_lidar_df.apply(lambda row: depth_data[row['PROJ_SCREEN_Y'], row['PROJ_SCREEN_X']],
-                                                   axis=1)
-        # convert absolute object to camera distance to meter for quadratic curve fitting
-        sub_lidar_df['CAM_DIST_M'] = sub_lidar_df['CAM_DIST'] / 3
-        popt, _ = curve_fit(quadratic_function, sub_lidar_df['DEPTH'].values, sub_lidar_df['CAM_DIST_M'].values)
+        front_lidar_fit_df = lidar_df[(lidar_df.C == LIDARClass.ROAD.value) & (lidar_df.CAM_DIST_M < MAX_OBJ_DIST_FROM_CAM)
+                                      & (lidar_df.PROJ_SCREEN_X >= 0) & (lidar_df.PROJ_SCREEN_X < image_width)
+                                      & (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
 
-        sub_lidar_df = sub_lidar_df.reset_index()
+        if suffix != '1.png':
+            with Image.open(os.path.join(input_depth_path, f'{input_image_base_name[:-1]}1_depth.png')) as fnt_dep_img:
+                front_depth_data = np.asarray(fnt_dep_img, dtype=np.uint8)
+                front_depth_data = front_depth_data[:, :, 0]
+                front_depth_data = 255 - front_depth_data
+        else:
+            front_depth_data = depth_data
+
+        front_lidar_fit_df['DEPTH'] = front_lidar_fit_df.apply(lambda row: front_depth_data[row['PROJ_SCREEN_Y'],
+                                                                                            row['PROJ_SCREEN_X']],
+                                                               axis=1)
+        # convert absolute object to camera distance to meter for quadratic curve fitting
+
+        popt, _ = curve_fit(quadratic_function, front_lidar_fit_df['DEPTH'].values,
+                            front_lidar_fit_df['CAM_DIST_M'].values)
 
         c1, c2, c3 = popt
         print(f'image: {input_image_base_name}, curve fit popt: {popt}')
+        sub_lidar_df = sub_lidar_df.reset_index()
+
         obj_cnt = 0
         for i in range(count):
             xdiff = object_features[i].bbox[3] - object_features[i].bbox[1]
@@ -128,9 +136,10 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                 continue
 
             y0, x0 = object_features[i].centroid
-            y0 = int(y0 + 0.5)
-            x0 = int(x0 + 0.5)
-            obj_depth = quadratic_function(depth_data[y0, x0], c1, c2, c3)
+            y0 = int(y0)
+            x0 = int(x0)
+            yl = object_features[i].bbox[2]-1
+            obj_depth = quadratic_function(depth_data[yl, x0], c1, c2, c3)
             print(f'x0: {x0}, y0: {y0}, xdiff: {xdiff}, ydiff: {ydiff}, depth: {obj_depth}', flush=True)
             if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                 major_axis_len = object_features[i].major_axis_length
@@ -159,9 +168,9 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                 # need to recompute properties of the object
                 updated_object_features = skimage.measure.regionprops(obj_only)
                 y0, x0 = updated_object_features[0].centroid
-                y0 = int(y0 + 0.5)
-                x0 = int(x0 + 0.5)
-                obj_depth = quadratic_function(depth_data[y0, x0], c1, c2, c3)
+                y0 = int(y0)
+                x0 = int(x0)
+                obj_depth = quadratic_function(depth_data[yl, x0], c1, c2, c3)
                 object_features[i] = updated_object_features[0]
 
             # apply depth-height filtering
@@ -176,25 +185,25 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                 continue
 
             # find the nearest LIDAR projected point from the pole ground location for front view images
-            # (x0, object_features[i].bbox[2])
-            # nearest_idx, nearest_dist = compute_match(x0, object_features[i].bbox[2],
-            #                                           lidar_df['PROJ_SCREEN_X'], lidar_df['PROJ_SCREEN_Y'])
-            # print(f'object x, y: {x0}, {object_features[i].bbox[2]}, nearest_idx: {nearest_idx}, '
-            #       f'nearest_dist: {nearest_dist}, ldf: {lidar_df.iloc[nearest_idx]}')
-
-            # Calculate signed distances of LIDAR projected points along X and Y directions
-            # from the pole ground location
+            # (x0, yl)
+            nearest_idx, nearest_dist = compute_match(x0, yl,
+                                                      lidar_df['PROJ_SCREEN_X'], lidar_df['PROJ_SCREEN_Y'])
+            print(f'object x, y: {x0}, {yl}, nearest_idx: {nearest_idx}, '
+                  f'nearest_dist: {nearest_dist}, ldf: {lidar_df.iloc[nearest_idx]}')
 
             sub_lidar_df['DEPTH'] = sub_lidar_df.apply(lambda row:
                                                        quadratic_function(depth_data[row['PROJ_SCREEN_Y'],
                                                                                      row['PROJ_SCREEN_X']],
                                                                           c1, c2, c3),
                                                        axis=1)
+            # Calculate signed distances of LIDAR projected points along X and Y directions
+            # from the pole ground location
             sub_lidar_df['DIST_X'] = sub_lidar_df['PROJ_SCREEN_X'] - x0
-            sub_lidar_df['DIST_Y'] = sub_lidar_df['PROJ_SCREEN_Y'] - object_features[i].bbox[2]
+            sub_lidar_df['DIST_Y'] = sub_lidar_df['PROJ_SCREEN_Y'] - yl
             sub_lidar_df['DIST_Z'] = sub_lidar_df['DEPTH'] - obj_depth
             sub_lidar_df['DIST'] = sub_lidar_df['DIST_X'].abs() / image_width + \
-                sub_lidar_df['DIST_Y'].abs() / image_height + sub_lidar_df['DIST_Z'].abs()
+                                   sub_lidar_df['DIST_Y'].abs() / image_height + \
+                                   sub_lidar_df['DIST_Z'].abs() / obj_depth
 
             ldf_sorted = sub_lidar_df.sort_values(by='DIST')
             try:
@@ -241,7 +250,7 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                       f'closest_point_lon: {closest_point["lon"]}, '
                       f'closest_point_lat: {closest_point["lat"]}')
 
-            nearest_dist = (avg_x - x0) ** 2 + (avg_y - object_features[i].bbox[2]) ** 2
+            nearest_dist = (avg_x - x0) ** 2 + (avg_y - yl) ** 2
             nearest_idx = -1
 
             # see if there are LIDAR points projected within the object bounding box
@@ -250,7 +259,7 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                 (sub_lidar_df['PROJ_SCREEN_X'] >= object_features[i].bbox[1]) &
                 (sub_lidar_df['PROJ_SCREEN_X'] <= object_features[i].bbox[3]) &
                 (sub_lidar_df['PROJ_SCREEN_Y'] >= object_features[i].bbox[0]) &
-                (sub_lidar_df['PROJ_SCREEN_Y'] <= object_features[i].bbox[2])]
+                (sub_lidar_df['PROJ_SCREEN_Y'] <= yl)]
             if len(filtered_lidar_df) > 0:
                 nearest_fidx, nearest_fdist = compute_match(x0, y0,
                                                             filtered_lidar_df['PROJ_SCREEN_X'],
@@ -278,6 +287,8 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                 # use ref_bearing only without accounting for any offset since the nearest LIDAR
                 # point should be the point that is hit by the ray cast from camera to object if the
                 # LIDAR raster grid has enough resolution
+                print(f'inside pole bounding box, nearest_idx: {nearest_idx}, '
+                      f'lat: {sub_lidar_df.iloc[nearest_idx].lat}, lon: {sub_lidar_df.iloc[nearest_idx].lon}')
             else:
                 avg_lat, avg_lon = convert_xy_to_lat_lon(avg_lx, avg_ly)
                 ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
@@ -286,17 +297,17 @@ def compute_mapping_input(mdf, input_depth_image, mapped_image, path, lidar_file
                                                                 is_degree=True)
                 print(f'ref_bearing: {ref_bearing}, avg_lat: {avg_lat}, avg_lon: {avg_lon}, '
                       f'depth: {obj_depth},'
-                      f'image: {mapped_image}{suffix}, x0: {x0}, y0: {object_features[i].bbox[2]}')
+                      f'image: {mapped_image}{suffix}, x0: {x0}, y0: {yl}')
 
             br_angle = (ref_bearing + 360) % 360
-            img_input_list.append([input_image_base_name, cam_lat, cam_lon, int(x0 + 0.5), int(y0 + 0.5),
+            img_input_list.append([input_image_base_name, cam_lat, cam_lon, int(x0), int(y0),
                                    br_angle, obj_depth])
             # if input_image_base_name == '926005420241':
             #    labeled_data[labeled_data == 1 ] = 255
             #    save_data_to_image(labeled_data, f'{input_image_base_name}_processed.png')
             print(f'{input_image_base_name}, ori: {object_features[i].orientation}, '
                   f'minx: {object_features[i].bbox[1]}, maxx: {object_features[i].bbox[3]}, '
-                  f'miny: {object_features[i].bbox[0]}, maxy: {object_features[i].bbox[2]}, '
+                  f'miny: {object_features[i].bbox[0]}, maxy: {yl}, '
                   f'xdiff: {object_features[i].bbox[3] - object_features[i].bbox[1]}, '
                   f'ydiff: {object_features[i].bbox[2] - object_features[i].bbox[0]}, cam_br:{cam_br}, '
                   f'br_angle: {br_angle}, depth: {obj_depth}')
