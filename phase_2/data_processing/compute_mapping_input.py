@@ -103,7 +103,8 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
                                 (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
         sub_lidar_df['PROJ_SCREEN_X'] = sub_lidar_df['PROJ_SCREEN_X'] - xb_min
 
-        front_lidar_fit_df = lidar_df[(lidar_df.C == LIDARClass.ROAD.value) & (lidar_df.CAM_DIST_M < MAX_OBJ_DIST_FROM_CAM)
+        front_lidar_fit_df = lidar_df[(lidar_df.C == LIDARClass.ROAD.value)
+                                      & (lidar_df.CAM_DIST_M < MAX_OBJ_DIST_FROM_CAM)
                                       & (lidar_df.PROJ_SCREEN_X >= 0) & (lidar_df.PROJ_SCREEN_X < image_width)
                                       & (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
 
@@ -184,12 +185,11 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
                 print(f'filtered out: {x0}, {y0}, {xdiff}, {ydiff}, {obj_depth}')
                 continue
 
-            # find the nearest LIDAR projected point from the pole ground location for front view images
-            # (x0, yl)
+            # find the nearest LIDAR projected point from the pole ground location (x0, yl)
             nearest_idx, nearest_dist = compute_match(x0, yl,
-                                                      lidar_df['PROJ_SCREEN_X'], lidar_df['PROJ_SCREEN_Y'])
+                                                      sub_lidar_df['PROJ_SCREEN_X'], sub_lidar_df['PROJ_SCREEN_Y'])
             print(f'object x, y: {x0}, {yl}, nearest_idx: {nearest_idx}, '
-                  f'nearest_dist: {nearest_dist}, ldf: {lidar_df.iloc[nearest_idx]}')
+                  f'nearest_dist: {nearest_dist}, ldf: {sub_lidar_df.iloc[nearest_idx]}')
 
             sub_lidar_df['DEPTH'] = sub_lidar_df.apply(lambda row:
                                                        quadratic_function(depth_data[row['PROJ_SCREEN_Y'],
