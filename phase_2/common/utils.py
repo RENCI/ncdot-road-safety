@@ -4,7 +4,7 @@
 
 from math import radians, sin, cos, asin, sqrt
 
-MAX_OBJ_DIST_FROM_CAM = 40
+MAX_OBJ_DIST_FROM_CAM = 50
 
 
 # haversine distance formula between two points specified by their GPS coordinates

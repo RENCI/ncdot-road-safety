@@ -38,7 +38,6 @@ PREV_CAM_PARAS = None
 PREV_CAM_BEARING_VEC = {'camera': {},
                         'road': {}}
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
-DEPTH_SCALING_FACTOR = 189
 # reduced the LIDAR distance threshold to get less farther away LIDAR points to align with lane lines which
 # don't capture the farther away lane paint
 LIDAR_DIST_THRESHOLD = (0, 124)  # (1, 154)
