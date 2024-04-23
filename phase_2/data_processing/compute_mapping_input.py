@@ -97,7 +97,8 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
             # right view image
             xb_min = image_width
             xb_max = image_width * 2
-        lidar_df['CAM_DIST_M'] = lidar_df['CAM_DIST'] / 3
+        # convert feet to meter
+        lidar_df['CAM_DIST_M'] = lidar_df['CAM_DIST'] * 0.3048
 
         sub_lidar_df = lidar_df[(lidar_df.PROJ_SCREEN_X >= xb_min) & (lidar_df.PROJ_SCREEN_X < xb_max) &
                                 (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
