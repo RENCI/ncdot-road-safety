@@ -47,7 +47,7 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar', type=str,
-                        default='data/new_test_scene/new_test_scene_all_raster_10_with_road_bounds.csv',
+                        default='data/new_test_scene/new_test_scene_all_lidar_with_road_bounds.csv',
                         # default='data/d13_route_40001001011/lidar/route_40001001011_all.csv',
                         help='input rasterized lidar file with road points x, y, z in EPSG:6543 coordinate projection')
     parser.add_argument('--input_lidar_bound', type=str,
@@ -63,7 +63,7 @@ if __name__ == '__main__':
                         default=[],
                         help='filter lidar data to only keep desired classes; if it is empty, keep all classes')
     parser.add_argument('--output_latlon_lidar_basename', type=str,
-                        default='data/new_test_scene/new_test_scene_all_raster_10_with_road_bounds',
+                        default='data/new_test_scene/new_test_scene_all_lidar_with_road_bounds',
                         # default='data/d13_route_40001001011/lidar/route_40001001011_all',
                         help='output lidar file with road points lat, lon, z in EPSG:4326 coordinate projection')
 

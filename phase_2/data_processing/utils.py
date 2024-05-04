@@ -244,8 +244,10 @@ def compute_match(x, y, series_x, series_y, grid=False):
         distances = (grid_df['series_x'] - x) ** 2 + (grid_df['series_y'] - y) ** 2
     else:
         distances = (series_x - x) ** 2 + (series_y - y) ** 2
-    min_idx = distances.idxmin()
-    return [min_idx, distances[min_idx]]
+    min_dist = np.min(distances)
+    # min_idx = distances.idxmin()
+    min_indices = np.where(distances == min_dist)[0]
+    return [min_indices, min_dist]
 
 
 def compute_match_3d(x, y, z, series_x, series_y, series_z):
