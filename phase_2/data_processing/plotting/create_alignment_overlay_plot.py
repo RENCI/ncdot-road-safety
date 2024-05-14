@@ -1,24 +1,25 @@
+import numpy as np
 import sys
 import argparse
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import pandas as pd
-from data_processing.utils import load_pickle_data, LIDARClass
+from data_processing.utils import load_pickle_data, LIDARClass, compute_match
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_2d', type=str,
                     # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/input_2d_92600542024.pkl',
-                    default='../data/new_test_scene/lane_test/input_2d_88100095715.pkl',
+                    default='../data/new_test_scene/lane_test/input_2d_88100095421.pkl',
                     help='2d vertices')
 parser.add_argument('--input_3d_proj', type=str,
                     # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/'
                     #         'lidar_project_info_926005420241.csv',
-                    default='../data/new_test_scene/lane_test/lidar_project_info_881000957151.csv',
+                    default='../data/new_test_scene/lane_test/lidar_project_info_88100095421.csv',
                     help='3d projection vertices')
 parser.add_argument('--overlay_bg_image_path', type=str,
                     # default='data/d13_route_40001001011/other/926005420241.jpg',
-                    default='../data/new_test_scene/images/881000957151.jpg',
+                    default='../data/new_test_scene/images/881000954211.jpg',
                     help='original background image for overlay with the scatter plots')
 parser.add_argument('--image_crossroad_intersect_file', type=str,
                     # default='data/new_test_scene/output/image_881000952181_crossroad_intersects.csv',
@@ -33,7 +34,8 @@ parser.add_argument('--use_lidar_proj_cols', type=list,
                     # default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
                     help='list of columns to load when reading the input lidar projection data from input_3d_proj')
 parser.add_argument('--colormap', type=dict,
-                    default={6: 'purple', 2: 'cyan', 15: 'orange', 1: 'green', 11: 'blue', 12: 'yellow'},
+                    default={6: 'purple', 2: 'cyan', 15: 'orange', 1: 'green', 11: 'blue', 12: 'yellow', 3: 'brown',
+                             4: 'brown', 5: 'brown', 14: 'pink'},
                     # default={3: 'purple', 5: 'blue', 2: 'green', 4: 'orange', 14: 'pink', 1: 'yellow', 11: 'red'},
                     # default='',
                     help='colormap to map LIDAR point classification to color')
@@ -44,6 +46,9 @@ parser.add_argument('--show_lidar_road_only', action="store_true",
 parser.add_argument('--show_bg_img', action="store_true",
                     help='show the background image')
 
+# pole_loc = (505, 792)
+# pole_loc = (242, 867)
+# pole_loc = (1757, 1058)
 
 args = parser.parse_args()
 input_2d = args.input_2d
@@ -77,13 +82,31 @@ elif show_lidar_road_only:
         input_3d_proj_df = input_3d_proj_df[input_3d_proj_df.C == LIDARClass.ROAD.value]
     if 'BOUND' in input_3d_proj_df.columns:
         input_3d_proj_df = input_3d_proj_df[input_3d_proj_df.BOUND == 1]
-
-input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.PROJ_SCREEN_X > 0) &
-                                    (input_3d_proj_df.PROJ_SCREEN_X < image_width) &
+print(f'image_height: {image_height}, image_width: {image_width}, len: {len(input_3d_proj_df)}')
+if overlay_bg_image_path.endswith('1.jpg'):
+    xb_min = 0
+    xb_max = image_width
+elif overlay_bg_image_path.endswith('5.jpg'):
+    # left image
+    xb_min = -image_width
+    xb_max = 0
+else:
+    # right view
+    xb_min = image_width
+    xb_max = image_width * 2
+input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.PROJ_SCREEN_X > xb_min) &
+                                    (input_3d_proj_df.PROJ_SCREEN_X < xb_max) &
                                     (input_3d_proj_df.PROJ_SCREEN_Y > 0) &
                                     (input_3d_proj_df.PROJ_SCREEN_Y < image_height)]
-
-plt.scatter(input_2d_points[:, 0], image_height - input_2d_points[:, 1], s=20)
+#input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.PROJ_SCREEN_X > 0) &
+#                                    (input_3d_proj_df.PROJ_SCREEN_X < 500) &
+#                                    (input_3d_proj_df.PROJ_SCREEN_Y > 800) &
+#                                    (input_3d_proj_df.PROJ_SCREEN_Y < 1000)]
+if not overlay_bg_image_path.endswith('1.jpg'):
+    input_3d_proj_df['PROJ_SCREEN_X'] = input_3d_proj_df['PROJ_SCREEN_X'] - xb_min
+else:
+    plt.scatter(input_2d_points[:, 0], image_height - input_2d_points[:, 1], s=20)
+print(f'image_height: {image_height}, image_width: {image_width}, len: {len(input_3d_proj_df)}')
 if not show_lidar_road_only and 'BOUND' in use_lidar_proj_cols:
     bound_ldf = input_3d_proj_df[input_3d_proj_df['BOUND'] > 0]
     plt.scatter(bound_ldf['PROJ_SCREEN_X'], image_height - bound_ldf['PROJ_SCREEN_Y'], s=10, c='c')
@@ -103,9 +126,6 @@ else:
 if colormap:
     plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10,
                 c=remain_ldf['C'].map(colormap), label=remain_ldf['C'])
-    focus_ldf = input_3d_proj_df[(input_3d_proj_df.C == 12) | (input_3d_proj_df.C == 15)]
-    print(focus_ldf)
-    plt.scatter(focus_ldf['PROJ_SCREEN_X'], image_height - focus_ldf['PROJ_SCREEN_Y'], s=10, c='r')
 else:
     plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10)
 
@@ -123,6 +143,42 @@ if landmark_file:
     plt.scatter(landmark_df['LANDMARK_SCREEN_X'], image_height - landmark_df['LANDMARK_SCREEN_Y'], s=10, c='#880000')
     plt.scatter(input_3d_proj_lm_df['PROJ_SCREEN_X'], image_height - input_3d_proj_lm_df['PROJ_SCREEN_Y'], s=10,
                 c='#ff0000')
+
+# plt.scatter(pole_loc[0], image_height - pole_loc[1], s=10, c='r')
+# nearest_indices, nearest_dist = compute_match(pole_loc[0], pole_loc[1], input_3d_proj_df['PROJ_SCREEN_X'],
+#                                               input_3d_proj_df['PROJ_SCREEN_Y'])
+# nearest_idx = nearest_indices[0]
+# print(f'len: {len(nearest_indices)}, nearest_idx: {nearest_idx}, nearest_dist: {nearest_dist}, '
+#       f'data: {input_3d_proj_df.iloc[nearest_idx]}')
+# xi = input_3d_proj_df.iloc[nearest_idx]['PROJ_SCREEN_X']
+# yi = image_height-input_3d_proj_df.iloc[nearest_idx]['PROJ_SCREEN_Y']
+# plt.scatter(xi, yi, s=10, c='pink')
+# input_3d_proj_df.reset_index(inplace=True)
+# distances = (input_3d_proj_df['PROJ_SCREEN_X'] - pole_loc[0]) ** 2 +
+# (input_3d_proj_df['PROJ_SCREEN_Y'] - pole_loc[1]) ** 2
+# sorted_indices = np.argsort(distances)
+# for idx in range(4):
+#     xi = input_3d_proj_df.iloc[sorted_indices[idx]]['PROJ_SCREEN_X']
+#     yi = image_height-input_3d_proj_df.iloc[sorted_indices[idx]]['PROJ_SCREEN_Y']
+#     plt.scatter(xi, yi, s=10, c='pink')
+#     plt.text(xi, yi, idx, fontsize=12, ha='right', va='top')
+#     print(f'idx: {idx}, df: {input_3d_proj_df.iloc[sorted_indices[idx]]}')
+#
+# other_indices = [66809, 67031, 66988]
+# # other_indices = [60496, 60718, 60675]
+# # other_indices = [51151, 51373, 51330]
+# base = 4
+# for i, index in enumerate(other_indices):
+#     print(i, index)
+#     print(input_3d_proj_df['index'])
+#     idf = input_3d_proj_df[input_3d_proj_df['index'] == index]
+#     print(idf)
+#     xi = idf.iloc[0]['PROJ_SCREEN_X']
+#     yi = image_height - idf.iloc[0]['PROJ_SCREEN_Y']
+#     plt.scatter(xi, yi, s=10, c='pink')
+#     plt.text(xi, yi, base+i, fontsize=12, ha='right', va='top')
+#     print(f'xi: {xi}, yi: {yi}')
+
 plt.title('Road alignment in screen coordinate system')
 plt.ylabel('Y')
 plt.xlabel('X')

@@ -26,7 +26,7 @@ import itertools
 from math import radians, cos, sin, asin, sqrt, dist
 from utils import lat_lon_to_meters, meters_to_lat_lon, hierarchical_clustering, \
     get_max_degree_dist_in_cluster_from_lat_lon
-from common.utils import haversine
+from common.utils import haversine, MAX_OBJ_DIST_FROM_CAM
 
 # preset parameters
 # Max distance from camera to objects (in meters). May need to increase it if trying to geolocate poles more than
@@ -34,7 +34,6 @@ from common.utils import haversine
 # test scene since the test pole is about 100 meters away from the camera. This parameter needs to be adjusted
 # in conjunction with the depth scaling factor in compute_mapping_input.py since the predicted depth is used as
 # a constraint with computed distance from the camera to computed intersection points
-MAX_OBJ_DIST_FROM_CAM = 100
 MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
 # this SCALING_FACTOR is applied to the predicted depth, then the product is compared with the distance between
 # the camera and the intersection point for energy, so if the real distance from camera to the geotagged location
@@ -43,7 +42,7 @@ MAX_DIST_IN_CLUSTER = 1  # Maximal size of clusters employed (in meters)
 SCALING_FACTOR = 640.0 / 256
 
 # MRF optimization parameters
-DEPTH_WEIGHT = 0.199  # weight alpha in Eq.(4)
+DEPTH_WEIGHT = 0.02  # weight alpha in Eq.(4)
 OBJ_MULTI_VIEW = 0.2  # weight beta in  Eq.(4)
 STANDALONE_PRICE = max(1 - DEPTH_WEIGHT - OBJ_MULTI_VIEW, 0)  # weight (1-alpha-beta) in Eq. (4)
 
