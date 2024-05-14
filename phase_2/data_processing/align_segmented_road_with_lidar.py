@@ -13,7 +13,7 @@ from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_
     angle_between
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
-from get_road_boundary_points import get_image_road_points, get_image_lane_points
+from get_road_boundary_points import get_image_lane_points
 
 
 # indices as constants in the input camera parameter list where CAMERA_LIDAR_X/Y/Z_OFFSET indicate camera
@@ -115,7 +115,8 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
         return df
     df = transform_to_world_coordinate_system(df, cam_params)
     aspect = img_width / img_hgt
-    far = max(df['INITIAL_WORLD_X'].max(), df['INITIAL_WORLD_Y'].max(), df['INITIAL_WORLD_Z'].max()) * 10
+    # far = max(df['INITIAL_WORLD_X'].max(), df['INITIAL_WORLD_Y'].max(), df['INITIAL_WORLD_Z'].max()) * 10
+    far = df['INITIAL_WORLD_Z'].abs().max() * 1.5
     top = cam_params[PERSPECTIVE_NEAR] * tan(radians(0.5 * cam_params[PERSPECTIVE_VFOV]))
     height = 2 * top
     width = aspect * height
