@@ -24,3 +24,7 @@ def haversine(lon1, lat1, lon2, lat2):
     except Exception as e:
         print(f'lon1: {lon1}, lat1: {lat1}, lon2: {lon2}, lat2: {lat2}')
         raise Exception(e)
+
+
+def flatten_nested_list(nested_list):
+    return [item for sublist in nested_list for item in (sublist if isinstance(sublist, list) else [sublist])]

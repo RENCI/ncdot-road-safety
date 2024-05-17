@@ -23,10 +23,10 @@ import time
 import numpy as np
 import pandas as pd
 import itertools
-from math import radians, cos, sin, asin, sqrt, dist
+from math import radians, cos, sin, dist
 from utils import lat_lon_to_meters, meters_to_lat_lon, hierarchical_clustering, \
     get_max_degree_dist_in_cluster_from_lat_lon
-from common.utils import haversine, MAX_OBJ_DIST_FROM_CAM
+from common.utils import haversine, MAX_OBJ_DIST_FROM_CAM, flatten_nested_list
 
 # preset parameters
 # Max distance from camera to objects (in meters). May need to increase it if trying to geolocate poles more than
@@ -252,15 +252,12 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
 
     intersect_list = []
     intersect_index_pairs = []
-    print(f'objects_connectivity: {objects_connectivity}')
-    print(f'objects_intersects: {objects_intersects}')
+
     for i in range(len(objects_base)):
         res, id_list = compute_avg_object(objects_intersects, objects_connectivity, i)
-        print(f'res: {res}, id_list: {id_list}')
-        if res[0]:
+        if id_list:
             intersect_list.append((res[0], res[1]))
-            for oid in id_list:
-                intersect_index_pairs.append((i, oid))
+            intersect_index_pairs.append((i, id_list))
     print("ICM intersections: {0:d}".format(len(intersect_list)))
     intersect_clusters, ret_clusters = hierarchical_clustering(intersect_list, max_dist_in_cluster)
 
@@ -274,9 +271,10 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
     if output_intersect:
         with open(f'{os.path.splitext(output_filename)[0]}_intersect_base_images.txt', "w") as img_fp:
             for i, item in enumerate(intersect_index_pairs):
-                img_fp.write(f"{item[0]}:{objects_base[item[0]][BASE_IMAGE_NAME]} "
-                             f"{item[1]}:{objects_base[item[1]][BASE_IMAGE_NAME]} "
-                             f"{ret_clusters[i]}\n")
+                for j in item[1]:
+                    img_fp.write(f"{item[0]}:{objects_base[item[0]][BASE_IMAGE_NAME]} "
+                                 f"{item[1]}:{objects_base[j][BASE_IMAGE_NAME]} "
+                                 f"{ret_clusters[i]}\n")
 
     print("Number of output clusters: {0:d}".format(num_clusters))
     if not is_planar:
@@ -286,9 +284,9 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
         cluster_dict = {}
         for idx_pair, cluster_idx in zip(intersect_index_pairs, ret_clusters):
             if cluster_idx not in cluster_dict:
-                cluster_dict[cluster_idx] = list(idx_pair)
+                cluster_dict[cluster_idx] = flatten_nested_list(list(idx_pair))
             else:
-                cluster_dict[cluster_idx] += idx_pair
+                cluster_dict[cluster_idx] += flatten_nested_list(list(idx_pair))
                 # remove potential duplicates
                 cluster_dict[cluster_idx] = list(set(cluster_dict[cluster_idx]))
 
