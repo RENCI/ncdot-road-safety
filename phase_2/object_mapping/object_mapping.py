@@ -163,8 +163,9 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
     ###############################
     input_df = pd.read_csv(input_filename, usecols=['imageBaseName', 'lat', 'lon', 'bearing', 'depth'],
                            dtype={'imageBaseName': str, 'lat': float, 'lon': float, 'bearing': float, 'depth': float})
-    input_df.apply(lambda row: objects_base.append(get_input_object(
-        row['lat'], row['lon'], row['bearing'], row['depth'], row['imageBaseName'], is_planar)), axis=1)
+    input_df.apply(lambda row: objects_base.append(
+        get_input_object(row['lat'], row['lon'], row['bearing'], row['depth'], row['imageBaseName'], is_planar)
+    ), axis=1)
     print("All detected objects: {0:d}".format(len(objects_base)))
     #############################
     # A D M I S S I B L E       #
@@ -189,8 +190,8 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
                 cam_dist = dist([objects_base[i][LAT_C], objects_base[i][LON_C]], [objects_base[j][LAT_C],
                                                                                    objects_base[j][LON_C]])
 
-            # cam_positions - same (less than 1m apart) or too far
-            if cam_dist < 0.5 or cam_dist > max_cam_dist:
+            # cam_positions - same (less than 1m apart) or too far or
+            if (cam_dist < 0.5) or (cam_dist > max_cam_dist):
                 objects_dist[i, j] = -4
                 objects_dist[j, i] = -4
                 continue

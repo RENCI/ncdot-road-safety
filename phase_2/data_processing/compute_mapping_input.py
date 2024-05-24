@@ -4,25 +4,20 @@ import argparse
 import pandas as pd
 import numpy as np
 import skimage.measure
+from skimage.morphology import binary_dilation, disk
 from PIL import Image
 from sklearn.linear_model import LinearRegression
 import cv2
 from math import cos
 from utils import SegmentationClass, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
-    compute_match, bearing_between_two_latlon_points, convert_xy_to_lat_lon, LIDARClass
+    compute_match, bearing_between_two_latlon_points, LIDARClass
 from common.utils import MAX_OBJ_DIST_FROM_CAM
 
 
-# may need to be updated (e.g., set to 25) in conjunction with MAX_OBJ_DIST_FROM_CAM set in object_mapping.py
 POLE_X_SIZE_THRESHOLD = 10
 POLE_Y_SIZE_THRESHOLD = 20
 POLE_ASPECT_RATIO_THRESHOLD = 10  # 12
 POLE_EROSION_DILATION_KERNEL_SIZE = 10
-# Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25, filter out those with H < 350
-D_H_THRESHOLD = {
-    17: 500,
-    25: 210  # 350
-}
 
 
 # Map/Scale the depth values (z) into a normalized range (0, 1) which is part of the perspective projection
@@ -49,8 +44,6 @@ def extract_lon_lat(geom):
 
 
 def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_pattern):
-    # compute depth of segmented object taking the 10%-trimmed mean of the depths of its constituent pixels
-    # to gain robustness with respect to segmentation errors, in particular along the object borders
     cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, _, _ = get_camera_latlon_and_bearing_for_image_from_mapping(
         mdf, mapped_image)
     if cam_lat is None:
@@ -72,21 +65,39 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
         lidar_file_name = ''
 
     if lidar_file_name:
-        lidar_df = pd.read_csv(lidar_file_name, usecols=['X', 'Y', 'PROJ_SCREEN_X', 'PROJ_SCREEN_Y',
-                                                         'WORLD_Z', 'geometry_y', 'Z', 'C', 'BEARING'])
+        lidar_df = pd.read_csv(lidar_file_name, usecols=['X', 'Y', 'PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'WORLD_Z',
+                                                         'geometry_y', 'Z', 'C', 'BEARING', 'INITIAL_WORLD_X'])
         lidar_df[['lon', 'lat']] = lidar_df['geometry_y'].apply(lambda x: pd.Series(extract_lon_lat(x)))
     else:
         print(f'Projected LIDAR data for image {mapped_image} does not exist, so cannot compute mapping input, exiting')
         sys.exit(1)
 
+    structuring_element = disk(1)
     for suffix in image_suffix_list:
         # get camera location for the mapped image
         input_image_name = os.path.join(path, f'{mapped_image}{suffix}')
         image_width, image_height, input_data = get_data_from_image(input_image_name)
-        # move other classes to background in order to get all pole objects
-        input_data[input_data != SegmentationClass.POLE.value] = 0
+
+        # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25,
+        # filter out those with H < 350
+        d_h_threshold = {
+            MAX_OBJ_DIST_FROM_CAM / 2: image_height / 2,
+            MAX_OBJ_DIST_FROM_CAM: image_height / 4  # 350
+        }
+
+        # check if the segmentation image includes traffic sign label
+        unique_labels = np.unique(input_data)
+        if SegmentationClass.POLE.value not in unique_labels:
+            continue
+        if SegmentationClass.SIGN.value in unique_labels:
+            sign_seg_data = (input_data == SegmentationClass.SIGN.value).astype(int)
+            dilated_sign_seg_data = binary_dilation(sign_seg_data, structuring_element)
+        else:
+            dilated_sign_seg_data = None
+
+        pole_seg_data = (input_data == SegmentationClass.POLE.value).astype(int)
         # perform connected component analysis
-        labeled_data, count = skimage.measure.label(input_data, connectivity=2, return_num=True)
+        labeled_data, count = skimage.measure.label(pole_seg_data, connectivity=2, return_num=True)
         labeled_data = labeled_data.astype('uint8')
         if count <= 0:
             continue
@@ -205,7 +216,7 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
 
             # apply depth-height filtering
             filtered_out = False
-            for key, val in D_H_THRESHOLD.items():
+            for key, val in d_h_threshold.items():
                 if obj_depth < key:
                     if ydiff < val:
                         filtered_out = True
@@ -213,6 +224,16 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
             if filtered_out:
                 print(f'filtered out: {x0}, {y0}, {xdiff}, {ydiff}, {obj_depth}')
                 continue
+
+            # check if the pole intersects with any sign, if so, filter the pole out
+            if dilated_sign_seg_data is not None:
+                dilated_pole_seg_data = (labeled_data == i+1).astype(int)
+                if skimage.measure.intersection_coeff(dilated_sign_seg_data, dilated_pole_seg_data) \
+                        and ydiff < image_height / 3:
+                    # only filter out FP sign when ydiff is small enough since there are cases with TP poles
+                    # with posted sign on it
+                    print(f'filtered out: pole bbox {object_features[i].bbox} intersects with a sign')
+                    continue
 
             sub_lidar_df['DEPTH'] = sub_lidar_df.apply(lambda row:
                                                        reverse_map_z(c1_in, c2_in,
@@ -323,6 +344,9 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
                                                                 is_degree=True)
                 # convert camera line-of-sight obj_depth back to the distance between camera to object
                 obj_depth = obj_depth / cos(sub_lidar_df.iloc[nearest_idx].BEARING)
+                if obj_depth > MAX_OBJ_DIST_FROM_CAM:
+                    # filter out the object if it is too far away from camera
+                    continue
                 # use ref_bearing only without accounting for any offset since the nearest LIDAR
                 # point should be the point that is hit by the ray cast from camera to object if the
                 # LIDAR raster grid has enough resolution

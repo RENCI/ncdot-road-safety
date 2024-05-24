@@ -17,6 +17,7 @@ class SegmentationClass(Enum):
     POLE = 5
     BUILDING = 2
     SIDEWALK = 1
+    SIGN = 7
     WALL = 3
     FENCE = 4
 
