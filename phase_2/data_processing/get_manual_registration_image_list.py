@@ -11,7 +11,7 @@ if __name__ == '__main__':
                         default='/projects/ncdot/NC_2018_Secondary_2/segmentations/d13_segmentation_path_mapping.csv',
                         help='input file name with path')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
-                        default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
+                        default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--output_file', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/manual_registration/d13_initial_camera_params.csv',
