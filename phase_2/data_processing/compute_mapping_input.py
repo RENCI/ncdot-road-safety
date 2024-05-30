@@ -401,12 +401,12 @@ if __name__ == '__main__':
                         default='../depth_anything/output/new_test_scene',
                         help='input path that includes depth prediction output images')
     parser.add_argument('--lidar_project_info_file_pattern', type=str,
-                        default='data/new_test_scene/lane_test/lidar_project_info_{}.csv',
+                        default='data/new_test_scene/full_route_test/lidar_project_info_{}.csv',
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info_{}.csv',
                         help='input LIDAR projection info file pattern')
     parser.add_argument('--output_file', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_input.csv',
-                        default='data/new_test_scene/lane_test/test_mapping_input.csv',
+                        default='data/new_test_scene/full_route_test/test_mapping_input.csv',
                         help='output file that contains image base names and corresponding segmented object depths')
     parser.add_argument('--front_only', action="store_true",
                         help='whether to compute mapping inputs for front view images only')
