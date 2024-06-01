@@ -41,9 +41,9 @@ if __name__ == '__main__':
                 out_list.append([route_id, img_base_name, '', '', '', '', '', '', ''])
                 prev_image_height = image_height
                 prev_image_width = image_width
+                print(f'{img_base_name} is added to list for manual registration with length {len(no_mapping_list)}')
             elif img_base_name not in no_mapping_list:
                 no_mapping_list.append(img_base_name)
-                print(f'{img_base_name} is added to list for manual registration with length {len(no_mapping_list)}')
         if idx % 100000 == 0:
             print(f'{idx} images have been checked')
     out_df = pd.DataFrame(out_list, columns=out_columns)
