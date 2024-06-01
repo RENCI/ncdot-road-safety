@@ -97,6 +97,11 @@ def get_data_from_image(input_image_name):
         return image_width, image_height, input_data
 
 
+def get_image_resolution(input_image_name):
+    with Image.open(input_image_name) as input_image:
+        return input_image.width, input_image.height
+
+
 def save_data_to_image(data, output_image_name):
     Image.fromarray(np.uint8(data), 'L').save(output_image_name)
 

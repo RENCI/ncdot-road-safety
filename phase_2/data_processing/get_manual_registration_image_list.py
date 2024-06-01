@@ -2,7 +2,7 @@ import argparse
 import sys
 import os
 import pandas as pd
-from utils import get_data_from_image
+from utils import get_image_resolution
 
 
 if __name__ == '__main__':
@@ -31,8 +31,8 @@ if __name__ == '__main__':
     out_list = []
     no_mapping_list = []
     prev_image_width = prev_image_height = -1
-    for img_path in input_list:
-        image_width, image_height, _ = get_data_from_image(img_path)
+    for idx, img_path in enumerate(input_list):
+        image_width, image_height = get_image_resolution(img_path)
         if image_width != prev_image_width or image_height != prev_image_height:
             img_base_name = os.path.basename(img_path)[:-5]
             mapped_image_df = map_df[map_df['MAPPED_IMAGE'] == img_base_name]
@@ -43,6 +43,9 @@ if __name__ == '__main__':
                 prev_image_width = image_width
             elif img_base_name not in no_mapping_list:
                 no_mapping_list.append(img_base_name)
+                print(f'{img_base_name} is added to list for manual registration with length {len(no_mapping_list)}')
+        if idx % 100000 == 0:
+            print(f'{idx} images have been checked')
     out_df = pd.DataFrame(out_list, columns=out_columns)
     out_df.to_csv(output_file, index=False)
     if len(no_mapping_list) > 0:
