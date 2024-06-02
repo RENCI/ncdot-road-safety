@@ -46,9 +46,9 @@ if __name__ == '__main__':
                 prev_image_height = image_height
                 prev_image_width = image_width
                 print(f'{img_base_name} is added to list for manual registration, '
-                      f'image_width: {image_width}, image_height: {image_height}')
+                      f'image_width: {image_width}, image_height: {image_height}', flush=True)
         if idx % 100000 == 0:
-            print(f'{idx} images have been checked')
+            print(f'{idx} images have been checked', flush=True)
     out_df = pd.DataFrame(out_list, columns=out_columns)
     out_df.to_csv(output_file, index=False)
     updated_input_df = pd.DataFrame(updated_input_list, columns=input_columns)
