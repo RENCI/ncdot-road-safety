@@ -387,11 +387,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
                         # default='../data_processing/data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_input.csv',
-                        default='../data_processing/data/new_test_scene/lane_test/test_mapping_input.csv',
+                        default='../data_processing/data/new_test_scene/full_route_test/test_mapping_input.csv',
                         help='input file name with path')
     parser.add_argument('--output_file', type=str,
                         # default='../data_processing/data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_output.csv',
-                        default='../data_processing/data/new_test_scene/lane_test/test_mapping_output.csv',
+                        default='../data_processing/data/new_test_scene/full_route_test/test_mapping_output.csv',
                         help='output file name with path')
     parser.add_argument('--output_intersect_base_images', action='store_true',
                         help='output list of intersection base images for categorization')
