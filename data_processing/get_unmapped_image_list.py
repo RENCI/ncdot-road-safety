@@ -30,7 +30,7 @@ df_seg.IMAGE_BASE_NAME = df_seg.IMAGE_BASE_NAME.astype(int)
 df = pd.merge(df_seg, df_map[['MAPPED_IMAGE']], how='outer', left_on='IMAGE_BASE_NAME', right_on='MAPPED_IMAGE',
               indicator=True)
 df_to_be_mapped = df[df['_merge'] == 'left_only']
-df_to_be_mapped = df_to_be_mapped.drop(columns=['_merge', 'MAPPED_IMAGE', 'IMAGE_PATH'])
+df_to_be_mapped = df_to_be_mapped.drop(columns=['_merge', 'MAPPED_IMAGE'])
 df_to_be_mapped = df_to_be_mapped.drop_duplicates()
 df_to_be_mapped.to_csv(output_file, index=False)
 print('DONE')
