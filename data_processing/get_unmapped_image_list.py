@@ -31,6 +31,8 @@ df = pd.merge(df_seg, df_map[['MAPPED_IMAGE']], how='outer', left_on='IMAGE_BASE
               indicator=True)
 df_to_be_mapped = df[df['_merge'] == 'left_only']
 df_to_be_mapped = df_to_be_mapped.drop(columns=['_merge', 'MAPPED_IMAGE'])
+# remove file name from the path
+df_to_be_mapped['IMAGE_PATH'] = df_to_be_mapped['IMAGE_PATH'].str[:-17]
 df_to_be_mapped = df_to_be_mapped.drop_duplicates()
 df_to_be_mapped.to_csv(output_file, index=False)
 print('DONE')
