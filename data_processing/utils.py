@@ -140,3 +140,10 @@ def map_image(geo_df, base_image_name, file_list, root_dir, dir_name, output_dir
                     'PATH': target_dir}
         else:
             return {}
+
+
+def find_closest_mapped_metadata(input_base_img_num, map_df, map_col='Start-Image'):
+    map_img_array = map_df[map_col].to_numpy()
+    differences = np.abs(map_img_array - input_base_img_num)
+    closest_idx = np.argmin(differences)
+    return closest_idx, map_img_array[closest_idx]

@@ -14,7 +14,7 @@ parser.add_argument('--seg_path_input_file', type=str,
                             'd13_segmentation_path_mapping_updated.csv',
                     help='segmentation path input file that contains all videolog images in a division')
 parser.add_argument('--output_file', type=str,
-                    default='/projects/ncdot/secondary_road/output/d13/images_to_be_further_mapped.csv',
+                    default='/projects/ncdot/secondary_road/output/d13/images_to_be_further_mapped_d13.csv',
                     help='output file that includes images to be further mapped')
 
 args = parser.parse_args()
