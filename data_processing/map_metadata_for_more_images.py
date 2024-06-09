@@ -10,9 +10,8 @@ parser.add_argument('--input_sensor_metadata_file', type=str,
                     default='/projects/ncdot/secondary_road/output/d04/d4_sensor_output_2lane.csv',
                     help='input sensor metadata file')
 parser.add_argument('--input_image_root_dir', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/d04'
-                            'd13_segmentation_path_mapping_updated.csv',
-                    help='segmentation path input file that contains all videolog images in a division')
+                    default='/projects/ncdot/NC_2018_Secondary/d04',
+                    help='input image root directory to walk over and find all images for the division')
 parser.add_argument('--input_map_file', type=str,
                     default='/projects/ncdot/secondary_road/output/d04/mapped_2lane_sr_images_d4.csv',
                     help='input sensor metadata file')
