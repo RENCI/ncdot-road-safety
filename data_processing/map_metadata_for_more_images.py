@@ -1,26 +1,28 @@
 import argparse
 import sys
+import os
 import pandas as pd
 from utils import find_closest_mapped_metadata
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_sensor_metadata_file', type=str,
-                    default='../phase_2/data_processing/data/d13/d13_sensor_output_2lane.csv',
+                    default='/projects/ncdot/secondary_road/output/d04/d4_sensor_output_2lane.csv',
                     help='input sensor metadata file')
-parser.add_argument('--input_image_file_to_be_mapped', type=str,
-                    default='../phase_2/data_processing/data/d13/images_to_be_further_mapped_d13.csv',
-                    help='input image list file to be mapped to metadata')
+parser.add_argument('--input_image_root_dir', type=str,
+                    default='/projects/ncdot/NC_2018_Secondary/d04/'
+                            'd13_segmentation_path_mapping_updated.csv',
+                    help='segmentation path input file that contains all videolog images in a division')
 parser.add_argument('--input_map_file', type=str,
-                    default='../phase_2/data_processing/data/d13/mapped_2lane_sr_images_d13_all.csv',
+                    default='/projects/ncdot/secondary_road/output/d04/mapped_2lane_sr_images_d4.csv',
                     help='input sensor metadata file')
 parser.add_argument('--output_map_file', type=str,
-                    default='../phase_2/data_processing/data/d13/mapped_2lane_sr_images_d13_all_updated.csv',
+                    default='/projects/ncdot/secondary_road/output/d04/mapped_2lane_sr_images_d4_updated.csv',
                     help='output mapping file')
 
 args = parser.parse_args()
 input_sensor_metadata_file = args.input_sensor_metadata_file
-input_image_file_to_be_mapped = args.input_image_file_to_be_mapped
+input_image_root_dir = args.input_image_root_dir
 input_map_file = args.input_map_file
 output_map_file = args.output_map_file
 
@@ -32,7 +34,13 @@ sensor_df = pd.read_csv(input_sensor_metadata_file, dtype={
     'StaLongitude': str
 })
 print(f'sensor_df shape: {sensor_df.shape}')
-img_df = pd.read_csv(input_image_file_to_be_mapped)
+
+img_paths_and_basenames = []
+for dir_name, subdir_list, file_list in os.walk(input_image_root_dir):
+    for file_name in file_list:
+        if file_name.lower().endswith(('1.jpg')):
+            img_paths_and_basenames.append([dir_name, file_name[:-5]])
+img_df = pd.DataFrame(img_paths_and_basenames, columns=['IMAGE_PATH', 'IMAGE_BASE_NAME'])
 print(f'img_df shape: {img_df.shape}')
 img_df[['MAPPED_INDEX', 'MAPPED_VALUE']] = \
     img_df.apply(lambda row: pd.Series(find_closest_mapped_metadata(
