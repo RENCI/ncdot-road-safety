@@ -11,14 +11,11 @@ from common.utils import haversine
 
 
 def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file, input_loc=None,
-                input_road_intersect=None, use_lane=True):
+                input_road_intersect=None):
     # get input image base name
-    input_2d_mapped_image = os.path.basename(image_name_with_path)[:-5]
-    if use_lane:
-        lane_image_name = f'{os.path.dirname(image_name_with_path)}/{input_2d_mapped_image}1_lanes.png'
-        img_width, img_height, input_list, _ = get_image_lane_points(lane_image_name)
-    else:
-        img_width, img_height, input_list, _ = get_image_road_points(image_name_with_path)
+    input_2d_mapped_image = os.path.basename(image_name_with_path)[:-4]
+    lane_image_name = f'{os.path.dirname(image_name_with_path)}/{input_2d_mapped_image}1_lanes.png'
+    img_width, img_height, input_list, _ = get_image_lane_points(lane_image_name)
 
     input_2d_points = input_list[0]
 
@@ -82,10 +79,8 @@ if __name__ == '__main__':
                         default='data/new_test_scene/segmentation',
                         help='base directory to retrieve images')
     parser.add_argument('--obj_image_input', type=str,
-                        # default='../object_mapping/data/pole_input.csv.rep',
-                        default='../object_mapping/data/new_test_route.csv',
-                        help='input csv file that contains image base names with objects detected along with other '
-                             'inputs for mapping')
+                        default='data/new_test_scene/manual_registration/initial_camera_params.csv',
+                        help='input csv file that contains image base names for creating manual registration data')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
@@ -93,15 +88,13 @@ if __name__ == '__main__':
                         # default=(35.7134730, -82.73446760),
                         default='',
                         help='input landmark location to compute distance from each LIDAR point')
-    parser.add_argument('--use_lane_seg', action="store_true",
-                        help='whether to use lane segmentation images')
     parser.add_argument('--input_road_lidar_with_intersection', type=str,
                         # default='data/new_test_scene/new_test_scene_road_raster_10.csv',
                         default='',
                         help='input file that contains road x, y, z vertices from lidar along with a I column '
                              'indicating whether the vertex is part of crossroad intersection or not')
     parser.add_argument('--output_lidar_file_base', type=str,
-                        default='/home/hongyi/ncdot-registration/data/lidar_info',
+                        default='data/new_test_scene/manual_registration/lidar_info',
                         help='output lidar file base with path which will be appended with image name '
                              'to have lidar INITIAL WORLD coordinate info for each input image')
 
@@ -113,7 +106,6 @@ if __name__ == '__main__':
     input_landmark_loc = args.input_landmark_loc
     output_lidar_file_base = args.output_lidar_file_base
     input_road_lidar_with_intersection = args.input_road_lidar_with_intersection
-    use_lane_seg = args.use_lane_seg
 
     # load input file to get the image names for alignment
     input_df = get_input_file_with_images(obj_image_input)
@@ -121,6 +113,5 @@ if __name__ == '__main__':
                                                             input_lidar, input_sensor_mapping_file_with_path,
                                                             f'{output_lidar_file_base}_{img}.csv',
                                                             input_loc=input_landmark_loc,
-                                                            input_road_intersect=input_road_lidar_with_intersection,
-                                                            use_lane=use_lane_seg))
+                                                            input_road_intersect=input_road_lidar_with_intersection))
     sys.exit()

@@ -549,26 +549,26 @@ if __name__ == '__main__':
 
     input_df = get_input_file_with_images(obj_image_input)
     init_cam_param_df = pd.read_csv(input_init_cam_param_file_with_path,
-                                    usecols=['IMAGE_BASE_NAME', 'VFOV', 'POS_X', 'POS_Y', 'POS_Z',
-                                             'ROT_X', 'ROT_Y', 'ROT_Z'],
-                                    dtype={'IMAGE_BASE_NAME': str, 'VFOV': float, 'POS_X': float,
-                                           'POS_Y': float, 'POS_Z': float, 'ROT_X': float, 'ROT_Y': float,
-                                           'ROT_Z': float})
-    if len(init_cam_param_df['IMAGE_BASE_NAME'].iloc[0]) == 12:
-        init_cam_param_df['IMAGE_BASE_NAME'] = init_cam_param_df['IMAGE_BASE_NAME'].str[:-1]
+                                    usecols=['imageBaseName', 'vFOV', 'posX', 'posY', 'posZ',
+                                             'rotX', 'rotY', 'rotZ'],
+                                    dtype={'imageBaseName': str, 'vFOV': float, 'posX': float,
+                                           'posY': float, 'posZ': float, 'rotX': float, 'rotY': float,
+                                           'rotZ': float})
+    if len(init_cam_param_df['imageBaseName'].iloc[0]) == 12:
+        init_cam_param_df['imageBaseName'] = init_cam_param_df['imageBaseName'].str[:-1]
 
     # create a CAM_PARA_LIST column for each row by combining columns of camera parameters with negation as needed
     # in the order of PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET,
     # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
     init_cam_param_df['OBJ_BASE_TRANS_LIST'] = init_cam_param_df.apply(lambda row:
-                                                                       [CAM_NEAR, row['VFOV'], -row['POS_X'],
-                                                                        -row['POS_Y'], -row['POS_Z'], -row['ROT_Z'],
-                                                                        -row['ROT_Y'], -row['ROT_X']], axis=1)
-    init_cam_param_df.drop(columns=['VFOV', 'POS_X', 'POS_Y', 'POS_Z', 'ROT_X', 'ROT_Y', 'ROT_Z'], inplace=True)
+                                                                       [CAM_NEAR, row['vFOV'], -row['posX'],
+                                                                        -row['posY'], -row['posZ'], -row['rotZ'],
+                                                                        -row['rotY'], -row['rotX']], axis=1)
+    init_cam_param_df.drop(columns=['vFOV', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ'], inplace=True)
     print(init_cam_param_df)
-    input_df = input_df.merge(init_cam_param_df, left_on='imageBaseName', right_on='IMAGE_BASE_NAME', how='left')
+    input_df = input_df.merge(init_cam_param_df, left_on='imageBaseName', right_on='imageBaseName', how='left')
     input_df['OBJ_BASE_TRANS_LIST'] = input_df['OBJ_BASE_TRANS_LIST'].apply(lambda x: x if isinstance(x, list) else [])
-    input_df.drop(columns=['IMAGE_BASE_NAME'], inplace=True)
+    input_df.drop(columns=['imageBaseName'], inplace=True)
     start_time = time.time()
 
     input_df[[BASE_CAM_PARA_COL_NAME, OPTIMIZED_CAM_PARA_COL_NAME]] = input_df.apply(lambda row: align_image_to_lidar(
