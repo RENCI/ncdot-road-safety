@@ -1,3 +1,11 @@
+# This script maps more images to PathRunner image viewer sensor output to associate images with
+# mileposts and lat/longs. It reads all images in a division and checks against the existing mapped file
+# to find those unmapped images to see whether they can be further mapped to the sensor output. It then
+# combines the previously mapped data with the further mapped data to create an updated more complete mapping data
+# Command to run the script: python map_metadata_for_more_images.py --input_sensor_metadata_file
+# <input_sensor_metadata_file> --input_image_root_dir <input_image_root_dir>
+# --input_map_file <previously_mapped_input_file> --output_map_file <updated_mapped_output_file>
+
 import argparse
 import sys
 import os

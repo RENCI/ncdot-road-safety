@@ -1,6 +1,7 @@
 # This script checks videolog images in a division against the mapped image dataframe and output the list of images
 # that are not already in the mapped image dataframe for further mapping later.
-# Command to run the script: python get_unmapped_image_list.py
+# Command to run the script: python get_unmapped_image_list.py --mapped_input_file <existing_mapped_input_file>
+# --seg_path_input_file <segmentation_path_input_file_containing_all_images> --output_file <output_images_file>
 import argparse
 import pandas as pd
 from utils import get_unmapped_base_images
