@@ -140,3 +140,22 @@ def map_image(geo_df, base_image_name, file_list, root_dir, dir_name, output_dir
                     'PATH': target_dir}
         else:
             return {}
+
+
+def get_unmapped_base_images(all_img_df, map_df, all_img_col='IMAGE_BASE_NAME', map_col='MAPPED_IMAGE',
+                             all_img_path_col='IMAGE_PATH'):
+    df = pd.merge(all_img_df, map_df[map_col], how='outer', left_on=all_img_col, right_on=map_col,
+                  indicator=True)
+    df_to_be_mapped = df[df['_merge'] == 'left_only']
+    df_to_be_mapped = df_to_be_mapped.drop(columns=['_merge', map_col])
+    # remove file name from the path
+    df_to_be_mapped[all_img_path_col] = df_to_be_mapped[all_img_path_col].str[:-17]
+    df_to_be_mapped = df_to_be_mapped.drop_duplicates()
+    return df_to_be_mapped
+
+
+def find_closest_mapped_metadata(input_base_img_num, map_df, map_col='Start-Image'):
+    map_img_array = map_df[map_col].to_numpy()
+    differences = np.abs(map_img_array - input_base_img_num)
+    closest_idx = np.argmin(differences)
+    return closest_idx, map_img_array[closest_idx]
