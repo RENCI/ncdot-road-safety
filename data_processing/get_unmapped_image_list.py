@@ -3,6 +3,7 @@
 # Command to run the script: python get_unmapped_image_list.py
 import argparse
 import pandas as pd
+from utils import get_unmapped_base_images
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -27,12 +28,6 @@ df_map = pd.read_csv(mapping_input_file, header=0, dtype={'MAPPED_IMAGE': int}, 
 df_seg = pd.read_csv(seg_path_input_file, header=0, dtype=str, usecols=['IMAGE_PATH'])
 df_seg['IMAGE_BASE_NAME'] = df_seg['IMAGE_PATH'].str.split('/').str[-1].str[:11]
 df_seg.IMAGE_BASE_NAME = df_seg.IMAGE_BASE_NAME.astype(int)
-df = pd.merge(df_seg, df_map[['MAPPED_IMAGE']], how='outer', left_on='IMAGE_BASE_NAME', right_on='MAPPED_IMAGE',
-              indicator=True)
-df_to_be_mapped = df[df['_merge'] == 'left_only']
-df_to_be_mapped = df_to_be_mapped.drop(columns=['_merge', 'MAPPED_IMAGE'])
-# remove file name from the path
-df_to_be_mapped['IMAGE_PATH'] = df_to_be_mapped['IMAGE_PATH'].str[:-17]
-df_to_be_mapped = df_to_be_mapped.drop_duplicates()
-df_to_be_mapped.to_csv(output_file, index=False)
+to_be_mapped_df = get_unmapped_base_images(df_seg, df_map)
+to_be_mapped_df.to_csv(output_file, index=False)
 print('DONE')

@@ -2,7 +2,7 @@ import argparse
 import sys
 import os
 import pandas as pd
-from utils import find_closest_mapped_metadata
+from utils import find_closest_mapped_metadata, get_unmapped_base_images
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -34,41 +34,7 @@ sensor_df = pd.read_csv(input_sensor_metadata_file, dtype={
 })
 print(f'sensor_df shape: {sensor_df.shape}')
 
-img_paths_and_basenames = []
-for dir_name, subdir_list, file_list in os.walk(input_image_root_dir):
-    for file_name in file_list:
-        if file_name.lower().endswith(('1.jpg')):
-            img_paths_and_basenames.append([dir_name, file_name[:-5]])
-img_df = pd.DataFrame(img_paths_and_basenames, columns=['IMAGE_PATH', 'IMAGE_BASE_NAME'])
-print(f'img_df shape: {img_df.shape}')
-img_df[['MAPPED_INDEX', 'MAPPED_VALUE']] = \
-    img_df.apply(lambda row: pd.Series(find_closest_mapped_metadata(
-        row['IMAGE_BASE_NAME'], sensor_df[['Start-Image']])), axis=1)
-print(f'after metadata mapping: img_df shape: {img_df.shape}')
-
-img_df['MAPPED_VAL_DIFF'] = abs(img_df['IMAGE_BASE_NAME'] - img_df['MAPPED_VALUE'])
-# did not use img_df[img_df['MAPPED_VAL_DIFF'] < 3] since drop_duplicates() may drop
-# the row with smaller MAPPED_VAL_DIFF. Doing it the following way will make sure
-# MAPPED_VAL_DIFF of 2 of duplicates will be dropped
-map_img_df_01 = img_df[img_df['MAPPED_VAL_DIFF'] < 2]
-map_img_df_2 = img_df[img_df['MAPPED_VAL_DIFF'] == 2]
-map_img_df = pd.concat([map_img_df_01, map_img_df_2])
-print(f'before dropping duplicates, map_img_df shape: {map_img_df.shape}')
-map_img_df.drop_duplicates(subset=['MAPPED_VALUE'], keep='first', inplace=True)
-print(f'after dropping duplicates, map_img_df shape: {map_img_df.shape}')
-output_list = []
-map_img_df.apply(lambda row: output_list.append([sensor_df.iloc[row.MAPPED_INDEX]['RouteID'],
-                                                 row.IMAGE_BASE_NAME,
-                                                sensor_df.iloc[row.MAPPED_INDEX]['StaLatitude'],
-                                                sensor_df.iloc[row.MAPPED_INDEX]['StaLongitude'],
-                                                sensor_df.iloc[row.MAPPED_INDEX]['Start-MP'],
-                                                row.IMAGE_PATH
-                                                ]), axis=1)
-print(f'output_list length: {len(output_list)}')
-output_cols = ['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE', 'MILE_POST', 'PATH']
-map_df = pd.DataFrame(output_list, columns=output_cols)
-
-input_map_df = pd.read_csv(input_map_file, dtype={
+input_map_df = pd.read_csv(input_map_file, header=0, dtype={
     'ROUTEID': str,
     'MAPPED_IMAGE': int,
     'LATITUDE': str,
@@ -76,6 +42,44 @@ input_map_df = pd.read_csv(input_map_file, dtype={
     'MILE_POST': float,
     'PATH': str
 })
+
+df_input_img_map = input_map_df[['MAPPED_IMAGE']]
+
+img_paths_and_basenames = []
+for dir_name, subdir_list, file_list in os.walk(input_image_root_dir):
+    for file_name in file_list:
+        if len(file_name) == 16 and file_name.lower().endswith(('1.jpg')):
+            img_paths_and_basenames.append([dir_name, int(file_name[:-5])])
+
+all_img_df = pd.DataFrame(img_paths_and_basenames, columns=['IMAGE_PATH', 'IMAGE_BASE_NAME'])
+print(f'all_img_df shape: {all_img_df.shape}')
+to_be_mapped_df = get_unmapped_base_images(all_img_df, df_input_img_map)
+print(f'to_be_mapped_df shape: {to_be_mapped_df.shape}')
+to_be_mapped_df[['MAPPED_INDEX', 'MAPPED_VALUE']] = \
+    to_be_mapped_df.apply(lambda row: pd.Series(find_closest_mapped_metadata(
+        row['IMAGE_BASE_NAME'], sensor_df[['Start-Image']])), axis=1)
+print(f'after metadata mapping: to_be_mapped_df shape: {to_be_mapped_df.shape}')
+
+to_be_mapped_df['MAPPED_VAL_DIFF'] = abs(to_be_mapped_df['IMAGE_BASE_NAME'] - to_be_mapped_df['MAPPED_VALUE'])
+# did not use to_be_mapped_df[to_be_mapped_df['MAPPED_VAL_DIFF'] < 3] since drop_duplicates() may drop
+# the row with smaller MAPPED_VAL_DIFF. Doing it the following way will make sure
+# MAPPED_VAL_DIFF of 2 of duplicates will be dropped
+map_img_df_01 = to_be_mapped_df[to_be_mapped_df['MAPPED_VAL_DIFF'] < 2]
+map_img_df_2 = to_be_mapped_df[to_be_mapped_df['MAPPED_VAL_DIFF'] == 2]
+map_img_df = pd.concat([map_img_df_01, map_img_df_2])
+print(f'before dropping duplicates, map_img_df shape: {map_img_df.shape}')
+map_img_df.drop_duplicates(subset=['MAPPED_VALUE'], keep='first', inplace=True)
+print(f'after dropping duplicates, map_img_df shape: {map_img_df.shape}')
+output_list = []
+map_img_df.apply(lambda row: output_list.append([sensor_df.iloc[row.MAPPED_INDEX]['RouteID'],
+                                                 row.IMAGE_BASE_NAME,
+                                                 sensor_df.iloc[row.MAPPED_INDEX]['StaLatitude'],
+                                                 sensor_df.iloc[row.MAPPED_INDEX]['StaLongitude'],
+                                                 sensor_df.iloc[row.MAPPED_INDEX]['Start-MP'],
+                                                 row.IMAGE_PATH]), axis=1)
+print(f'output_list length: {len(output_list)}')
+output_cols = ['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE', 'MILE_POST', 'PATH']
+map_df = pd.DataFrame(output_list, columns=output_cols)
 
 output_map_df = pd.concat([input_map_df, map_df])
 print(f'before dropping duplicates, output_map_df shape: {output_map_df.shape}')
