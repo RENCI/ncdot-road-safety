@@ -50,6 +50,10 @@ input_map_df = pd.read_csv(input_map_file, header=0, dtype={
     'MILE_POST': float,
     'PATH': str
 })
+# update input_map_df PATH since the initial PATH don't fit with the updated PATH format
+input_map_df['PATH'] = input_map_df.apply(lambda row: get_image_path(str(row['MAPPED_IMAGE']),
+                                                                     prefix_path=input_image_root_dir,
+                                                                     include_image_name=False), axis=1)
 
 df_input_img_map = input_map_df[['MAPPED_IMAGE']]
 
