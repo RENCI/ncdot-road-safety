@@ -13,7 +13,7 @@ div_path_dict = {
 }
 
 
-def get_image_path(image_name, prefix_path=None):
+def get_image_path(image_name, prefix_path=None, include_image_name=True):
     set_str = image_name[:3]
     hour = image_name[3:5]
     minute = image_name[5:7]
@@ -29,9 +29,15 @@ def get_image_path(image_name, prefix_path=None):
     else:  # hour == '01'
         minute_str = str(int(minute) + int(hour)*60)
     if prefix_path:
-        ret_path = os.path.join(prefix_path, set_str, minute_str, image_name)
+        if include_image_name:
+            ret_path = os.path.join(prefix_path, set_str, minute_str, image_name)
+        else:
+            ret_path = os.path.join(prefix_path, set_str, minute_str)
     else:
-        ret_path = os.path.join(set_str, minute_str, image_name)
+        if include_image_name:
+            ret_path = os.path.join(set_str, minute_str, image_name)
+        else:
+            ret_path = os.path.join(set_str, minute_str)
     return ret_path
 
 

@@ -10,21 +10,21 @@ import argparse
 import sys
 import os
 import pandas as pd
-from utils import find_closest_mapped_metadata, get_unmapped_base_images
+from utils import find_closest_mapped_metadata, get_unmapped_base_images, get_image_path
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_sensor_metadata_file', type=str,
-                    default='/projects/ncdot/secondary_road/output/d04/d4_sensor_output_2lane.csv',
+                    default='/projects/ncdot/secondary_road/output/d10/d10_sensor_output_2lane.csv',
                     help='input sensor metadata file')
 parser.add_argument('--input_image_root_dir', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/d04',
+                    default='/projects/ncdot/NC_2018_Secondary/d10',
                     help='input image root directory to walk over and find all images for the division')
 parser.add_argument('--input_map_file', type=str,
-                    default='/projects/ncdot/secondary_road/output/d04/mapped_2lane_sr_images_d4.csv',
+                    default='/projects/ncdot/secondary_road/output/d10/mapped_2lane_sr_images_d10.csv',
                     help='input sensor metadata file')
 parser.add_argument('--output_map_file', type=str,
-                    default='/projects/ncdot/secondary_road/output/d04/mapped_2lane_sr_images_d4_updated.csv',
+                    default='/projects/ncdot/secondary_road/output/d10/mapped_2lane_sr_images_d10_updated.csv',
                     help='output mapping file')
 
 args = parser.parse_args()
@@ -53,13 +53,13 @@ input_map_df = pd.read_csv(input_map_file, header=0, dtype={
 
 df_input_img_map = input_map_df[['MAPPED_IMAGE']]
 
-img_paths_and_basenames = []
+img_basenames = []
 for dir_name, subdir_list, file_list in os.walk(input_image_root_dir):
     for file_name in file_list:
         if len(file_name) == 16 and file_name.lower().endswith(('1.jpg')):
-            img_paths_and_basenames.append([dir_name, int(file_name[:-5])])
+            img_basenames.append(int(file_name[:-5]))
 
-all_img_df = pd.DataFrame(img_paths_and_basenames, columns=['IMAGE_PATH', 'IMAGE_BASE_NAME'])
+all_img_df = pd.DataFrame(img_basenames, columns=['IMAGE_BASE_NAME'])
 print(f'all_img_df shape: {all_img_df.shape}')
 to_be_mapped_df = get_unmapped_base_images(all_img_df, df_input_img_map)
 print(f'to_be_mapped_df shape: {to_be_mapped_df.shape}')
@@ -78,6 +78,9 @@ map_img_df = pd.concat([map_img_df_01, map_img_df_2])
 print(f'before dropping duplicates, map_img_df shape: {map_img_df.shape}')
 map_img_df.drop_duplicates(subset=['MAPPED_VALUE'], keep='first', inplace=True)
 print(f'after dropping duplicates, map_img_df shape: {map_img_df.shape}')
+map_img_df['IMAGE_PATH'] = map_img_df.apply(lambda row: get_image_path(str(row['MAPPED_IMAGE']),
+                                                                       prefix_path=input_image_root_dir,
+                                                                       include_image_name=False), axis=1)
 output_list = []
 map_img_df.apply(lambda row: output_list.append([sensor_df.iloc[row.MAPPED_INDEX]['RouteID'],
                                                  row.IMAGE_BASE_NAME,
