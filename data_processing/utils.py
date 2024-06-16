@@ -13,7 +13,7 @@ div_path_dict = {
 }
 
 
-def get_image_path(image_name, prefix_path=None, include_image_name=True):
+def get_image_path(image_name, prefix_path=None):
     set_str = image_name[:3]
     hour = image_name[3:5]
     minute = image_name[5:7]
@@ -29,15 +29,10 @@ def get_image_path(image_name, prefix_path=None, include_image_name=True):
     else:  # hour == '01'
         minute_str = str(int(minute) + int(hour)*60)
     if prefix_path:
-        if include_image_name:
-            ret_path = os.path.join(prefix_path, set_str, minute_str, image_name)
-        else:
-            ret_path = os.path.join(prefix_path, set_str, minute_str)
+        ret_path = os.path.join(prefix_path, set_str, minute_str, image_name)
     else:
-        if include_image_name:
-            ret_path = os.path.join(set_str, minute_str, image_name)
-        else:
-            ret_path = os.path.join(set_str, minute_str)
+        ret_path = os.path.join(set_str, minute_str, image_name)
+
     return ret_path
 
 
@@ -148,14 +143,11 @@ def map_image(geo_df, base_image_name, file_list, root_dir, dir_name, output_dir
             return {}
 
 
-def get_unmapped_base_images(all_img_df, map_df, all_img_col='IMAGE_BASE_NAME', map_col='MAPPED_IMAGE',
-                             all_img_path_col='IMAGE_PATH'):
+def get_unmapped_base_images(all_img_df, map_df, all_img_col='IMAGE_BASE_NAME', map_col='MAPPED_IMAGE'):
     df = pd.merge(all_img_df, map_df[map_col], how='outer', left_on=all_img_col, right_on=map_col,
                   indicator=True)
     df_to_be_mapped = df[df['_merge'] == 'left_only']
     df_to_be_mapped = df_to_be_mapped.drop(columns=['_merge', map_col])
-    # remove file name from the path
-    df_to_be_mapped[all_img_path_col] = df_to_be_mapped[all_img_path_col].str[:-17]
     df_to_be_mapped = df_to_be_mapped.drop_duplicates()
     return df_to_be_mapped
 
