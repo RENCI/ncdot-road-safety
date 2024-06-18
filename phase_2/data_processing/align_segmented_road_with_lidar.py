@@ -425,14 +425,19 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_
         unique_x, unique_indices = np.unique(x, return_index=True)
         unique_y = y[unique_indices]
         unique_z = z[unique_indices]
-        spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
-        spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
-        cam_tan_x = spline_xy.derivative()(filtered_road_ldf['X'].iloc[0])
-        cam_tan_y = spline_xy.derivative()(filtered_road_ldf['Y'].iloc[0])
-        cam_tan_z = spline_xz.derivative()(filtered_road_ldf['Z'].iloc[0])
-        road_v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
-        road_v = road_v / np.linalg.norm(road_v)
-        print(f'cam_v: {cam_v}, road_v: {road_v}, image: {row["imageBaseName"]}, PREV_CAM_VEC: {PREV_CAM_BEARING_VEC}')
+        try:
+            spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
+            spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
+            cam_tan_x = spline_xy.derivative()(filtered_road_ldf['X'].iloc[0])
+            cam_tan_y = spline_xy.derivative()(filtered_road_ldf['Y'].iloc[0])
+            cam_tan_z = spline_xz.derivative()(filtered_road_ldf['Z'].iloc[0])
+            road_v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
+            road_v = road_v / np.linalg.norm(road_v)
+            print(f'cam_v: {cam_v}, road_v: {road_v}, image: {row["imageBaseName"]}, '
+                  f'PREV_CAM_VEC: {PREV_CAM_BEARING_VEC}')
+        except Exception as ex:
+            print(f'Exception {ex} encountered when trying spline, use camera vector instead')
+            no_points_for_spline = True
     else:
         no_points_for_spline = True
 
@@ -568,7 +573,6 @@ if __name__ == '__main__':
     print(init_cam_param_df)
     input_df = input_df.merge(init_cam_param_df, left_on='imageBaseName', right_on='imageBaseName', how='left')
     input_df['OBJ_BASE_TRANS_LIST'] = input_df['OBJ_BASE_TRANS_LIST'].apply(lambda x: x if isinstance(x, list) else [])
-    input_df.drop(columns=['imageBaseName'], inplace=True)
     start_time = time.time()
 
     input_df[[BASE_CAM_PARA_COL_NAME, OPTIMIZED_CAM_PARA_COL_NAME]] = input_df.apply(lambda row: align_image_to_lidar(
