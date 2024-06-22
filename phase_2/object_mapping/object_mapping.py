@@ -16,6 +16,7 @@
 # ------------------------------------------
 
 import argparse
+from collections import defaultdict
 import os
 import sys
 import os.path
@@ -274,7 +275,7 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
             for i, item in enumerate(intersect_index_pairs):
                 for j in item[1]:
                     img_fp.write(f"{item[0]}:{objects_base[item[0]][BASE_IMAGE_NAME]} "
-                                 f"{item[1]}:{objects_base[j][BASE_IMAGE_NAME]} "
+                                 f"{j}:{objects_base[j][BASE_IMAGE_NAME]} "
                                  f"{ret_clusters[i]}\n")
 
     print("Number of output clusters: {0:d}".format(num_clusters))
@@ -293,72 +294,100 @@ def main(input_filename, output_filename, output_intersect=False, is_planar=Fals
 
         clusters = [[objects_base[idx][BASE_IMAGE_NAME], objects_base[idx][BEARING], objects_base[idx][DEPTH],
                      cluster_idx] for cluster_idx, idx_pairs in cluster_dict.items() for idx in idx_pairs]
-        # sort clusters by base image name
-        clusters.sort()
-        # check whether further clustering can be performed
         image_idx = 0
         bearing_idx = 1
         depth_idx = 2
         cluster_idx = 3
-        i, item_i = 0, clusters[0]
-        j, item_j = 1, clusters[1]
+        # sort clusters by base image name (removing the last view number), then by cluster index
+        clusters.sort(key=lambda e: [e[image_idx][:-1]])
+        print(f'clusters: {clusters}')
+
+        # group by cluster_idx to make sure all elements in the same cluster are adjacent
+        grouped_clusters = defaultdict(list)
+        for e in clusters:
+            grouped_clusters[e[cluster_idx]].append(e)
+
+        print(f'grouped clusters: {grouped_clusters}')
+        # check whether further clustering can be performed
+        cluster_indices = list(grouped_clusters.keys())
         to_be_clustered = []
-        while j < len(clusters) - 1:
-            item_i, item_j = clusters[i], clusters[j]
-            if item_j[cluster_idx] == item_i[cluster_idx]:
-                # already clustered, no need to further cluster
+
+        ci = 0
+        while ci < len(cluster_indices) - 1:
+            # merge ci and ci+1 to check whether they meet the condition and can indeed be further clustered
+            merged_cluster = grouped_clusters[cluster_indices[ci]] + grouped_clusters[cluster_indices[ci+1]]
+            merged_cluster.sort(key=lambda e: [e[image_idx][:-1]])
+            i = 0
+            j = 1
+            while j < len(merged_cluster) - 1:
+                item_i = merged_cluster[i]
+                item_j = merged_cluster[j]
+                if item_i[cluster_idx] == item_j[cluster_idx]:
+                    # two items are already in the same cluster, no need to check for further clustering
+                    i += 1
+                    j += 1
+                    continue
+                set_i, hour_i, minute_i, second_i, seq_num_i, view_i = \
+                    item_i[image_idx][:3], item_i[image_idx][3:5], item_i[image_idx][5:7], \
+                    int(item_i[image_idx][7:9]), item_i[image_idx][9:11], item_i[image_idx][-1]
+                set_j, hour_j, minute_j, second_j, seq_num_j, view_j = \
+                    item_j[image_idx][:3], item_j[image_idx][3:5], item_j[image_idx][5:7], \
+                    int(item_j[image_idx][7:9]), item_j[image_idx][9:11], item_j[image_idx][-1]
+                if set_j != set_i or hour_j != hour_i or minute_j != minute_i or abs(second_j - second_i) > 2 or \
+                        item_i[depth_idx] < item_j[depth_idx]:
+                    # cannot be further clustered, check the next one
+                    break
+
+                if second_i == second_j and seq_num_i == seq_num_j and view_i != view_j:
+                    # same image with only difference being left or front or right view
+                    # check the view of the next image to determine whether to move i to the next image or not
+                    # the idea is to make the view of two images for comparison (namely, i and j) the same
+                    if merged_cluster[j+1][image_idx][-1] == view_j:
+                        i = j
+                    j += 1
+                    continue
+
+                # see if the bearing change is consistent between cluster item i and j and between j and its next
+                # in the same cluster
+                k = j + 1
+                # find the next cluster item which is in the same cluster as item j
+                while k < len(merged_cluster) and merged_cluster[k][cluster_idx] != merged_cluster[j][cluster_idx]:
+                    k += 1
+                if k >= len(merged_cluster):
+                    # item j is the last item in the cluster with no next item, so cannot be further clustered
+                    break
+                item_k = merged_cluster[k]
+                if (item_i[bearing_idx] < item_j[bearing_idx] < item_k[bearing_idx]) or \
+                        (item_i[bearing_idx] > item_j[bearing_idx] > item_k[bearing_idx]):
+                    if (item_i[image_idx][:-1] != item_j[image_idx][:-1]) and \
+                        (item_j[image_idx][:-1] != item_k[image_idx][:-1]) and \
+                            (item_i[image_idx][:-1] != item_k[image_idx][:-1]):
+                        # item_i cluster and item_j cluster can be further clustered
+                        if len(to_be_clustered) < 1:
+                            to_be_clustered.append([item_i[cluster_idx], item_j[cluster_idx]])
+                        else:
+                            added = False
+                            for idx, sub_cluster in enumerate(to_be_clustered):
+                                if item_i[cluster_idx] in sub_cluster and item_j[cluster_idx] in sub_cluster:
+                                    # already in cluster
+                                    added = True
+                                    break
+                                if item_i[cluster_idx] in sub_cluster:
+                                    to_be_clustered[idx].append(item_j[cluster_idx])
+                                    added = True
+                                    break
+                                elif item_j[cluster_idx] in sub_cluster:
+                                    to_be_clustered[idx].append(item_i[cluster_idx])
+                                    added = True
+                                    break
+                            if not added:
+                                to_be_clustered.append([item_i[cluster_idx], item_j[cluster_idx]])
                 i += 1
                 j += 1
-                continue
-            set_i, hour_i, minute_i, second_i, seq_num_i = \
-                item_i[image_idx][:3], item_i[image_idx][3:5], item_i[image_idx][5:7], \
-                int(item_i[image_idx][7:9]), item_i[image_idx][9:11]
-            set_j, hour_j, minute_j, second_j, seq_num_j = \
-                item_j[image_idx][:3], item_j[image_idx][3:5], item_j[image_idx][5:7], \
-                int(item_j[image_idx][7:9]), item_j[image_idx][9:11]
-            if set_j != set_i or hour_j != hour_i or minute_j != minute_i or abs(second_j - second_i) > 2 or \
-                    item_i[depth_idx] < item_j[depth_idx]:
-                # cannot be further clustered
-                i += 1
-                j += 1
-                continue
-            # see if the bearing change is consistent between cluster item i and j and between j and its next
-            # in the same cluster
-            k = j + 1
-            # find the next cluster item which is in the same cluster as item j
-            while k < len(clusters) and clusters[k][cluster_idx] != clusters[j][cluster_idx]:
-                k += 1
-            if k >= len(clusters):
-                # item j is the last item in the cluster with no next item, so cannot be further clustered
-                i += 1
-                j += 1
-                continue
-            item_k = clusters[k]
-            if (item_i[bearing_idx] < item_j[bearing_idx] < item_k[bearing_idx]) or \
-                    (item_i[bearing_idx] > item_j[bearing_idx] > item_k[bearing_idx]):
-                # item_i cluster and item_j cluster can be further clustered
-                if len(to_be_clustered) < 1:
-                    to_be_clustered.append([item_i[cluster_idx], item_j[cluster_idx]])
-                else:
-                    added = False
-                    for idx, sub_cluster in enumerate(to_be_clustered):
-                        if item_i[cluster_idx] in sub_cluster and item_j[cluster_idx] in sub_cluster:
-                            # already in cluster
-                            added = True
-                            break
-                        if item_i[cluster_idx] in sub_cluster:
-                            to_be_clustered[idx].append(item_j[cluster_idx])
-                            added = True
-                            break
-                        elif item_j[cluster_idx] in sub_cluster:
-                            to_be_clustered[idx].append(item_i[cluster_idx])
-                            added = True
-                            break
-                    if not added:
-                        to_be_clustered.append([item_i[cluster_idx], item_j[cluster_idx]])
-            i += 1
-            j += 1
+            # continue to check for the next cluster pair
+            ci = ci + 1
         if len(to_be_clustered) > 0:
+            print(f'to_be_clustered: {to_be_clustered}')
             updated_cluster_cnt = 0
             with open(f'{os.path.splitext(output_filename)[0]}_further_clustering.csv', "w") as inter:
                 inter.write("lat,lon,score\n")

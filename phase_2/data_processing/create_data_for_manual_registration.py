@@ -4,7 +4,7 @@ import sys
 import pandas as pd
 import numpy as np
 from utils import bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df, create_gdf_from_df
-from get_road_boundary_points import get_image_road_points, get_image_lane_points
+from get_road_boundary_points import get_image_lane_points
 from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_coordinate_system, compute_match, \
     get_mapping_data, get_input_file_with_images, extract_lidar_3d_points_for_camera, LIDAR_DIST_THRESHOLD
 from common.utils import haversine
