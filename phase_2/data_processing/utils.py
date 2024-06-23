@@ -196,6 +196,8 @@ def get_aerial_lidar_road_geo_df(input_file):
     gdf.Z = gdf.Z.astype(float)
     if 'C' in gdf.columns:
         gdf.C = gdf.C.astype(int)
+    if 'BOUND' in gdf.columns:
+        gdf.BOUND = gdf.BOUND.astype(int)
     if 'Boundary' in gdf.columns:
         gdf.Boundary = gdf.Boundary.apply(lambda x: 1 if x == 'True' else 0)
 
