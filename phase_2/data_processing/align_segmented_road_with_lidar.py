@@ -347,7 +347,7 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_
               f'parameter optimization on the route. Exiting')
         exit(1)
 
-    if INIT_CAM_OBJ_PARAS is None and row['OBJ_BASE_TRANS_LIST']:
+    if row['OBJ_BASE_TRANS_LIST']:
         INIT_CAM_OBJ_PARAS = row['OBJ_BASE_TRANS_LIST']
         PREV_CAM_OBJ_PARAS = None
         PREV_CAM_BEARING_VEC = {'camera': {},
@@ -515,26 +515,26 @@ if __name__ == '__main__':
     parser.add_argument('--input_lidar_with_path', type=str,
                         # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
                         # default='data/d13_route_40001001011/lidar/route_40001001011_all.csv',
-                        default='data/new_test_scene/new_test_scene_all_lidar_with_road_bounds.csv',
+                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         # default='data/d13_route_40001001011/oneformer',
-                        default='data/new_test_scene/segmentation',
+                        default='data/d13_route_40001001012/segmentation',
                         help='base directory to retrieve images')
     parser.add_argument('--obj_image_input', type=str,
-                        # default='../object_mapping/data/pole_input.csv.rep2',
-                        default='../object_mapping/data/new_test_route.csv',
+                        #default='../object_mapping/data/new_test_route.csv',
+                        default='data/d13_route_40001001012/route_input.csv',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_init_cam_param_file_with_path', type=str,
-                        default='data/new_test_scene/initial_camera_params.csv',
+                        default='data/d13_route_40001001012/initial_camera_params.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--lidar_proj_output_file_path', type=str,
                         # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info',
-                        default='data/new_test_scene/full_route_test',
+                        default='data/d13_route_40001001012/test',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
 
