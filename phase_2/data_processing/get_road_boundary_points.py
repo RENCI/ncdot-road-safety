@@ -5,7 +5,7 @@ import numpy as np
 from skimage import morphology, measure
 from PIL import Image
 import argparse
-from utils import get_data_from_image, SegmentationClass
+from data_processing.utils import get_data_from_image, SegmentationClass
 import pickle
 
 
