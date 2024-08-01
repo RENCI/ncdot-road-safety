@@ -6,3 +6,4 @@ shapely==2.0.1
 numpy==1.24.2
 pillow==9.4.0
 matplotlib==3.9.1
+opencv-python==4.7.0.72
