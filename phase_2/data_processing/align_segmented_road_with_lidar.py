@@ -320,10 +320,11 @@ def derive_next_camera_params(v1, v2, cam_para1):
     return cam_para2
 
 
-def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_file_path):
+def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, input_mapping_file, out_proj_file_path):
     """
     :param row: the image metadata dataframe row to be processed
-    :param base_image_dir: base path in which images are located
+    :param seg_image_dir: path in which segmentation images are located
+    :param seg_lane_dir: path in which road lanes segmentation images are located
     :param ldf: lidar 3D point geodataframe
     :param input_mapping_file: input_mapping_file to read and extract camera location and its next camera location
     for determining bearing direction
@@ -334,11 +335,11 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_
     global INIT_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS, PREV_CAM_BEARING_VEC
 
     if len(row["imageBaseName"]) == 11:
-        image_name_with_path = os.path.join(base_image_dir, f'{row["imageBaseName"]}1.png')
+        image_name_with_path = os.path.join(seg_image_dir, f'{row["imageBaseName"]}1.png')
         # get input image base name
         input_2d_mapped_image = row["imageBaseName"]
     else:
-        image_name_with_path = os.path.join(base_image_dir, f'{row["imageBaseName"]}.png')
+        image_name_with_path = os.path.join(seg_image_dir, f'{row["imageBaseName"]}.png')
         # get input image base name
         input_2d_mapped_image = row["imageBaseName"][:-1]
 
@@ -355,7 +356,7 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_
 
     out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{input_2d_mapped_image}.csv')
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
-    lane_image_name = f'{os.path.dirname(image_name_with_path)}/{input_2d_mapped_image}1_lanes.png'
+    lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     print(f'lane_image_name: {lane_image_name}')
     img_width, img_height, input_list, intersect_points = get_image_lane_points(lane_image_name)
     input_2d_points = input_list[0]
@@ -513,35 +514,34 @@ def align_image_to_lidar(row, base_image_dir, ldf, input_mapping_file, out_proj_
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10_classified.csv',
-                        # default='data/d13_route_40001001011/lidar/route_40001001011_all.csv',
-                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_raster_1ft_with_edges.csv',
                         help='input file that contains road x, y, z vertices from lidar')
-    parser.add_argument('--obj_base_image_dir', type=str,
-                        # default='data/d13_route_40001001011/oneformer',
-                        default='data/d13_route_40001001012/segmentation',
-                        help='base directory to retrieve images')
+    parser.add_argument('--image_seg_dir', type=str,
+                        default='/projects/ncdot/NC_2018_Secondary_2/segmentation/d13/881',
+                        help='directory to retrieve segmentation images')
+    parser.add_argument('--lane_seg_dir', type=str,
+                        default='/projects/ncdot/NC_2018_Secondary_2/lanes/d13/881',
+                        help='directory to retrieve segmented road lane images')
     parser.add_argument('--obj_image_input', type=str,
-                        #default='../object_mapping/data/new_test_route.csv',
-                        default='data/d13_route_40001001012/route_input.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_input.csv',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
-                        default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
+                        default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13_updated.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_init_cam_param_file_with_path', type=str,
-                        default='data/d13_route_40001001012/initial_camera_params.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_initial_camera_params.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--lidar_proj_output_file_path', type=str,
-                        # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info',
-                        default='data/d13_route_40001001012/test',
+                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_geotagging_output',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
 
 
     args = parser.parse_args()
     input_lidar = args.input_lidar_with_path
-    obj_base_image_dir = args.obj_base_image_dir
+    image_seg_dir = args.image_seg_dir
+    lane_seg_dir = args.lane_seg_dir
     obj_image_input = args.obj_image_input
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
     input_init_cam_param_file_with_path = args.input_init_cam_param_file_with_path
@@ -577,7 +577,8 @@ if __name__ == '__main__':
 
     input_df[[BASE_CAM_PARA_COL_NAME, OPTIMIZED_CAM_PARA_COL_NAME]] = input_df.apply(lambda row: align_image_to_lidar(
         row,
-        obj_base_image_dir,
+        image_seg_dir,
+        lane_seg_dir,
         lidar_df,
         input_sensor_mapping_file_with_path,
         lidar_proj_output_file_path), axis=1, result_type='expand')

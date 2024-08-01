@@ -10,11 +10,11 @@ from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_c
 from common.utils import haversine
 
 
-def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_file, input_loc=None,
+def create_data(image_name_with_path, seg_lane_dir, input_lidar_file, input_mapping_file, out_file, input_loc=None,
                 input_road_intersect=None):
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-4]
-    lane_image_name = f'{os.path.dirname(image_name_with_path)}/{input_2d_mapped_image}1_lanes.png'
+    lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     img_width, img_height, input_list, _ = get_image_lane_points(lane_image_name)
 
     input_2d_points = input_list[0]
@@ -71,15 +71,16 @@ def create_data(image_name_with_path, input_lidar_file, input_mapping_file, out_
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        # default='data/d13_route_40001001011/lidar/test_scene_all_raster_10.csv',
-                        default='data/new_test_scene/new_test_scene_all_raster_10_with_road_bounds.csv',
+                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges.csv',
                         help='input file that contains x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
-                        # default='data/d13_route_40001001011/oneformer',
-                        default='data/new_test_scene/segmentation',
-                        help='base directory to retrieve images')
+                        default='data/d13_route_40001001012/segmentation',
+                        help='base directory to retrieve segmentation images')
+    parser.add_argument('--lane_seg_dir', type=str,
+                        default='data/d13_route_40001001012/segmentation',
+                        help='directory to retrieve segmented road lane images')
     parser.add_argument('--obj_image_input', type=str,
-                        default='data/new_test_scene/manual_registration/initial_camera_params.csv',
+                        default='data/d13_route_40001001012/manual_registration/initial_camera_params.csv',
                         help='input csv file that contains image base names for creating manual registration data')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
@@ -94,13 +95,14 @@ if __name__ == '__main__':
                         help='input file that contains road x, y, z vertices from lidar along with a I column '
                              'indicating whether the vertex is part of crossroad intersection or not')
     parser.add_argument('--output_lidar_file_base', type=str,
-                        default='data/new_test_scene/manual_registration/lidar_info',
+                        default='data/d13_route_40001001012/manual_registration/lidar_info',
                         help='output lidar file base with path which will be appended with image name '
                              'to have lidar INITIAL WORLD coordinate info for each input image')
 
     args = parser.parse_args()
     input_lidar = args.input_lidar_with_path
     obj_base_image_dir = args.obj_base_image_dir
+    lane_seg_dir = args.lane_seg_dir
     obj_image_input = args.obj_image_input
     input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
     input_landmark_loc = args.input_landmark_loc
@@ -110,6 +112,7 @@ if __name__ == '__main__':
     # load input file to get the image names for alignment
     input_df = get_input_file_with_images(obj_image_input)
     input_df['imageBaseName'].apply(lambda img: create_data(os.path.join(obj_base_image_dir, f'{img}.png'),
+                                                            lane_seg_dir,
                                                             input_lidar, input_sensor_mapping_file_with_path,
                                                             f'{output_lidar_file_base}_{img}.csv',
                                                             input_loc=input_landmark_loc,
