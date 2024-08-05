@@ -47,12 +47,10 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar', type=str,
-                        default='data/new_test_scene/new_test_scene_all_lidar_with_road_bounds.csv',
-                        # default='data/d13_route_40001001011/lidar/route_40001001011_all.csv',
+                        default='',
                         help='input rasterized lidar file with road points x, y, z in EPSG:6543 coordinate projection')
     parser.add_argument('--input_lidar_bound', type=str,
-                        # default='data/new_test_scene/new_test_scene_road_bounds.csv',
-                        default='',
+                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges.csv',
                         help='input lidar file with road edge/bound points x, y, z in EPSG:6543 coordinate projection')
     parser.add_argument('--output_lidar_boundary', type=str,
                         default='',
@@ -63,7 +61,7 @@ if __name__ == '__main__':
                         default=[],
                         help='filter lidar data to only keep desired classes; if it is empty, keep all classes')
     parser.add_argument('--output_latlon_lidar_basename', type=str,
-                        default='data/new_test_scene/new_test_scene_all_lidar_with_road_bounds',
+                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_road_bounds',
                         # default='data/d13_route_40001001011/lidar/route_40001001011_all',
                         help='output lidar file with road points lat, lon, z in EPSG:4326 coordinate projection')
 
@@ -101,6 +99,7 @@ if __name__ == '__main__':
 
     if input_lidar_bound:
         gdf_bound = get_aerial_lidar_road_geo_df(input_lidar_bound)
+        gdf_bound = gdf_bound[gdf_bound.BOUND == 1]
 
     if input_lidar and input_lidar_bound:
         # combine two lidar points with an added column to indicate whether it belongs to edge/bound or not
