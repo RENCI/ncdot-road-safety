@@ -27,6 +27,9 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_
     OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X = 0, 1, 2, 3, 4, 5, 6, 7
 
 CAM_NEAR = 0.1
+X_TRAN_MAX_OFFSET = Y_TRAN_MAX_OFFSET = 2
+Z_TRAN_MAX_OFFSET = 6
+X_ROT_MAX_OFFSET = Y_ROT_MAX_OFFSET = Z_ROT_MAX_OFFSET = 2
 
 INIT_CAM_OBJ_PARAS = None
 PREV_CAM_OBJ_PARAS = None
@@ -207,11 +210,29 @@ def mean_squared_error(points1, points2_df, points2_df_x_col, points2_df_y_col):
     return _compute_mse(merged_df, 'X1', points2_df_x_col, 'Y1', points2_df_y_col)
 
 
+class ResetOptimicationCondition(Exception):
+    """Custom exception to indicate that the optimization initial condition should be reset."""
+    pass
+
+
 def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
+
+    # get transformed dataframe within projected screen bounds
+    filtered_df_3d = df_3d[
+        (df_3d['PROJ_SCREEN_X'] >= 0) &
+        (df_3d['PROJ_SCREEN_X'] <= img_wd) &
+        (df_3d['PROJ_SCREEN_Y'] >= 0) &
+        (df_3d['PROJ_SCREEN_Y'] <= img_ht)]
+
+    if len(filtered_df_3d) < len(df_3d) / 10:
+        # most points are projected out of the bound, need to reset initial condition
+        raise ResetOptimicationCondition(f'There are {len(filtered_df_3d)} transformed points out of {len(df_3d)} '
+                                         f'points, resetting to the intial camera parameters to rerun optimization')
+
     df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
         row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
         df_2d['X'], df_2d['Y'], grid=True)[1], axis=1)
@@ -381,7 +402,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, input_mapping_fi
 
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
-                                                                end_of_route=eor)
+                                                                end_of_route=eor,
+                                                                fov=(INIT_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] / 2 + 5))
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}, {cols}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=cols)
@@ -479,11 +501,36 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, input_mapping_fi
     input_3d_road_bound_gdf = input_3d_gdf[input_3d_gdf.BOUND == 1].reset_index(drop=True).copy()
     align_errors = []
 
-    result = minimize(objective_function_2d, init_cam_paras[2:],
-                      args=(input_3d_road_bound_gdf,
-                            input_2d_df, img_width, img_height, align_errors),
-                      method='Nelder-Mead',
-                      options={'maxiter': NUM_ITERATIONS, 'disp': True})
+    max_retries = 2
+    retries = 0
+    success = False
+
+    while retries < max_retries and not success:
+        try:
+            result = minimize(objective_function_2d, init_cam_paras[2:],
+                              args=(input_3d_road_bound_gdf,
+                                    input_2d_df, img_width, img_height, align_errors),
+                              method='Nelder-Mead',
+                              # bounds in the order of OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET, \
+                              # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
+                              bounds=[((INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] - X_TRAN_MAX_OFFSET),
+                                      (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] + X_TRAN_MAX_OFFSET)),
+                                      ((INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] - Y_TRAN_MAX_OFFSET),
+                                      (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] + Y_TRAN_MAX_OFFSET)),
+                                      ((INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - Z_TRAN_MAX_OFFSET),
+                                      (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + Z_TRAN_MAX_OFFSET)),
+                                      ((INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] - Z_ROT_MAX_OFFSET),
+                                      (INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] + Z_ROT_MAX_OFFSET)),
+                                      ((INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] - Y_ROT_MAX_OFFSET),
+                                      (INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] + Y_ROT_MAX_OFFSET)),
+                                      ((INIT_CAM_OBJ_PARAS[OBJ_ROT_X] - X_ROT_MAX_OFFSET),
+                                      (INIT_CAM_OBJ_PARAS[OBJ_ROT_X] + X_ROT_MAX_OFFSET))],
+                              options={'maxiter': NUM_ITERATIONS, 'disp': True})
+            success = True
+        except ResetOptimicationCondition as ex:
+            print(ex)
+            init_cam_paras = INIT_CAM_OBJ_PARAS
+            retries += 1
 
     optimized_cam_params = result.x
     print(f'optimizing result for image {input_2d_mapped_image}: {result}')
@@ -514,26 +561,26 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, input_mapping_fi
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_raster_1ft_with_edges.csv',
+                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges_sr.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/segmentation/d13/881',
+                        default='data/d13_route_40001001012/segmentation',
                         help='directory to retrieve segmentation images')
     parser.add_argument('--lane_seg_dir', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/lanes/d13/881',
+                        default='data/d13_route_40001001012/segmentation',
                         help='directory to retrieve segmented road lane images')
     parser.add_argument('--obj_image_input', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_input.csv',
+                        default='data/d13_route_40001001012/route_input.csv',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
-                        default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13_updated.csv',
+                        default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_init_cam_param_file_with_path', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_initial_camera_params.csv',
+                        default='data/d13_route_40001001012/initial_camera_params.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--lidar_proj_output_file_path', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_geotagging_output',
+                        default='data/d13_route_40001001012/test',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
 

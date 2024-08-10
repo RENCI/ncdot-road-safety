@@ -25,7 +25,7 @@ def get_lidar_data_from_shp(lidar_shp_file_path):
 
 
 def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 190), end_of_route=False,
-                                       include_all_cols=False):
+                                       include_all_cols=False, fov=15):
     clat, clon = cam_loc
     next_clat, next_clon = next_cam_loc
     df['distance'] = df.apply(lambda row: haversine(clon, clat, row['geometry_y'].x, row['geometry_y'].y), axis=1)
@@ -45,7 +45,7 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
         df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
             clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
 
-    df = df[(df['distance'] > dist_th[0]) & (df['distance'] < dist_th[1]) & (df['bearing_diff'] < math.pi / 2)]
+    df = df[(df['distance'] > dist_th[0]) & (df['distance'] < dist_th[1]) & (df['bearing_diff'] < math.pi * fov / 180)]
     if include_all_cols:
         df = df.drop(columns=['bearing_diff'])
         return df.copy(), cam_bearing, df.columns

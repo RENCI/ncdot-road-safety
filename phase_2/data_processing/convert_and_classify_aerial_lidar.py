@@ -27,7 +27,7 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
     """
     idf['Latitude'] = idf[geom_col].apply(lambda point: point.y)
     idf['Longitude'] = idf[geom_col].apply(lambda point: point.x)
-    sub_list = ['Latitude', 'Longitude', 'Z']
+    sub_list = ['Latitude', 'Longitude', 'Z', 'X', 'Y']
     if 'C' in idf.columns:
         sub_list.append('C')
     if 'I' in idf.columns:
@@ -50,7 +50,7 @@ if __name__ == '__main__':
                         default='',
                         help='input rasterized lidar file with road points x, y, z in EPSG:6543 coordinate projection')
     parser.add_argument('--input_lidar_bound', type=str,
-                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges.csv',
+                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges_sr.csv',
                         help='input lidar file with road edge/bound points x, y, z in EPSG:6543 coordinate projection')
     parser.add_argument('--output_lidar_boundary', type=str,
                         default='',
@@ -100,6 +100,7 @@ if __name__ == '__main__':
     if input_lidar_bound:
         gdf_bound = get_aerial_lidar_road_geo_df(input_lidar_bound)
         gdf_bound = gdf_bound[gdf_bound.BOUND == 1]
+        print(f'gdf_bound shape: {gdf_bound.shape}')
 
     if input_lidar and input_lidar_bound:
         # combine two lidar points with an added column to indicate whether it belongs to edge/bound or not
