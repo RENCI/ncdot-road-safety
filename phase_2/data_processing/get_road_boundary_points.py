@@ -131,9 +131,9 @@ def get_image_lane_points(image_file_name):
     img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
     # binary_data = np.uint8(img)
     # cv2.line(binary_data, first_row[1], last_row[1], (255, 255, 255), 2)
-    # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png'):q!
+    # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
 
-    return image_width, image_height, [filtered_lane_contour], []
+    return image_width, image_height, [filtered_lane_contour]
 
 
 def get_image_road_points(image_file_name, boundary_only=True):
@@ -145,47 +145,7 @@ def get_image_road_points(image_file_name, boundary_only=True):
     process_img, process_contour = process_boundary_in_image(seg_img)
 
     if boundary_only:
-        # find convexHull of the road contours
-        hull = cv2.convexHull(process_contour[0], returnPoints=False)
-        # find convexity defects to identify concave regions (potential intersections)
-        defects = cv2.convexityDefects(process_contour[0], hull)
-
-        process_img[process_img != 0] = 0
-        binary_data = np.uint8(process_img)
-        if defects is not None:
-            left_intersect_list = []
-            right_intersect_list = []
-            for defect in defects:
-                sp, ep, fp, fdist = defect[0]
-
-                start = tuple(process_contour[0][sp])
-                end = tuple(process_contour[0][ep])
-                far = tuple(process_contour[0][fp])
-                if 100000 > fdist > 2000:
-                    # print(f'fdist: {fdist}, x: {far[0]}, y: {far[1]}')
-                    cv2.line(binary_data, start, far, (255, 255, 255), 2)
-                    cv2.line(binary_data, far, end, (255, 255, 255), 2)
-                    cv2.circle(binary_data, far, 5, (255, 255, 255), -1)
-                    # Find intersections of the scanline of y with road boundary
-                    intersections = get_road_intersections_by_y(process_contour[0], far[1])
-                    x_start = int(intersections[0])
-                    x_end = int(intersections[-1]) + 1
-                    center_pt_x = x_start + (x_end - x_start) // 2
-                    if far[0] <= center_pt_x:
-                        left_intersect_list.append(far)
-                    else:
-                        right_intersect_list.append(far)
-            # sort intersect_list by the second element (y coordinate) of each tuple (x, y) pair in descending order
-            # since y origin is on the top of the image in the image coordinate system and we want to sort points
-            # in the distance from camera from closest to farthest
-            sorted_intersects = [sorted(left_intersect_list, key=lambda point: point[1], reverse=True),
-                                 sorted(right_intersect_list, key=lambda point: point[1], reverse=True)]
-        else:
-            sorted_intersects = []
-        cv2.drawContours(binary_data, process_contour, -1, (127, 127, 127), 1)
-        Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_intersections.png')
-        print(sorted_intersects)
-        return image_width, image_height, process_contour, sorted_intersects
+        return image_width, image_height, process_contour
     else:
         boundary_contours = process_contour[0]
         # Determine the minimum and maximum y coordinates of the polygon
@@ -220,7 +180,7 @@ def get_image_road_points(image_file_name, boundary_only=True):
             if len(intersections) > 0:
                 prev_line_x_intersect_first = intersections[0]
                 prev_line_x_intersect_last = intersections[-1]
-        return image_width, image_height, [np.array(filled_points)], []
+        return image_width, image_height, [np.array(filled_points)]
 
 
 if __name__ == '__main__':

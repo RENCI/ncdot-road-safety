@@ -4,6 +4,7 @@ import time
 import pickle
 import pandas as pd
 import numpy as np
+import cv2
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 from scipy.interpolate import UnivariateSpline
@@ -13,7 +14,7 @@ from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_
     angle_between
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
-from get_road_boundary_points import get_image_lane_points
+from get_road_boundary_points import get_image_lane_points, get_image_road_points
 
 BASE_CAM_PARA_COL_NAME = 'BASE_CAMERA_OBJ_PARA'
 OPTIMIZED_CAM_PARA_COL_NAME = 'OPTIMIZED_CAMERA_OBJ_PARA'
@@ -27,8 +28,8 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_
     OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X = 0, 1, 2, 3, 4, 5, 6, 7
 
 CAM_NEAR = 0.1
-X_TRAN_MAX_OFFSET = Y_TRAN_MAX_OFFSET = 2
-Z_TRAN_MAX_OFFSET = 6
+X_TRAN_MAX_OFFSET = Y_TRAN_MAX_OFFSET = 1
+Z_TRAN_MAX_OFFSET = 2
 X_ROT_MAX_OFFSET = Y_ROT_MAX_OFFSET = Z_ROT_MAX_OFFSET = 2
 
 INIT_CAM_OBJ_PARAS = None
@@ -379,18 +380,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, input_mapping_fi
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     print(f'lane_image_name: {lane_image_name}')
-    img_width, img_height, input_list, intersect_points = get_image_lane_points(lane_image_name)
+    img_width, img_height, input_list = get_image_lane_points(lane_image_name)
     input_2d_points = input_list[0]
-
-    # output 2d road boundary points for showing alignment overlay plot
-    with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
-        pickle.dump(input_list, f)
-
-    if input_2d_points.shape[1] == 2:
-        input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
-    else:
-        print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, exiting')
-        exit(1)
 
     # compute base camera parameters
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = \
@@ -499,8 +490,28 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, input_mapping_fi
     input_3d_gdf.to_csv(os.path.join(out_proj_file_path, f'base_lidar_project_info_{row["imageBaseName"]}.csv'),
                         index=False)
     input_3d_road_bound_gdf = input_3d_gdf[input_3d_gdf.BOUND == 1].reset_index(drop=True).copy()
-    align_errors = []
+    # compare shape similarity between projected LIDAR road edge points (input_3d_road_bound_gdf) and input_2d_points
+    lane_score = cv2.matchShapes(input_2d_points,
+                                 input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy(), 1, 0.0)
+    print(f'lane shape matching score: {lane_score}')
+    if lane_score > 3.5:
+        seg_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1.png')
+        img_width, img_height, input_list = get_image_road_points(seg_image_name)
+        input_2d_points = input_list[0]
+        road_score = cv2.matchShapes(input_2d_points,
+                                     input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy(), 1, 0.0)
+        print(f'road shape matching score: {road_score}')
+    # output 2d road boundary points for showing alignment overlay plot
+    with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
+        pickle.dump(input_list, f)
 
+    if input_2d_points.shape[1] == 2:
+        input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
+    else:
+        print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, exiting')
+        exit(1)
+
+    align_errors = []
     max_retries = 2
     retries = 0
     success = False
