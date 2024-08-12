@@ -46,6 +46,7 @@ if input_sensor_metadata_file.endswith('.csv'):
 else:
     # input sensor metadata file is the initial sensor metadata output file ending with .txt or .TXT extension
     sensor_df = read_initial_sensor_map_file(input_sensor_metadata_file)
+    sensor_df['Start-Image'] = sensor_df['Start-Image'].astype(int)
 
 print(f'sensor_df shape: {sensor_df.shape}')
 
