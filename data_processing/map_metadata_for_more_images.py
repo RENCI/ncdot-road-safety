@@ -10,21 +10,22 @@ import argparse
 import sys
 import os
 import pandas as pd
-from utils import find_closest_mapped_metadata, get_unmapped_base_images
+from utils import find_closest_mapped_metadata, get_unmapped_base_images, read_initial_sensor_map_file
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_sensor_metadata_file', type=str,
-                    default='/projects/ncdot/secondary_road/output/d10/d10_sensor_output_2lane.csv',
+                    # default='/projects/ncdot/secondary_road/output/d13/d13_sensor_output_2lane.csv',
+                    default='/projects/ncdot/secondary_road/d13/d13_sensor_output.txt',
                     help='input sensor metadata file')
 parser.add_argument('--input_image_root_dir', type=str,
-                    default='/projects/ncdot/NC_2018_Secondary/d10',
+                    default='/projects/ncdot/NC_2018_Secondary/d13',
                     help='input image root directory to walk over and find all images for the division')
 parser.add_argument('--input_map_file', type=str,
-                    default='/projects/ncdot/secondary_road/output/d10/mapped_2lane_sr_images_d10.csv',
+                    default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13_updated.csv',
                     help='input sensor metadata file')
 parser.add_argument('--output_map_file', type=str,
-                    default='/projects/ncdot/secondary_road/output/d10/mapped_2lane_sr_images_d10_updated.csv',
+                    default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_images_d13.csv',
                     help='output mapping file')
 
 args = parser.parse_args()
@@ -33,13 +34,19 @@ input_image_root_dir = args.input_image_root_dir
 input_map_file = args.input_map_file
 output_map_file = args.output_map_file
 
-sensor_df = pd.read_csv(input_sensor_metadata_file, dtype={
-    'RouteID': str,
-    'Start-MP': float,
-    'Start-Image': int,
-    'StaLatitude': str,
-    'StaLongitude': str
-})
+if input_sensor_metadata_file.endswith('.csv'):
+    # input sensor metadata file is the mapped secondary road metadata file
+    sensor_df = pd.read_csv(input_sensor_metadata_file, dtype={
+        'RouteID': str,
+        'Start-MP': float,
+        'Start-Image': int,
+        'StaLatitude': str,
+        'StaLongitude': str
+    })
+else:
+    # input sensor metadata file is the initial sensor metadata output file ending with .txt or .TXT extension
+    sensor_df = read_initial_sensor_map_file(input_sensor_metadata_file)
+
 print(f'sensor_df shape: {sensor_df.shape}')
 
 input_map_df = pd.read_csv(input_map_file, header=0, dtype={
@@ -50,8 +57,11 @@ input_map_df = pd.read_csv(input_map_file, header=0, dtype={
     'MILE_POST': float,
     'PATH': str
 })
-# update input_map_df PATH since the initial PATH don't fit with the updated PATH format
-input_map_df['PATH'] = input_map_df['PATH'].str.replace('single_images/', '')
+
+if 'updated' not in input_map_file:
+    # update input_map_df PATH since the initial PATH don't fit with the updated PATH format
+    input_map_df['PATH'] = input_map_df['PATH'].str.replace('single_images/', '')
+
 df_input_img_map = input_map_df[['MAPPED_IMAGE']]
 
 img_paths_and_basenames = []

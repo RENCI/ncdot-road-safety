@@ -157,3 +157,25 @@ def find_closest_mapped_metadata(input_base_img_num, map_df, map_col='Start-Imag
     differences = np.abs(map_img_array - input_base_img_num)
     closest_idx = np.argmin(differences)
     return closest_idx, map_img_array[closest_idx]
+
+
+def read_initial_sensor_map_file(sensor_file):
+    df = pd.read_csv(sensor_file, header=0, dtype=str,
+                     usecols=["RouteID", "Set", "Start-MP", "Start-Image", "StaLatitude", "StaLongitude"])
+    df.columns = df.columns.str.strip()
+    df['Start-MP'] = df['Start-MP'].str.strip()
+    df['Start-MP'] = pd.to_numeric(df['Start-MP'], downcast="float")
+    df['RouteID'] = df['RouteID'].str.strip()
+    df['Start-Image'] = df['Start-Image'].str.strip()
+    df['Start-Image'] = df['Start-Image'].str.replace(':', '')
+    df['StaLatitude'] = df['StaLatitude'].str.strip()
+    df['StaLongitude'] = df['StaLongitude'].str.strip()
+    df['Set'] = df['Set'].str.strip()
+    print("Before removing duplicate", df.shape)
+    df.drop_duplicates(inplace=True)
+    print("After removing duplicate", df.shape)
+    df['Start-Image'] = df['Set'] + df['Start-Image']
+    df.drop_duplicates(subset=['RouteID', 'Start-Image'], inplace=True)
+    print("sensor data after dropping duplicates on RouteID and Start-Image", df.shape)
+    df.drop(columns=['Set'], inplace=True)
+    return df
