@@ -16,7 +16,7 @@ from utils import find_closest_mapped_metadata, get_unmapped_base_images, read_i
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_sensor_metadata_file', type=str,
                     # default='/projects/ncdot/secondary_road/output/d13/d13_sensor_output_2lane.csv',
-                    default='/projects/ncdot/secondary_road/d13/d13_sensor_output.txt',
+                    default='/projects/ncdot/secondary_road/d13_sensor_output.txt',
                     help='input sensor metadata file')
 parser.add_argument('--input_image_root_dir', type=str,
                     default='/projects/ncdot/NC_2018_Secondary/d13',
