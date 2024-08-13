@@ -28,9 +28,14 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_
     OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X = 0, 1, 2, 3, 4, 5, 6, 7
 
 CAM_NEAR = 0.1
+# camera pose parameter bound constraints put on optimizer
 X_TRAN_MAX_OFFSET = Y_TRAN_MAX_OFFSET = 1
 Z_TRAN_MAX_OFFSET = 2
 X_ROT_MAX_OFFSET = Y_ROT_MAX_OFFSET = Z_ROT_MAX_OFFSET = 2
+
+# Shape matching similarity score threshold for switching from using road lane segmentation to using segmented road
+# boundaries
+SHAPE_MATCHING_SCORE_THRESHOLD = 3.5
 
 INIT_CAM_OBJ_PARAS = None
 PREV_CAM_OBJ_PARAS = None
@@ -229,7 +234,7 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
         (df_3d['PROJ_SCREEN_Y'] >= 0) &
         (df_3d['PROJ_SCREEN_Y'] <= img_ht)]
 
-    if len(filtered_df_3d) < len(df_3d) / 10:
+    if len(filtered_df_3d) < len(df_3d) / 20:
         # most points are projected out of the bound, need to reset initial condition
         raise ResetOptimicationCondition(f'There are {len(filtered_df_3d)} transformed points out of {len(df_3d)} '
                                          f'points, resetting to the intial camera parameters to rerun optimization')
@@ -238,6 +243,9 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
         row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
         df_2d['X'], df_2d['Y'], grid=True)[1], axis=1)
     alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
+    if alignment_error > 3000:
+        raise ResetOptimicationCondition(f'alignment error {alignment_error} is greater than 3000 threshold, '
+                                         f'resetting to the intial camera parameters to rerun optimization')
     align_errors.append(alignment_error)
     return alignment_error
 
@@ -494,7 +502,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, input_mapping_fi
     lane_score = cv2.matchShapes(input_2d_points,
                                  input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy(), 1, 0.0)
     print(f'lane shape matching score: {lane_score}')
-    if lane_score > 3.5:
+    if lane_score > SHAPE_MATCHING_SCORE_THRESHOLD:
         seg_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1.png')
         img_width, img_height, input_list = get_image_road_points(seg_image_name)
         input_2d_points = input_list[0]
@@ -511,12 +519,11 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, input_mapping_fi
         print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, exiting')
         exit(1)
 
-    align_errors = []
     max_retries = 2
     retries = 0
     success = False
-
     while retries < max_retries and not success:
+        align_errors = []
         try:
             result = minimize(objective_function_2d, init_cam_paras[2:],
                               args=(input_3d_road_bound_gdf,
