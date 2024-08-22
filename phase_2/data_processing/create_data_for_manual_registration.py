@@ -15,7 +15,7 @@ def create_data(image_name_with_path, seg_lane_dir, input_lidar_file, input_mapp
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-4]
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
-    img_width, img_height, input_list, _ = get_image_lane_points(lane_image_name)
+    img_width, img_height, input_list = get_image_lane_points(lane_image_name)
 
     input_2d_points = input_list[0]
 
@@ -71,7 +71,7 @@ def create_data(image_name_with_path, seg_lane_dir, input_lidar_file, input_mapp
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges.csv',
+                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges_sr.csv',
                         help='input file that contains x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         default='data/d13_route_40001001012/segmentation',
@@ -95,7 +95,7 @@ if __name__ == '__main__':
                         help='input file that contains road x, y, z vertices from lidar along with a I column '
                              'indicating whether the vertex is part of crossroad intersection or not')
     parser.add_argument('--output_lidar_file_base', type=str,
-                        default='data/d13_route_40001001012/manual_registration/lidar_info',
+                        default='data/d13_route_40001001012/manual_registration/new/lidar_info',
                         help='output lidar file base with path which will be appended with image name '
                              'to have lidar INITIAL WORLD coordinate info for each input image')
 
