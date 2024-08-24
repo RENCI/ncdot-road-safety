@@ -1,12 +1,13 @@
-import sys
-import cv2
-import os
-import numpy as np
-from skimage import morphology, measure
-from PIL import Image
 import argparse
+import os
+import sys
+
+import cv2
+import numpy as np
+from PIL import Image
+from skimage import morphology, measure
+from sklearn.cluster import DBSCAN
 from data_processing.utils import get_data_from_image, SegmentationClass
-import pickle
 
 
 def get_road_intersections_by_y(contours, y):
@@ -53,7 +54,6 @@ def process_boundary_in_image(img):
                 updated_contours.insert(cont_len - 1, np.reshape(contours[i], (cshape[0], cshape[2])))
             else:
                 updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
-    print(f'length of contours found: {len(contours)}, length of filtered/processed contours: {len(updated_contours)}')
     if len(updated_contours) > 1:
         if updated_contours[-2].shape[0] > 800:
             return binary_data, [np.concatenate(updated_contours[-2:], axis=0)]
@@ -62,45 +62,82 @@ def process_boundary_in_image(img):
     else:
         return binary_data, updated_contours
 
+    # Clustering to group points on the same lane
+
+
+def _cluster_points(points, eps=80, min_samples=1):
+    """Clusters points in a row using DBSCAN to identify lanes."""
+    if len(points) < min_samples:
+        return [points]
+    clustering = DBSCAN(eps=eps, min_samples=min_samples).fit(points)
+    clusters = []
+    for cluster_id in np.unique(clustering.labels_):
+        if cluster_id == -1:
+            # Noise points, ignore
+            continue
+        clusters.append(points[clustering.labels_ == cluster_id])
+    return clusters
+
+
+def _is_cluster_centered(left_cluster, middle_cluster, right_cluster):
+    """Checks if the middle cluster is approximately centered between left and right clusters."""
+    left_centroid_x = np.mean(left_cluster[:, 0])
+    right_centroid_x = np.mean(right_cluster[:, 0])
+    middle_centroid_x = np.mean(middle_cluster[:, 0])
+
+    return abs((middle_centroid_x - left_centroid_x) - (right_centroid_x - middle_centroid_x)) < 100
+
 
 def get_image_lane_points(image_file_name):
     image_width, image_height, img = get_data_from_image(image_file_name)
-    print(np.count_nonzero(img), len(img[img == 1]), len(img[img == 2]))
-    img[img == 2] = 0
+    # remove unwanted pixels
     kernel = np.ones((1, 3), np.uint8)
     eroded = cv2.erode(img, kernel, iterations=1)
     img = cv2.dilate(eroded, kernel, iterations=1)
-
     mask = morphology.skeletonize(img)
+
     img[img != 0] = 0
     img[mask == 1] = 255
-    lane_indices = np.where(img == 255)
-    lane_contour = np.column_stack((lane_indices[1], lane_indices[0]))
+    # binary_data = np.uint8(img)
+    # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_contour.png')
 
+    # extract lane contour points
+    lane_indices = np.where(img == 255)
+    # lane_indices[1] contains x coordinate of lane pixel while lane_indices[0] contains y coordinate of lane pixel
+    # lane_contour contains array of lane pixel [x y]
+    lane_contour = np.column_stack((lane_indices[1], lane_indices[0]))
     # Sort lane_points based on y-coordinates
     sorted_lane_contour = lane_contour[lane_contour[:, 1].argsort()]
-    # Find rows with 3 points
+    # Find rows (represented by y) with more than 2 points
     unique_rows, counts = np.unique(sorted_lane_contour[:, 1], return_counts=True)
-    # Extract rows with three points
-    # Extract indices of rows with three points
-    rows_with_3_pts = unique_rows[counts == 3]
+    rows_with_potential_lanes = unique_rows[counts >= 3]  # Use rows with 2 or more points
     first_row_idx = last_row_idx = -1
-    diff_th = 5
-    for i in range(len(rows_with_3_pts)):
+
+    # determine the first and last row containing the central lane
+    for i in range(len(rows_with_potential_lanes)):
         if first_row_idx == -1:
-            first_row = lane_contour[lane_contour[:, 1] == rows_with_3_pts[i]]
+            first_row = lane_contour[lane_contour[:, 1] == rows_with_potential_lanes[i]]
             # sort x-coordinates of the first row
             first_row = first_row[first_row[:, 1].argsort()]
-            # find the row where the middle point is part of the middle lane
-            if first_row[2, 0] - first_row[1, 0] > diff_th and first_row[1, 0] - first_row[0, 0] > diff_th:
-                first_row_idx = i
+            clustered_first_row = _cluster_points(first_row)
+            if len(clustered_first_row) >= 3:
+                # Check if the clusters satisfy the central positioning condition
+                left_cluster, middle_cluster, right_cluster = clustered_first_row[:3]
+                if _is_cluster_centered(left_cluster, middle_cluster, right_cluster):
+                    first_row_idx = i
+                    first_row_center = np.mean(middle_cluster, axis=0)  # Use the centroid of the middle cluster
         if last_row_idx == -1:
-            last_row = lane_contour[lane_contour[:, 1] == rows_with_3_pts[-(i+1)]]
+            last_row = lane_contour[lane_contour[:, 1] == rows_with_potential_lanes[-(i+1)]]
             # sort x-coordinates of the last row
             last_row = last_row[last_row[:, 1].argsort()]
+            clustered_last_row = _cluster_points(last_row)
             # find the row where the middle point is part of the middle lane
-            if last_row[2, 0] - last_row[1, 0] > diff_th and last_row[1, 0] - last_row[0, 0] > diff_th:
-                last_row_idx = len(rows_with_3_pts) - (i + 1)
+            if len(clustered_last_row) >= 3:
+                left_cluster, middle_cluster, right_cluster = clustered_last_row[:3]
+                if _is_cluster_centered(left_cluster, middle_cluster, right_cluster):
+                    last_row_idx = len(rows_with_potential_lanes) - (i + 1)
+                    last_row_center = np.mean(middle_cluster, axis=0)
+
         if first_row_idx > -1 and last_row_idx > -1:
             break
     if first_row_idx == -1 or last_row_idx == -1:
@@ -108,20 +145,25 @@ def get_image_lane_points(image_file_name):
               f'first_row_idx: {first_row_idx}, last_row_idx: {last_row_idx}, returning')
         return image_width, image_height, [], []
 
+    # calculate the central axis and centroid
     # find the central axis from the last row middle lane pixel (lower) to the first row middle lane pixel (upper)
-    axis = first_row[1] - last_row[1]
+    axis = first_row_center - last_row_center
     # centroid is the middle point of the axis
-    centroid = last_row[1] + axis / 2.0
+    centroid = last_row_center + axis / 2.0
     # normalize the axis
     axis = axis / np.linalg.norm(axis)
-
+    # Draw the central axis line for visual debugging
+    # point1 = (int(first_row_center[0]), int(first_row_center[1]))
+    # point2 = (int(last_row_center[0]), int(last_row_center[1]))
+    # color_image = cv2.cvtColor(binary_data, cv2.COLOR_GRAY2BGR)
+    # cv2.line(color_image, point1, point2, (0, 0, 255), 2)  # Blue line for visibility
+    # Image.fromarray(color_image, 'RGB').save(f'{os.path.splitext(image_file_name)[0]}_axis.png')
+    # compute the perpendicular distance of each point to the central axis
     vector_to_centroid = lane_contour - centroid
     # Project the vector to the axis via dot product
     projection_on_axis = np.dot(vector_to_centroid, axis)
-
     # Calculate the perpendicular vector (error vector)
     perpendicular_vector = vector_to_centroid - np.outer(projection_on_axis, axis)
-
     # Calculate the distance of each point to the axis
     distance_to_axis = np.linalg.norm(perpendicular_vector, axis=1)
 
@@ -129,9 +171,9 @@ def get_image_lane_points(image_file_name):
     filtered_lane_contour = lane_contour[distance_to_axis > 25]
     img[img != 0] = 0
     img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
-    # binary_data = np.uint8(img)
+    binary_data = np.uint8(img)
     # cv2.line(binary_data, first_row[1], last_row[1], (255, 255, 255), 2)
-    # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
+    Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
 
     return image_width, image_height, [filtered_lane_contour]
 
@@ -186,31 +228,17 @@ def get_image_road_points(image_file_name, boundary_only=True):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_data_path', type=str,
-                        # default='data/d13_route_40001001011/oneformer/input',
-                        default='data/new_test_scene/seg_test',
+                        default='data/d13_route_40001001012/seg_test',
                         help='input data path')
-    parser.add_argument('--output_file', type=str,
-                        # default='data/d13_route_40001001011/oneformer/output/input_2d.pkl',
-                        default='data/new_test_scene/output/input_2d.pkl',
-                        help='output pickle 2D point file name with path')
 
     args = parser.parse_args()
     input_data_path = args.input_data_path
-    output_file = args.output_file
 
-    all_road_contours = []
     for image in os.listdir(input_data_path):
-        if not image.endswith('1.png'):
+        if not image.endswith('1_lanes.png'):
             continue
-        _, _, road_contours, _ = get_image_road_points(os.path.join(input_data_path, image))
-        print(f"Number of updated contours found = {len(road_contours)} for {image}")
-        print(f"the first contour shape: {road_contours[0].shape} for {image}")
-        # binary_data[binary_data != 0] = 0
-        # binary_data = np.uint8(binary_data)
-        # cv2.drawContours(binary_data, updated_contours, -1, (255, 255, 255), 3)
-        # Image.fromarray(binary_data, 'L').save('926005420241_road_boundary.png')
-        all_road_contours.extend(road_contours)
-    # output to pickle file for blindPnP correspondence prediction
-    with open(output_file, 'wb') as f:
-        pickle.dump(all_road_contours, f)
+        _, _, input_list = get_image_lane_points(os.path.join(input_data_path, image))
+        print(f"Number of updated contours found = {len(input_list[0])} for {image}")
+        print(f"the first contour shape: {input_list[0].shape} for {image}")
+
     sys.exit()
