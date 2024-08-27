@@ -1,12 +1,16 @@
 import argparse
 import os
 import sys
-
+import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 from PIL import Image
 from skimage import morphology, measure
 from sklearn.cluster import DBSCAN
+from scipy.spatial import ConvexHull
+from shapely import concave_hull
+from shapely.geometry import MultiPoint
+
 from data_processing.utils import get_data_from_image, SegmentationClass
 
 
@@ -31,38 +35,26 @@ def process_boundary_in_image(img):
     labeled_data = labeled_data.astype('uint8')
     binary_data = np.copy(labeled_data)
     binary_data[binary_data > 0] = 255
+
+    # Apply Gaussian blur to reduce noise
+    blurred_image = cv2.GaussianBlur(binary_data, (5, 5), 0)
     # Apply Canny edge detection
-    edges = cv2.Canny(binary_data, 100, 200)
-    # Dilate edges to connect any broken lines
-    dilated_edges = cv2.dilate(edges, None, iterations=1)
+    edges = cv2.Canny(blurred_image, 100, 200)
 
-    # Find contours of the dilated edges
-    contours, _ = cv2.findContours(dilated_edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
-    updated_contours = []
-    for i in range(len(contours)):
-        min_xy = np.min(contours[i], axis=0)
-        max_xy = np.max(contours[i], axis=0)
-        miny = min_xy[0][1]
-        maxy = max_xy[0][1]
-        if maxy - miny > 15:
-            cshape = contours[i].shape
-            cont_len = len(updated_contours)
-            if cont_len < 1:
-                updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
-            elif cshape[0] < updated_contours[-1].shape[0]:
-                updated_contours.insert(cont_len - 1, np.reshape(contours[i], (cshape[0], cshape[2])))
-            else:
-                updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
-    if len(updated_contours) > 1:
-        if updated_contours[-2].shape[0] > 800:
-            return binary_data, [np.concatenate(updated_contours[-2:], axis=0)]
-        else:
-            return binary_data, [updated_contours[-1]]
-    else:
-        return binary_data, updated_contours
+    # Find all connected components in the edge image
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(edges, connectivity=8)
+    # The first label is the background, skip it
+    for i in range(1, num_labels):
+        area = stats[i, cv2.CC_STAT_AREA]
+        if area < 350:
+            # Set the pixel values of this small component to 0 to remove it
+            labels[labels == i] = 0
 
-    # Clustering to group points on the same lane
+    # Convert the filtered labels back to a binary image
+    filtered_edges = np.where(labels > 0, 255, 0).astype('uint8')
+    y_coords, x_coords = np.where(filtered_edges > 0)
+    edge_points = np.column_stack((x_coords, y_coords))
+    return filtered_edges, [edge_points]
 
 
 def _cluster_points(points, eps=80, min_samples=1):
@@ -170,12 +162,11 @@ def get_image_lane_points(image_file_name):
     # Filter out points based on the threshold distance
     filtered_lane_contour = lane_contour[distance_to_axis > 25]
     img[img != 0] = 0
-    img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
+    img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 127
     binary_data = np.uint8(img)
-    # cv2.line(binary_data, first_row[1], last_row[1], (255, 255, 255), 2)
     Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
 
-    return image_width, image_height, [filtered_lane_contour]
+    return image_width, image_height, img, [filtered_lane_contour]
 
 
 def get_image_road_points(image_file_name, boundary_only=True):
@@ -185,9 +176,10 @@ def get_image_road_points(image_file_name, boundary_only=True):
     seg_img[seg_img != 255] = 0
 
     process_img, process_contour = process_boundary_in_image(seg_img)
-
+    binary_data = np.uint8(process_img)
+    Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
     if boundary_only:
-        return image_width, image_height, process_contour
+        return image_width, image_height, process_img, process_contour
     else:
         boundary_contours = process_contour[0]
         # Determine the minimum and maximum y coordinates of the polygon
@@ -222,7 +214,8 @@ def get_image_road_points(image_file_name, boundary_only=True):
             if len(intersections) > 0:
                 prev_line_x_intersect_first = intersections[0]
                 prev_line_x_intersect_last = intersections[-1]
-        return image_width, image_height, [np.array(filled_points)]
+
+        return image_width, image_height, process_img, [np.array(filled_points)]
 
 
 if __name__ == '__main__':
@@ -233,12 +226,37 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     input_data_path = args.input_data_path
-
+    input_lane_points = input_road_points = None
     for image in os.listdir(input_data_path):
-        if not image.endswith('1_lanes.png'):
+        if not image.endswith('1_lanes.png') and not image.endswith('1.png'):
             continue
-        _, _, input_list = get_image_lane_points(os.path.join(input_data_path, image))
-        print(f"Number of updated contours found = {len(input_list[0])} for {image}")
-        print(f"the first contour shape: {input_list[0].shape} for {image}")
+        image_with_path = os.path.join(input_data_path, image)
+        if image.endswith('1_lanes.png'):
+            _, img_hgt, lane_img, input_list = get_image_lane_points(image_with_path)
+            input_lane_points = input_list[0]
+            hull = ConvexHull(input_lane_points)
+            ordered_points = input_lane_points[hull.vertices]
+            # edge_points = np.column_stack(np.where(lane_img > 0))
+            # plt.plot(input_lane_points[:, 0], img_hgt - input_lane_points[:, 1], 'b--', lw=2)
+            # plt.plot(input_lane_points[hull.vertices, 0], img_hgt - input_lane_points[hull.vertices, 1], 'r--', lw=2)
+            # plt.show()
+            edge_points_multi = MultiPoint([tuple(point) for point in input_lane_points])
+            lane_concave_hull = concave_hull(edge_points_multi, ratio=0.1)
+            coords = np.array(lane_concave_hull.exterior.coords, dtype=np.int32)
+            coords = np.append(coords, [coords[0]], axis=0)
+            plt.plot(coords[:, 0], img_hgt - coords[:, 1], 'b--', lw=2)
+            plt.show()
+            # create mask from lane concave hull
+            lane_mask = np.zeros_like(lane_img)
+            cv2.fillPoly(lane_mask, [], 255)
+        else:
+            _, _, road_img, input_list = get_image_road_points(image_with_path)
+            input_road_points = input_list[0]
 
+        if input_lane_points is not None and input_road_points is not None:
+            break
+
+    filtered_road_boundaries = cv2.bitwise_and(road_img, road_img, mask=cv2.bitwise_not(lane_mask))
+    combined_img = cv2.bitwise_or(lane_img, filtered_road_boundaries)
+    cv2.imwrite('merged_image.png', lane_mask)
     sys.exit()

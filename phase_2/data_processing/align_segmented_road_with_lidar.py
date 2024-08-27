@@ -388,7 +388,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     print(f'lane_image_name: {lane_image_name}')
-    img_width, img_height, input_list = get_image_lane_points(lane_image_name)
+    img_width, img_height, _, input_list = get_image_lane_points(lane_image_name)
     input_2d_points = input_list[0]
 
     # compute base camera parameters
@@ -509,7 +509,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'lane shape matching score: {lane_score}')
     if lane_score > SHAPE_MATCHING_SCORE_THRESHOLD:
         seg_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1.png')
-        img_width, img_height, input_list = get_image_road_points(seg_image_name)
+        img_width, img_height, _, input_list = get_image_road_points(seg_image_name)
         input_2d_points = input_list[0]
         road_score = cv2.matchShapes(input_2d_points,
                                      input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy(), 1, 0.0)
