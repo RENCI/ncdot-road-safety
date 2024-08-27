@@ -10,6 +10,7 @@ from sklearn.cluster import DBSCAN
 from scipy.spatial import ConvexHull
 from shapely import concave_hull
 from shapely.geometry import MultiPoint
+from itertools import chain
 
 from data_processing.utils import get_data_from_image, SegmentationClass
 
@@ -162,7 +163,7 @@ def get_image_lane_points(image_file_name):
     # Filter out points based on the threshold distance
     filtered_lane_contour = lane_contour[distance_to_axis > 25]
     img[img != 0] = 0
-    img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 127
+    img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
     binary_data = np.uint8(img)
     Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
 
@@ -218,6 +219,53 @@ def get_image_road_points(image_file_name, boundary_only=True):
         return image_width, image_height, process_img, [np.array(filled_points)]
 
 
+def combine_lane_and_road_boundary(lane_points, road_img, image_file_name):
+    # get mask created from two lanes for masking out road boundaries
+    clust_points = _cluster_points(lane_points, eps=30, min_samples=5)
+    if len(clust_points) >= 3:
+        clust_points.sort(key=len, reverse=True)
+        clust_points = clust_points[:2]
+        # extend the top point of both lanes vertically to the image top so that everything
+        # between two lanes will be masked out
+        clust_points[0] = np.vstack((np.array([clust_points[0][0][0], 0]), clust_points[0]))
+        clust_points[1] = np.vstack((np.array([clust_points[1][0][0], 0]), clust_points[1]))
+        # move left lane certain pixels to the left and right lane to the right to mask out
+        # corresponding road boundary lanes since lane lines will be used in the combined image
+        if clust_points[0][0][0] < clust_points[1][0][0]:
+            # clust_points[0] is left lane and clust_points[1] is right lane
+            clust_points[0][:, 0] -= 50
+            clust_points[1][:, 0] += 50
+        else:
+            # clust_points[0] is right lane and clust_points[1] is left lane
+            clust_points[0][:, 0] += 50
+            clust_points[1][:, 0] -= 50
+        # clustered points are sorted from top to bottom, i.e., by y in increasing order, so need to
+        # flip the sorting order for the second cluster so that bottom of the first cluster can connect
+        # to bottom of the second cluster when vstack them
+        clust_points[1] = np.flip(clust_points[1], 0)
+    clust_points = np.vstack(clust_points)
+    # plt.plot(clust_points[:, 0], img_hgt - clust_points[:, 1], 'b--', lw=2)
+    # plt.show()
+    # create mask from sorted clustered points
+    lane_mask = np.zeros_like(lane_img)
+    cv2.fillPoly(lane_mask, [clust_points], 255)
+
+    filtered_road_boundaries = cv2.bitwise_and(road_img, road_img, mask=cv2.bitwise_not(lane_mask))
+    road_indices = np.where(filtered_road_boundaries == 255)
+    road_contour = np.column_stack((road_indices[1], road_indices[0]))
+    # filter out smaller road boundary clusters
+    clust_road_points = _cluster_points(road_contour, eps=30, min_samples=5)
+    road_boundaries = [clust for clust in clust_road_points if len(clust) > 500]
+    road_boundaries_points = np.vstack(road_boundaries)
+    road_boundary_img = np.zeros_like(lane_img)
+    road_boundary_img[road_boundaries_points[:, 1], road_boundaries_points[:, 0]] = 255
+    combined_img = cv2.bitwise_or(lane_img, road_boundary_img)
+    cv2.imwrite(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png', combined_img)
+    road_indices = np.where(combined_img == 255)
+    road_contour = np.column_stack((road_indices[1], road_indices[0]))
+    return road_contour
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_data_path', type=str,
@@ -234,29 +282,13 @@ if __name__ == '__main__':
         if image.endswith('1_lanes.png'):
             _, img_hgt, lane_img, input_list = get_image_lane_points(image_with_path)
             input_lane_points = input_list[0]
-            hull = ConvexHull(input_lane_points)
-            ordered_points = input_lane_points[hull.vertices]
-            # edge_points = np.column_stack(np.where(lane_img > 0))
-            # plt.plot(input_lane_points[:, 0], img_hgt - input_lane_points[:, 1], 'b--', lw=2)
-            # plt.plot(input_lane_points[hull.vertices, 0], img_hgt - input_lane_points[hull.vertices, 1], 'r--', lw=2)
-            # plt.show()
-            edge_points_multi = MultiPoint([tuple(point) for point in input_lane_points])
-            lane_concave_hull = concave_hull(edge_points_multi, ratio=0.1)
-            coords = np.array(lane_concave_hull.exterior.coords, dtype=np.int32)
-            coords = np.append(coords, [coords[0]], axis=0)
-            plt.plot(coords[:, 0], img_hgt - coords[:, 1], 'b--', lw=2)
-            plt.show()
-            # create mask from lane concave hull
-            lane_mask = np.zeros_like(lane_img)
-            cv2.fillPoly(lane_mask, [], 255)
         else:
-            _, _, road_img, input_list = get_image_road_points(image_with_path)
+            _, _, input_road_img, input_list = get_image_road_points(image_with_path)
             input_road_points = input_list[0]
 
         if input_lane_points is not None and input_road_points is not None:
             break
 
-    filtered_road_boundaries = cv2.bitwise_and(road_img, road_img, mask=cv2.bitwise_not(lane_mask))
-    combined_img = cv2.bitwise_or(lane_img, filtered_road_boundaries)
-    cv2.imwrite('merged_image.png', lane_mask)
+    print(combine_lane_and_road_boundary(input_lane_points, input_road_img, image_with_path))
+
     sys.exit()

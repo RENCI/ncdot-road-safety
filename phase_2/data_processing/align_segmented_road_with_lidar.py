@@ -14,7 +14,7 @@ from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_
     angle_between
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
-from get_road_boundary_points import get_image_lane_points, get_image_road_points
+from get_road_boundary_points import get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary
 
 BASE_CAM_PARA_COL_NAME = 'BASE_CAMERA_OBJ_PARA'
 OPTIMIZED_CAM_PARA_COL_NAME = 'OPTIMIZED_CAMERA_OBJ_PARA'
@@ -509,11 +509,9 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'lane shape matching score: {lane_score}')
     if lane_score > SHAPE_MATCHING_SCORE_THRESHOLD:
         seg_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1.png')
-        img_width, img_height, _, input_list = get_image_road_points(seg_image_name)
-        input_2d_points = input_list[0]
-        road_score = cv2.matchShapes(input_2d_points,
-                                     input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy(), 1, 0.0)
-        print(f'road shape matching score: {road_score}')
+        img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
+        input_2d_points = combine_lane_and_road_boundary(input_2d_points, input_road_img, seg_image_name)
+
     # output 2d road boundary points for showing alignment overlay plot
     with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
         pickle.dump(input_list, f)
@@ -626,7 +624,7 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001012/test',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
-    parser.add_argument('--optimize_fov', action="store_true",
+    parser.add_argument('--optimize_fov', action="store_false",
                         help='optimize FOV in the camera parameter optimizer if set to True')
 
 
