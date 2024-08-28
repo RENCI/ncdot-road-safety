@@ -36,7 +36,7 @@ X_ROT_MAX_OFFSET = Y_ROT_MAX_OFFSET = Z_ROT_MAX_OFFSET = 2
 
 # Shape matching similarity score threshold for switching from using road lane segmentation to using segmented road
 # boundaries
-SHAPE_MATCHING_SCORE_THRESHOLD = 3.5
+SHAPE_MATCHING_SCORE_THRESHOLD = 3.2
 
 INIT_CAM_OBJ_PARAS = None
 PREV_CAM_OBJ_PARAS = None
@@ -388,7 +388,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     print(f'lane_image_name: {lane_image_name}')
-    img_width, img_height, _, input_list = get_image_lane_points(lane_image_name)
+    img_width, img_height, lane_image, input_list = get_image_lane_points(lane_image_name)
     input_2d_points = input_list[0]
 
     # compute base camera parameters
@@ -510,7 +510,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     if lane_score > SHAPE_MATCHING_SCORE_THRESHOLD:
         seg_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1.png')
         img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
-        input_2d_points = combine_lane_and_road_boundary(input_2d_points, input_road_img, seg_image_name)
+        input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img, seg_image_name)
+        input_list = [input_2d_points]
 
     # output 2d road boundary points for showing alignment overlay plot
     with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
@@ -624,7 +625,7 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001012/test',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
-    parser.add_argument('--optimize_fov', action="store_false",
+    parser.add_argument('--optimize_fov', action="store_true",
                         help='optimize FOV in the camera parameter optimizer if set to True')
 
 
