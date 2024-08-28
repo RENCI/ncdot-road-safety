@@ -49,6 +49,7 @@ SPLINE_FIT_DIST_THRESHOLD = 15
 SPLINE_SMOOTHING_FACTOR = 100
 USE_ROAD_TANGENT_ANGLE_THRESHOLD = 30
 
+CAMERA_ALIGNMENT_RESET_REASONS = ['Too few LIDAR points', 'alignment error threshold exceeded']
 
 def rotate_point(point, quaternion):
     rotated_point = quaternion.apply(point)
@@ -217,12 +218,25 @@ def mean_squared_error(points1, points2_df, points2_df_x_col, points2_df_y_col):
     return _compute_mse(merged_df, 'X1', points2_df_x_col, 'Y1', points2_df_y_col)
 
 
-class ResetOptimicationCondition(Exception):
-    """Custom exception to indicate that the optimization initial condition should be reset."""
+class ResetOptimizationCondition(Exception):
+    """
+    Custom exception to indicate that the optimization initial condition should be reset.
+    """
+    def __init__(self, exception_reason, exception_value):
+        # Initialize with custom reason and value
+        self.exception_reason = exception_reason
+        self.exception_value = exception_value
+        # Call the base class constructor with the message
+        super().__init__(f"{exception_reason}: {exception_value}")
+
+    def __str__(self):
+        # Custom string representation for this exception
+        return f"ResetOptimizationCondition({self.exception_reason}: {self.exception_value})"
+
     pass
 
 
-def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
+def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, alignment_error_threshold, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
@@ -237,16 +251,14 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
 
     if len(filtered_df_3d) < len(df_3d) / 20:
         # most points are projected out of the bound, need to reset initial condition
-        raise ResetOptimicationCondition(f'There are {len(filtered_df_3d)} transformed points out of {len(df_3d)} '
-                                         f'points, resetting to the intial camera parameters to rerun optimization')
+        raise ResetOptimizationCondition(CAMERA_ALIGNMENT_RESET_REASONS[0], len(filtered_df_3d))
 
     df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
         row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
         df_2d['X'], df_2d['Y'], grid=True)[1], axis=1)
     alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
-    if alignment_error > 3000:
-        raise ResetOptimicationCondition(f'alignment error {alignment_error} is greater than 3000 threshold, '
-                                         f'resetting to the intial camera parameters to rerun optimization')
+    if alignment_error > alignment_error_threshold:
+        raise ResetOptimizationCondition(CAMERA_ALIGNMENT_RESET_REASONS[1], alignment_error)
     align_errors.append(alignment_error)
     return alignment_error
 
@@ -561,22 +573,33 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         cam_output_columns = ['translation_x', 'translation_y', 'translation_z',
                               'rotation_z', 'rotation_y', 'rotation_x']
 
+    align_err_threshold = 4000
     while retries < max_retries and not success:
         align_errors = []
         try:
             result = minimize(objective_function_2d, init_cam_paras[start_idx:],
                               args=(input_3d_road_bound_gdf,
-                                    input_2d_df, img_width, img_height, align_errors),
+                                    input_2d_df, img_width, img_height, align_err_threshold, align_errors),
                               method='Nelder-Mead',
                               # bounds in the order of OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET, \
                               # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
                               bounds=cam_para_bounds,
                               options={'maxiter': NUM_ITERATIONS, 'disp': True})
             success = True
-        except ResetOptimicationCondition as ex:
+        except ResetOptimizationCondition as ex:
             print(ex)
             init_cam_paras = INIT_CAM_OBJ_PARAS
             retries += 1
+            if retries == max_retries and not success:
+                # has already tried with reset condition which does not result in a successful optimization -
+                # increase align_err_threshold to make it pass
+                if ex.exception_reason == CAMERA_ALIGNMENT_RESET_REASONS[1]:
+                    align_err_threshold = ex.exception_value + 1
+                    max_retries += 1
+                elif ex.exception_reason == CAMERA_ALIGNMENT_RESET_REASONS[0]:
+                    # reset to initial condition does not work for this image
+                    print(f'Too few LIDAR points ({ex.exception_value}) remain for alignment, skip this image')
+                    return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
 
     optimized_cam_params = result.x
     print(f'optimizing result for image {input_2d_mapped_image}: {result}')
