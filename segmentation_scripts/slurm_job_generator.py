@@ -28,9 +28,9 @@ def main(args):
         file_string = f'''
         #!/bin/bash
     
-        #SBATCH --job-name=d{division}-{chunk_start}-{chunk_end}
-        #SBATCH --output=output.d{division}-{chunk_start}-{chunk_end}
-        #SBATCH --error=output_err.d{division}-{chunk_start}-{chunk_end}
+        #SBATCH --job-name=d{division}-{chunk_start}-{chunk_end - 1}
+        #SBATCH --output=output.d{division}-{chunk_start}-{chunk_end - 1}
+        #SBATCH --error=output_err.d{division}-{chunk_start}-{chunk_end - 1}
         #SBATCH -p gpu
         #SBATCH -c 16
         #SBATCH --mem-per-cpu=2048
