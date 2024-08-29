@@ -1,12 +1,13 @@
 import argparse
 import os
 import sys
-
+import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 from PIL import Image
 from skimage import morphology, measure
 from sklearn.cluster import DBSCAN
+
 from data_processing.utils import get_data_from_image, SegmentationClass
 
 
@@ -31,38 +32,26 @@ def process_boundary_in_image(img):
     labeled_data = labeled_data.astype('uint8')
     binary_data = np.copy(labeled_data)
     binary_data[binary_data > 0] = 255
+
+    # Apply Gaussian blur to reduce noise
+    blurred_image = cv2.GaussianBlur(binary_data, (5, 5), 0)
     # Apply Canny edge detection
-    edges = cv2.Canny(binary_data, 100, 200)
-    # Dilate edges to connect any broken lines
-    dilated_edges = cv2.dilate(edges, None, iterations=1)
+    edges = cv2.Canny(blurred_image, 100, 200)
 
-    # Find contours of the dilated edges
-    contours, _ = cv2.findContours(dilated_edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
-    updated_contours = []
-    for i in range(len(contours)):
-        min_xy = np.min(contours[i], axis=0)
-        max_xy = np.max(contours[i], axis=0)
-        miny = min_xy[0][1]
-        maxy = max_xy[0][1]
-        if maxy - miny > 15:
-            cshape = contours[i].shape
-            cont_len = len(updated_contours)
-            if cont_len < 1:
-                updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
-            elif cshape[0] < updated_contours[-1].shape[0]:
-                updated_contours.insert(cont_len - 1, np.reshape(contours[i], (cshape[0], cshape[2])))
-            else:
-                updated_contours.append(np.reshape(contours[i], (cshape[0], cshape[2])))
-    if len(updated_contours) > 1:
-        if updated_contours[-2].shape[0] > 800:
-            return binary_data, [np.concatenate(updated_contours[-2:], axis=0)]
-        else:
-            return binary_data, [updated_contours[-1]]
-    else:
-        return binary_data, updated_contours
+    # Find all connected components in the edge image
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(edges, connectivity=8)
+    # The first label is the background, skip it
+    for i in range(1, num_labels):
+        area = stats[i, cv2.CC_STAT_AREA]
+        if area < 350:
+            # Set the pixel values of this small component to 0 to remove it
+            labels[labels == i] = 0
 
-    # Clustering to group points on the same lane
+    # Convert the filtered labels back to a binary image
+    filtered_edges = np.where(labels > 0, 255, 0).astype('uint8')
+    y_coords, x_coords = np.where(filtered_edges > 0)
+    edge_points = np.column_stack((x_coords, y_coords))
+    return filtered_edges, [edge_points]
 
 
 def _cluster_points(points, eps=80, min_samples=1):
@@ -172,10 +161,9 @@ def get_image_lane_points(image_file_name):
     img[img != 0] = 0
     img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
     binary_data = np.uint8(img)
-    # cv2.line(binary_data, first_row[1], last_row[1], (255, 255, 255), 2)
     Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
 
-    return image_width, image_height, [filtered_lane_contour]
+    return image_width, image_height, img, [filtered_lane_contour]
 
 
 def get_image_road_points(image_file_name, boundary_only=True):
@@ -185,9 +173,10 @@ def get_image_road_points(image_file_name, boundary_only=True):
     seg_img[seg_img != 255] = 0
 
     process_img, process_contour = process_boundary_in_image(seg_img)
-
+    binary_data = np.uint8(process_img)
+    # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
     if boundary_only:
-        return image_width, image_height, process_contour
+        return image_width, image_height, process_img, process_contour
     else:
         boundary_contours = process_contour[0]
         # Determine the minimum and maximum y coordinates of the polygon
@@ -222,7 +211,62 @@ def get_image_road_points(image_file_name, boundary_only=True):
             if len(intersections) > 0:
                 prev_line_x_intersect_first = intersections[0]
                 prev_line_x_intersect_last = intersections[-1]
-        return image_width, image_height, [np.array(filled_points)]
+
+        return image_width, image_height, process_img, [np.array(filled_points)]
+
+
+def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_name):
+    # get mask created from two lanes for masking out road boundaries
+    clust_points = _cluster_points(lane_points, eps=30, min_samples=5)
+
+    # only use the top two clusters which should represent the left and right lanes
+    if len(clust_points) >= 3:
+        clust_points.sort(key=len, reverse=True)
+        clust_points = clust_points[:2]
+
+    # extend the top point of both lanes vertically to the image top so that everything
+    # between two lanes will be masked out
+    clust_points[0] = np.vstack((np.array([clust_points[0][0][0], 0]), clust_points[0]))
+    clust_points[1] = np.vstack((np.array([clust_points[1][0][0], 0]), clust_points[1]))
+    # move left lane certain pixels to the left and right lane to the right to mask out
+    # corresponding road boundary lanes since lane lines will be used in the combined image
+    if clust_points[0][0][0] < clust_points[1][0][0]:
+        # clust_points[0] is left lane and clust_points[1] is right lane
+        clust_points[0][:, 0] -= 50
+        clust_points[1][:, 0] += 50
+    else:
+        # clust_points[0] is right lane and clust_points[1] is left lane
+        clust_points[0][:, 0] += 50
+        clust_points[1][:, 0] -= 50
+    # clustered points are sorted from top to bottom, i.e., by y in increasing order, so need to
+    # flip the sorting order for the second cluster so that bottom of the first cluster can connect
+    # to bottom of the second cluster when vstack them
+    clust_points[1] = np.flip(clust_points[1], 0)
+    clust_points = np.vstack(clust_points)
+    # plt.plot(clust_points[:, 0], img_hgt - clust_points[:, 1], 'b--', lw=2)
+    # plt.show()
+    # create mask from sorted clustered points
+    lane_mask = np.zeros_like(lane_img)
+    cv2.fillPoly(lane_mask, [clust_points], 255)
+
+    filtered_road_boundaries = cv2.bitwise_and(road_img, road_img, mask=cv2.bitwise_not(lane_mask))
+    road_indices = np.where(filtered_road_boundaries == 255)
+    road_contour = np.column_stack((road_indices[1], road_indices[0]))
+    # filter out smaller road boundary clusters
+    clust_road_points = _cluster_points(road_contour, eps=30, min_samples=5)
+    road_boundaries = [clust for clust in clust_road_points if len(clust) > 500]
+    if len(road_boundaries) > 0:
+        road_boundaries_points = np.vstack(road_boundaries)
+        road_boundary_img = np.zeros_like(road_img)
+        road_boundary_img[road_boundaries_points[:, 1], road_boundaries_points[:, 0]] = 255
+        combined_img = cv2.bitwise_or(lane_img, road_boundary_img)
+        cv2.imwrite(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png', combined_img)
+        road_indices = np.where(combined_img == 255)
+        return np.column_stack((road_indices[1], road_indices[0]))
+    else:
+        # return lane contours since there are no important road boundary components to merge in
+        return lane_points
+
 
 
 if __name__ == '__main__':
@@ -233,12 +277,16 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     input_data_path = args.input_data_path
-
-    for image in os.listdir(input_data_path):
-        if not image.endswith('1_lanes.png'):
-            continue
-        _, _, input_list = get_image_lane_points(os.path.join(input_data_path, image))
-        print(f"Number of updated contours found = {len(input_list[0])} for {image}")
-        print(f"the first contour shape: {input_list[0].shape} for {image}")
+    input_lane_points = input_road_points = None
+    images = [image[:-4] for image in os.listdir(input_data_path) if image.endswith('1.png')]
+    print(f'images: {images}')
+    for img in images:
+        lane_image_with_path = os.path.join(input_data_path, f'{img}_lanes.png')
+        _, img_hgt, input_lane_img, input_list = get_image_lane_points(lane_image_with_path)
+        input_lane_points = input_list[0]
+        road_image_with_path = os.path.join(input_data_path, f'{img}.png')
+        _, _, input_road_img, input_list = get_image_road_points(road_image_with_path)
+        input_road_points = input_list[0]
+        combine_lane_and_road_boundary(input_lane_points, input_lane_img, input_road_img, road_image_with_path)
 
     sys.exit()
