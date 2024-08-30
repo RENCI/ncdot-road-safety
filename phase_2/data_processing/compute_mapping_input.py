@@ -9,7 +9,8 @@ from PIL import Image
 from sklearn.linear_model import LinearRegression
 import cv2
 from math import cos
-from utils import SegmentationClass, get_data_from_image, get_camera_latlon_and_bearing_for_image_from_mapping, \
+from utils import SegmentationClass, get_data_from_image, get_mapping_dataframe, \
+    get_camera_latlon_and_bearing_for_image_from_mapping, \
     compute_match, bearing_between_two_latlon_points, LIDARClass
 from common.utils import MAX_OBJ_DIST_FROM_CAM
 
@@ -129,7 +130,7 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
                                 (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
         sub_lidar_df['PROJ_SCREEN_X'] = sub_lidar_df['PROJ_SCREEN_X'] - xb_min
 
-        front_lidar_fit_df = lidar_df[(lidar_df.C == LIDARClass.ROAD.value)
+        front_lidar_fit_df = lidar_df[(lidar_df.C == LIDARClass.ROAD.value | lidar_df.C == LIDARClass.BRIDGE.value)
                                       & (lidar_df.CAM_DIST_M < MAX_OBJ_DIST_FROM_CAM)
                                       & (lidar_df.PROJ_SCREEN_X >= 0) & (lidar_df.PROJ_SCREEN_X < image_width)
                                       & (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
@@ -427,9 +428,7 @@ if __name__ == '__main__':
     if route_id:
         df = df[df.ROUTEID == route_id]
 
-    mapping_df = pd.read_csv(input_sensor_mapping_file_with_path,
-                             usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE','LONGITUDE'], dtype=str)
-    mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
+    mapping_df = get_mapping_dataframe(input_sensor_mapping_file_with_path)
     img_input_list = []
     df.apply(lambda row: compute_mapping_input(mapping_df, input_depth_image_path,
                                                row['MAPPED_IMAGE'], row[model_col_header],

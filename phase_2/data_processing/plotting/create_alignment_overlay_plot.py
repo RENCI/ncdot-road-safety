@@ -10,16 +10,16 @@ from data_processing.utils import load_pickle_data, LIDARClass, compute_match
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_2d', type=str,
                     # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/input_2d_92600542024.pkl',
-                    default='../data/new_test_scene/lane_test/input_2d_88100095421.pkl',
+                    default='../data/d13_route_40001001012/test/input_2d_88100042618.pkl',
                     help='2d vertices')
 parser.add_argument('--input_3d_proj', type=str,
                     # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/'
                     #         'lidar_project_info_926005420241.csv',
-                    default='../data/new_test_scene/lane_test/lidar_project_info_88100095421.csv',
+                    default='../data/d13_route_40001001012/test/lidar_project_info_88100042618.csv',
                     help='3d projection vertices')
 parser.add_argument('--overlay_bg_image_path', type=str,
                     # default='data/d13_route_40001001011/other/926005420241.jpg',
-                    default='../data/new_test_scene/images/881000954211.jpg',
+                    default='../data/d13_route_40001001012/images/881000426181.jpg',
                     help='original background image for overlay with the scatter plots')
 parser.add_argument('--image_crossroad_intersect_file', type=str,
                     # default='data/new_test_scene/output/image_881000952181_crossroad_intersects.csv',
@@ -79,7 +79,8 @@ if show_intersect_only:
     input_3d_proj_df = input_3d_proj_df[input_3d_proj_df['I'] > 0]
 elif show_lidar_road_only:
     if 'C' in input_3d_proj_df.columns:
-        input_3d_proj_df = input_3d_proj_df[input_3d_proj_df.C == LIDARClass.ROAD.value]
+        input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.C == LIDARClass.ROAD.value) |
+                                            (input_3d_proj_df.C == LIDARClass.BRIDGE.value)]
     if 'BOUND' in input_3d_proj_df.columns:
         input_3d_proj_df = input_3d_proj_df[input_3d_proj_df.BOUND == 1]
 print(f'image_height: {image_height}, image_width: {image_width}, len: {len(input_3d_proj_df)}')

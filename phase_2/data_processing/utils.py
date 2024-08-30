@@ -27,6 +27,7 @@ class LIDARClass(Enum):
     BUILDING = 6
     POLE = 15
     GROUND = 2
+    BRIDGE = 17
     LOW_VEG = 3
     MEDIUM_VEG = 4
     HIGH_VEG = 5
@@ -131,6 +132,13 @@ def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2, is_degree):
     theta = atan2(y, x)
     # normalize angle to be between 0 and 360
     return normalize(theta, is_degree=is_degree)
+
+
+def get_mapping_dataframe(mapping_file):
+    mapping_df = pd.read_csv(mapping_file,
+                             usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE'], dtype=str)
+    mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
+    return mapping_df
 
 
 def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_image, is_degree=True):

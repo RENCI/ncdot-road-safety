@@ -11,7 +11,7 @@ from scipy.interpolate import UnivariateSpline
 from math import radians, tan
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    angle_between
+    angle_between, get_mapping_dataframe
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_lane_points, get_image_road_points
@@ -604,7 +604,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges_sr.csv',
+                        default='data/d13_route_40001001012/'
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
                         default='data/d13_route_40001001012/segmentation',
@@ -668,9 +669,7 @@ if __name__ == '__main__':
     input_df['OBJ_BASE_TRANS_LIST'] = input_df['OBJ_BASE_TRANS_LIST'].apply(lambda x: x if isinstance(x, list) else [])
     start_time = time.time()
 
-    map_df = pd.read_csv(input_sensor_mapping_file_with_path,
-                         usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE'], dtype=str)
-    map_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
+    map_df = get_mapping_dataframe(input_sensor_mapping_file_with_path)
 
     input_df[[BASE_CAM_PARA_COL_NAME, OPTIMIZED_CAM_PARA_COL_NAME]] = input_df.apply(lambda row: align_image_to_lidar(
         row,

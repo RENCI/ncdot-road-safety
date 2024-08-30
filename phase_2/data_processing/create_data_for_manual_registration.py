@@ -3,7 +3,7 @@ import os
 import sys
 import pandas as pd
 import numpy as np
-from utils import bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df, create_gdf_from_df
+from utils import bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df, get_mapping_dataframe
 from get_road_boundary_points import get_image_lane_points
 from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_coordinate_system, compute_match, \
     get_mapping_data, get_input_file_with_images, extract_lidar_3d_points_for_camera, LIDAR_DIST_THRESHOLD
@@ -25,7 +25,7 @@ def create_data(image_name_with_path, seg_lane_dir, input_lidar_file, input_mapp
     ldf = get_aerial_lidar_road_geo_df(input_lidar_file)
 
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = get_mapping_data(
-        input_mapping_file, input_2d_mapped_image)
+        get_mapping_dataframe(input_mapping_file), input_2d_mapped_image)
 
     # get the lidar road vertex with the closest distance to the camera location
     nearest_idx = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])[0][0]
@@ -71,7 +71,8 @@ def create_data(image_name_with_path, seg_lane_dir, input_lidar_file, input_mapp
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges_sr.csv',
+                        default='data/d13_route_40001001012/'
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr.csv',
                         help='input file that contains x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         default='data/d13_route_40001001012/segmentation',
@@ -95,7 +96,7 @@ if __name__ == '__main__':
                         help='input file that contains road x, y, z vertices from lidar along with a I column '
                              'indicating whether the vertex is part of crossroad intersection or not')
     parser.add_argument('--output_lidar_file_base', type=str,
-                        default='data/d13_route_40001001012/manual_registration/new/lidar_info',
+                        default='data/d13_route_40001001012/manual_registration/lidar_info',
                         help='output lidar file base with path which will be appended with image name '
                              'to have lidar INITIAL WORLD coordinate info for each input image')
 
