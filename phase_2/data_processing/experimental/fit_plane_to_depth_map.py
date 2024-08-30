@@ -122,7 +122,7 @@ if __name__ == '__main__':
             else:
                 input_data = df.to_numpy()
         elif ext == '.png':
-            image_width, image_height, road_contours, _ = get_image_road_points(input_depth_map, boundary_only=True)
+            image_width, image_height, _, road_contours = get_image_road_points(input_depth_map, boundary_only=True)
             base_img_file_name = os.path.splitext(input_depth_map)[0].split('/')[-1]
             loader = PFMLoader((image_width, image_height), color=False, compress=False)
             input_pfm = get_depth_data(loader, input_depth_image_filename_pattern.format(

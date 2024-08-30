@@ -15,7 +15,7 @@ def create_data(image_name_with_path, seg_lane_dir, input_lidar_file, input_mapp
     # get input image base name
     input_2d_mapped_image = os.path.basename(image_name_with_path)[:-4]
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
-    img_width, img_height, input_list = get_image_lane_points(lane_image_name)
+    img_width, img_height, _, input_list = get_image_lane_points(lane_image_name)
 
     input_2d_points = input_list[0]
 

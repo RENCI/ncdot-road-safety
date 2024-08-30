@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH --job-name=d14-939-954
-#SBATCH --output=output.d14-939-954
-#SBATCH --error=output_err.d14-939-954
+#SBATCH --job-name=d14-939-953
+#SBATCH --output=output.d14-939-953
+#SBATCH --error=output_err.d14-939-953
 #SBATCH -p gpu
 #SBATCH -c 16
 #SBATCH --mem-per-cpu=2048

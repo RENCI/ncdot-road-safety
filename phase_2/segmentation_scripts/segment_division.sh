@@ -16,7 +16,7 @@ for job_file in "${job_files[@]}"; do
         # Join previous job IDs with commas
         dependencies=$(IFS=,; echo "${job_ids[*]}")
         # Submit the job with dependencies
-        job_id=$(sbatch --dependency=aftercorr:$dependencies "$job_file" | awk '{print $NF}')
+        job_id=$(sbatch --dependency=afterany:$dependencies "$job_file" | awk '{print $NF}')
     else
         # Submit the first job without dependencies
         job_id=$(sbatch "$job_file" | awk '{print $NF}')
