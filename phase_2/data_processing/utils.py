@@ -134,9 +134,11 @@ def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2, is_degree):
     return normalize(theta, is_degree=is_degree)
 
 
-def get_mapping_dataframe(mapping_file):
+def get_mapping_dataframe(mapping_file, route_id=''):
     mapping_df = pd.read_csv(mapping_file,
                              usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE'], dtype=str)
+    if route_id:
+        mapping_df = mapping_df[mapping_df['ROUTEID'] == route_id]
     mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
     return mapping_df
 
