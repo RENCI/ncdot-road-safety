@@ -2,7 +2,7 @@ import argparse
 import os
 import numpy as np
 import pandas as pd
-from scipy.spatial import cKDTree
+from scipy.spatial import KDTree
 from utils import get_aerial_lidar_road_geo_df, get_mapping_dataframe, add_lidar_x_y_from_lat_lon
 
 
@@ -102,13 +102,13 @@ if __name__ == '__main__':
         })
         # Build a KDTree for fast nearest neighbor search
         camline_points = np.vstack([cam_geom_df['x'].values, cam_geom_df['y'].values]).T
-        camline_kdtree = cKDTree(camline_points)
-        gdf_bound['SIDE'] = gdf_bound.apply(lambda row: classify_lidar_point(np.array([row['X'], row['Y']]),
-                                                                             camline_kdtree, cam_geom_df), axis=1)
-        gdf_with_bound['SIDE'] = gdf_bound.apply(lambda row: row['SIDE'], axis=1)
+        camline_kdtree = KDTree(camline_points)
+        gdf_with_bound['SIDE'] = gdf_with_bound.apply(
+            lambda row: classify_lidar_point(np.array([row['X'], row['Y']]), camline_kdtree, cam_geom_df)
+            if row['BOUND'] == 1 else None, axis=1)
         gdf_with_bound.to_csv(f'{os.path.splitext(input_lidar_with_bound)[0]}_sides.csv', index=False)
 
     if output_latlon_lidar_basename:
-        output_latlon_from_geometry(gdf_bound, 'geometry_y',
+        output_latlon_from_geometry(gdf_with_bound[gdf_with_bound.BOUND == 1].copy(), 'geometry_y',
                                     f'{output_latlon_lidar_basename}_bounds_latlon.csv')
     exit()

@@ -4,6 +4,7 @@ from math import radians, cos, sin, asin, atan2, degrees, pi
 import pickle
 import pandas as pd
 import geopandas as gpd
+from scipy.spatial import KDTree
 from shapely.geometry import Point
 from enum import Enum
 
