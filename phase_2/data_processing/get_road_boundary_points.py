@@ -77,7 +77,7 @@ def _is_cluster_centered(left_cluster, middle_cluster, right_cluster):
     return abs((middle_centroid_x - left_centroid_x) - (right_centroid_x - middle_centroid_x)) < 100
 
 
-def get_image_lane_points(image_file_name):
+def get_image_lane_points(image_file_name, save_processed_image=False):
     image_width, image_height, img = get_data_from_image(image_file_name)
     # remove unwanted pixels
     kernel = np.ones((1, 3), np.uint8)
@@ -87,8 +87,6 @@ def get_image_lane_points(image_file_name):
 
     img[img != 0] = 0
     img[mask == 1] = 255
-    # binary_data = np.uint8(img)
-    # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_contour.png')
 
     # extract lane contour points
     lane_indices = np.where(img == 255)
@@ -160,8 +158,10 @@ def get_image_lane_points(image_file_name):
     filtered_lane_contour = lane_contour[distance_to_axis > 25]
     img[img != 0] = 0
     img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
-    binary_data = np.uint8(img)
-    Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
+
+    if save_processed_image:
+        binary_data = np.uint8(img)
+        Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
 
     return image_width, image_height, img, [filtered_lane_contour], axis, centroid
 
@@ -173,8 +173,7 @@ def get_image_road_points(image_file_name, boundary_only=True):
     seg_img[seg_img != 255] = 0
 
     process_img, process_contour = process_boundary_in_image(seg_img)
-    # binary_data = np.uint8(process_img)
-    # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
+
     if boundary_only:
         return image_width, image_height, process_img, process_contour
     else:
@@ -215,7 +214,7 @@ def get_image_road_points(image_file_name, boundary_only=True):
         return image_width, image_height, process_img, [np.array(filled_points)]
 
 
-def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_name):
+def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_name, save_processed_image=False):
     # get mask created from two lanes for masking out road boundaries
     clust_points = _cluster_points(lane_points, eps=30, min_samples=5)
 
@@ -260,7 +259,8 @@ def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_n
         road_boundary_img = np.zeros_like(road_img)
         road_boundary_img[road_boundaries_points[:, 1], road_boundaries_points[:, 0]] = 255
         combined_img = cv2.bitwise_or(lane_img, road_boundary_img)
-        cv2.imwrite(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png', combined_img)
+        if save_processed_image:
+            cv2.imwrite(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png', combined_img)
         road_indices = np.where(combined_img == 255)
         return np.column_stack((road_indices[1], road_indices[0]))
     else:

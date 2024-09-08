@@ -522,7 +522,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
                                  input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy(), 1, 0.0)
     print(f'lane shape matching score: {lane_score}')
     if lane_score > SHAPE_MATCHING_SCORE_THRESHOLD:
-        seg_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1.png')
+        seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
         img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
         input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img, seg_image_name)
         input_list = [input_2d_points]
