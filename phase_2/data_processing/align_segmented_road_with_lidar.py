@@ -256,7 +256,7 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, alignment_er
 
     df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
         row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-        df_2d['X'], df_2d['Y'], grid=True)[1], axis=1)
+        df_2d['X'], df_2d['Y'], side=row['SIDE'], series_side=df_2d['SIDE'])[1], axis=1)
     alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
     if alignment_error > alignment_error_threshold:
         raise ResetOptimizationCondition(CAMERA_ALIGNMENT_RESET_REASONS[1], alignment_error)
@@ -516,6 +516,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     input_3d_gdf.to_csv(os.path.join(out_proj_file_path, f'base_lidar_project_info_{row["imageBaseName"]}.csv'),
                         index=False)
     input_3d_road_bound_gdf = input_3d_gdf[input_3d_gdf.BOUND == 1].reset_index(drop=True).copy()
+    if 'SIDE' in cols:
+        input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
     # compare shape similarity between projected LIDAR road edge points (input_3d_road_bound_gdf) and input_2d_points
     lane_score = cv2.matchShapes(input_2d_points,
                                  input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy(), 1, 0.0)

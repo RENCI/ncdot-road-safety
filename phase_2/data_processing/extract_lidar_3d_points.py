@@ -59,6 +59,8 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
                 inc_cols.append('I')
             if 'BOUND' in df.columns:
                 inc_cols.append('BOUND')
+            if 'SIDE' in df.columns:
+                inc_cols.append('SIDE')
         elif 'C' in df.columns:
             inc_cols = ['POINT_X', 'POINT_Y', 'POINT_Z', 'C']
         else:

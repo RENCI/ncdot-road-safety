@@ -106,8 +106,9 @@ if __name__ == '__main__':
         camline_kdtree = KDTree(camline_points)
         gdf_with_bound['SIDE'] = gdf_with_bound.apply(
             lambda row: classify_lidar_point(np.array([row['X'], row['Y']]), camline_kdtree, cam_geom_df)
-            if row['BOUND'] == 1 else None, axis=1)
+            if row['BOUND'] == 1 else -1, axis=1)
         gdf_with_bound.drop(columns=['geometry_x', 'geometry_y'], inplace=True)
+        gdf_with_bound['SIDE'] = gdf_with_bound.SIDE.astype(int)
         gdf_with_bound.to_csv(f'{os.path.splitext(input_lidar_with_bound)[0]}_sides.csv', index=False)
 
     if output_latlon_lidar_basename:

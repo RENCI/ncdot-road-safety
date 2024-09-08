@@ -218,7 +218,8 @@ def get_aerial_lidar_road_geo_df(input_file):
         gdf = gdf.rename(columns={'EDGE': 'BOUND'})
     if 'Boundary' in gdf.columns:
         gdf.Boundary = gdf.Boundary.apply(lambda x: 1 if x == 'True' else 0)
-
+    if 'SIDE' in gdf.columns:
+        gdf['SIDE'] = gdf['SIDE'].astype(int)
     # Create a new geometry column with Point objects
     gdf.geometry = [Point(x, y, z) for x, y, z in zip(gdf['X'], gdf['Y'], gdf['Z'])]
     gdf.crs = 'epsg:6543'
