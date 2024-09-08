@@ -1,7 +1,6 @@
 import argparse
 import os
 import time
-import pickle
 import pandas as pd
 import numpy as np
 import cv2
@@ -529,8 +528,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         input_list = [input_2d_points]
 
     # output 2d road boundary points for showing alignment overlay plot
-    with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
-        pickle.dump(input_list, f)
+    # with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
+    #     pickle.dump(input_list, f)
 
     if input_2d_points.shape[1] == 2:
         # classify each point as left or right side
@@ -540,6 +539,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
             'Y': input_2d_points[:, 1],
             'SIDE': input_2d_sides
         })
+        input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
     else:
         print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, exiting')
         exit(1)

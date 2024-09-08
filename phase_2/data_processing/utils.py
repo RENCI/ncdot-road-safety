@@ -302,5 +302,5 @@ def classify_road_edge_points_to_sides(middle_axis, middle_centroid, edge_points
     Classify each road edge point as either left or right side based on the middle axis and middle_centroid point.
     """
     return np.array([
-        ROADSIDE.LEFT.value if np.cross(middle_axis, point - middle_centroid) > 0 else ROADSIDE.RIGHT.value
+        ROADSIDE.RIGHT.value if np.cross(middle_axis, point - middle_centroid) > 0 else ROADSIDE.LEFT.value
         for point in edge_points])
