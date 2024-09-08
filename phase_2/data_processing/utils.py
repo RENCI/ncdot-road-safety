@@ -33,6 +33,11 @@ class LIDARClass(Enum):
     HIGH_VEG = 5
 
 
+class ROADSIDE(Enum):
+    LEFT = 0
+    RIGHT = 1
+
+
 def add_lidar_x_y_from_lat_lon(df):
     """
     add X, Y columns representing LIDAR X, Y projection from LONGITUDE and LATITUDE columns in input df
@@ -134,9 +139,11 @@ def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2, is_degree):
     return normalize(theta, is_degree=is_degree)
 
 
-def get_mapping_dataframe(mapping_file):
+def get_mapping_dataframe(mapping_file, route_id=''):
     mapping_df = pd.read_csv(mapping_file,
                              usecols=['ROUTEID', 'MAPPED_IMAGE', 'LATITUDE', 'LONGITUDE'], dtype=str)
+    if route_id:
+        mapping_df = mapping_df[mapping_df['ROUTEID'] == route_id]
     mapping_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
     return mapping_df
 
@@ -211,7 +218,8 @@ def get_aerial_lidar_road_geo_df(input_file):
         gdf = gdf.rename(columns={'EDGE': 'BOUND'})
     if 'Boundary' in gdf.columns:
         gdf.Boundary = gdf.Boundary.apply(lambda x: 1 if x == 'True' else 0)
-
+    if 'SIDE' in gdf.columns:
+        gdf['SIDE'] = gdf['SIDE'].astype(int)
     # Create a new geometry column with Point objects
     gdf.geometry = [Point(x, y, z) for x, y, z in zip(gdf['X'], gdf['Y'], gdf['Z'])]
     gdf.crs = 'epsg:6543'
@@ -246,13 +254,19 @@ def convert_xy_to_lat_lon(x, y):
     return lat_lon_geom.y, lat_lon_geom.x
 
 
-def compute_match(x, y, series_x, series_y, grid=False):
+def compute_match(x, y, series_x, series_y, side=None, series_side=pd.Series(dtype='int8')):
     # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
-    # (series_x, series_y) pairs has minimal distance to point(x, y). If grid is set to True, grid-based matching
-    # will be applied meaning only those values of series_x and series_y within a grid will be used for matching
-    if grid is True:
+    # (series_x, series_y) pairs has minimal distance to point(x, y). If both side and series_side optional arguments
+    # are passed in where side indicate the left or right side the (x, y) point is in, and series_side indicates
+    # the left or right side each point in (series_x, series_y) is in, the search for matching point in the series
+    # will match the side so that (x, y) point will be matched with a point in (series_x, series_y) with closest
+    # distance on the same side. In addition, grid-based matching search will be applied when both side and series_side
+    # arguments are passed in meaning only those values of series_x and series_y within a grid will be used for matching
+    if side is not None and not series_side.empty:
+        filtered_series_x = series_x[series_side == side]
+        filtered_series_y = series_y[series_side == side]
         grid_th = 100
-        match_df = pd.DataFrame({'series_x': series_x, 'series_y': series_y})
+        match_df = pd.DataFrame({'series_x': filtered_series_x, 'series_y': filtered_series_y})
         match_df['distance_x'] = abs(match_df['series_x'] - x)
         match_df['distance_y'] = abs(match_df['series_y'] - y)
         max_grid_x, max_grid_y = max(match_df['distance_x']), max(match_df['distance_y'])
@@ -281,3 +295,12 @@ def compute_match_3d(x, y, z, series_x, series_y, series_z):
 def angle_between(v1, v2):
     """Calculate the angle in radians between two vectors."""
     return degrees(np.arccos(np.clip(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)), -1.0, 1.0)))
+
+
+def classify_road_edge_points_to_sides(middle_axis, middle_centroid, edge_points):
+    """
+    Classify each road edge point as either left or right side based on the middle axis and middle_centroid point.
+    """
+    return np.array([
+        ROADSIDE.RIGHT.value if np.cross(middle_axis, point - middle_centroid) > 0 else ROADSIDE.LEFT.value
+        for point in edge_points])

@@ -1,7 +1,6 @@
 import argparse
 import os
 import time
-import pickle
 import pandas as pd
 import numpy as np
 import cv2
@@ -9,9 +8,10 @@ from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 from scipy.interpolate import UnivariateSpline
 from math import radians, tan
+
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    angle_between, get_mapping_dataframe
+    angle_between, get_mapping_dataframe, classify_road_edge_points_to_sides
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary
@@ -255,7 +255,7 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, alignment_er
 
     df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
         row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-        df_2d['X'], df_2d['Y'], grid=True)[1], axis=1)
+        df_2d['X'], df_2d['Y'], side=row['SIDE'], series_side=df_2d['SIDE'])[1], axis=1)
     alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
     if alignment_error > alignment_error_threshold:
         raise ResetOptimizationCondition(CAMERA_ALIGNMENT_RESET_REASONS[1], alignment_error)
@@ -400,7 +400,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     print(f'lane_image_name: {lane_image_name}')
-    img_width, img_height, lane_image, input_list = get_image_lane_points(lane_image_name)
+    img_width, img_height, lane_image, input_list, m_axis, m_centroid = get_image_lane_points(lane_image_name)
     input_2d_points = input_list[0]
 
     # compute base camera parameters
@@ -515,6 +515,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     input_3d_gdf.to_csv(os.path.join(out_proj_file_path, f'base_lidar_project_info_{row["imageBaseName"]}.csv'),
                         index=False)
     input_3d_road_bound_gdf = input_3d_gdf[input_3d_gdf.BOUND == 1].reset_index(drop=True).copy()
+    if 'SIDE' in cols:
+        input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
     # compare shape similarity between projected LIDAR road edge points (input_3d_road_bound_gdf) and input_2d_points
     lane_score = cv2.matchShapes(input_2d_points,
                                  input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy(), 1, 0.0)
@@ -526,11 +528,18 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         input_list = [input_2d_points]
 
     # output 2d road boundary points for showing alignment overlay plot
-    with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
-        pickle.dump(input_list, f)
+    # with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
+    #     pickle.dump(input_list, f)
 
     if input_2d_points.shape[1] == 2:
-        input_2d_df = pd.DataFrame(data=input_2d_points, columns=['X', 'Y'])
+        # classify each point as left or right side
+        input_2d_sides = classify_road_edge_points_to_sides(m_axis, m_centroid, input_2d_points)
+        input_2d_df = pd.DataFrame({
+            'X': input_2d_points[:, 0],
+            'Y': input_2d_points[:, 1],
+            'SIDE': input_2d_sides
+        })
+        input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
     else:
         print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, exiting')
         exit(1)
@@ -627,7 +636,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
                         default='data/d13_route_40001001012/'
-                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr.csv',
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
                         default='data/d13_route_40001001012/segmentation',

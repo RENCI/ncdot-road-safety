@@ -8,7 +8,7 @@ from PIL import Image
 from skimage import morphology, measure
 from sklearn.cluster import DBSCAN
 
-from data_processing.utils import get_data_from_image, SegmentationClass
+from data_processing.utils import get_data_from_image, SegmentationClass, classify_road_edge_points_to_sides, ROADSIDE
 
 
 def get_road_intersections_by_y(contours, y):
@@ -132,7 +132,7 @@ def get_image_lane_points(image_file_name):
     if first_row_idx == -1 or last_row_idx == -1:
         print(f'cannot find start and end middle lane points to create a central axis for filtering: '
               f'first_row_idx: {first_row_idx}, last_row_idx: {last_row_idx}, returning')
-        return image_width, image_height, [], []
+        return image_width, image_height, [], [], None, None
 
     # calculate the central axis and centroid
     # find the central axis from the last row middle lane pixel (lower) to the first row middle lane pixel (upper)
@@ -163,7 +163,7 @@ def get_image_lane_points(image_file_name):
     binary_data = np.uint8(img)
     Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
 
-    return image_width, image_height, img, [filtered_lane_contour]
+    return image_width, image_height, img, [filtered_lane_contour], axis, centroid
 
 
 def get_image_road_points(image_file_name, boundary_only=True):
@@ -173,7 +173,7 @@ def get_image_road_points(image_file_name, boundary_only=True):
     seg_img[seg_img != 255] = 0
 
     process_img, process_contour = process_boundary_in_image(seg_img)
-    binary_data = np.uint8(process_img)
+    # binary_data = np.uint8(process_img)
     # Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
     if boundary_only:
         return image_width, image_height, process_img, process_contour
@@ -282,11 +282,23 @@ if __name__ == '__main__':
     print(f'images: {images}')
     for img in images:
         lane_image_with_path = os.path.join(input_data_path, f'{img}_lanes.png')
-        _, img_hgt, input_lane_img, input_list = get_image_lane_points(lane_image_with_path)
+        _, img_hgt, input_lane_img, input_list, m_axis, m_centroid = get_image_lane_points(lane_image_with_path)
         input_lane_points = input_list[0]
         road_image_with_path = os.path.join(input_data_path, f'{img}.png')
         _, _, input_road_img, input_list = get_image_road_points(road_image_with_path)
         input_road_points = input_list[0]
-        combine_lane_and_road_boundary(input_lane_points, input_lane_img, input_road_img, road_image_with_path)
+        filtered_contour = combine_lane_and_road_boundary(input_lane_points, input_lane_img, input_road_img,
+                                                          road_image_with_path)
+
+        # classify each point as left or right side
+        classified_sides = classify_road_edge_points_to_sides(m_axis, m_centroid, filtered_contour)
+        left_mask = classified_sides == ROADSIDE.LEFT.value  # Mask for left side points
+        right_mask = classified_sides == ROADSIDE.RIGHT.value  # Mask for right side points
+
+        input_lane_img[input_lane_img != 0] = 0
+        input_lane_img[filtered_contour[left_mask][:, 1], filtered_contour[left_mask][:, 0]] = 100
+        input_lane_img[filtered_contour[right_mask][:, 1], filtered_contour[right_mask][:, 0]] = 255
+        binary_data = np.uint8(input_lane_img)
+        Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(lane_image_with_path)[0]}_with_sides.png')
 
     sys.exit()

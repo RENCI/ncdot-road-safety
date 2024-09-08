@@ -1,19 +1,9 @@
 import argparse
 import os
-import sys
+import numpy as np
 import pandas as pd
-from utils import get_aerial_lidar_road_geo_df
-import matplotlib.pyplot as plt
-
-
-def is_boundary(pt, pts, grid_spacing):
-    x, y = pt
-    left_neigh = pts[(pts[:, 0] < x) & (pts[:, 1] >= y - grid_spacing) & (pts[:, 1] <= y + grid_spacing)]
-    right_neigh = pts[(pts[:, 0] > x) & (pts[:, 1] >= y - grid_spacing) & (pts[:, 1] <= y + grid_spacing)]
-    if left_neigh.size == 0 or right_neigh.size == 0:
-        return True
-    else:
-        return False
+from scipy.spatial import KDTree
+from utils import ROADSIDE, get_aerial_lidar_road_geo_df, get_mapping_dataframe, add_lidar_x_y_from_lat_lon
 
 
 def output_latlon_from_geometry(idf, geom_col, output_file_name):
@@ -30,8 +20,8 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
     sub_list = ['Latitude', 'Longitude', 'Z', 'X', 'Y']
     if 'C' in idf.columns:
         sub_list.append('C')
-    if 'I' in idf.columns:
-        sub_list.append('I')
+    if 'SIDE' in idf.columns:
+        sub_list.append('SIDE')
     if 'Boundary' in idf.columns:
         sub_list.append('Boundary')
     out_df = idf[sub_list]
@@ -44,75 +34,84 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
             f'{base}_internal{ext}', index=False)
 
 
+# classify LIDAR points into left or right sides based on closest camera centerline segment
+def classify_lidar_point(lidar_point, cl_tree, cl_df):
+    # Find the closest centerline point to the lidar point
+    _, closest_idx = cl_tree.query(lidar_point)
+
+    # If the closest point is the first centerline point, use its next point to create centerline segment; otherwise,
+    # use its previous point to create centerline segment
+    if closest_idx == 0:
+        idx1 = closest_idx
+        idx2 = closest_idx + 1
+    else:
+        idx1 = closest_idx - 1
+        idx2 = closest_idx
+
+    # Get the centerline segment points
+    p1 = cl_df.iloc[idx1][['x', 'y']].values
+    p2 = cl_df.iloc[idx2][['x', 'y']].values
+
+    # Centerline segment vector from p1 to p2
+    segment_vec = p2 - p1
+    # Vector from p1 to the lidar point
+    lidar_vec = lidar_point - p1
+    cross_product = np.cross(segment_vec, lidar_vec)
+
+    # Classify into L (left) or R (right) based on the sign of the cross product
+    return ROADSIDE.LEFT.value if cross_product > 0 else ROADSIDE.RIGHT.value
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
-    parser.add_argument('--input_lidar', type=str,
-                        default='',
-                        help='input rasterized lidar file with road points x, y, z in EPSG:6543 coordinate projection')
-    parser.add_argument('--input_lidar_bound', type=str,
-                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_with_edges_sr.csv',
+    parser.add_argument('--input_lidar_with_bound', type=str,
+                        default='data/d13_route_40001001012/route_40001001012_voxel_raster_1ft_with_edges_normalized_sr.csv',
                         help='input lidar file with road edge/bound points x, y, z in EPSG:6543 coordinate projection')
-    parser.add_argument('--output_lidar_boundary', type=str,
-                        default='',
-                        # default='data/new_test_scene/new_test_scene_all_raster_10_classified.csv',
-                        help='output rasterized lidar file with road points classified as edge or not')
+    parser.add_argument('--input_sensor_mapping_file', type=str,
+                        default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
+                        help='input csv file that includes mapped camera image lat/lon info')
+    parser.add_argument('--route_id', default='40001001012', help='input route id for processed data')
     parser.add_argument('--lidar_class_to_keep',
                         # default=['6', '11', '15'],
                         default=[],
                         help='filter lidar data to only keep desired classes; if it is empty, keep all classes')
     parser.add_argument('--output_latlon_lidar_basename', type=str,
-                        default='data/d13_route_40001001012/route_40001001012_raster_1ft_road_bounds',
-                        # default='data/d13_route_40001001011/lidar/route_40001001011_all',
+                        default='',
+                        # default='data/d13_route_40001001012/route_40001001012_voxel_raster_1ft_with_edges_bounds',
                         help='output lidar file with road points lat, lon, z in EPSG:4326 coordinate projection')
 
     args = parser.parse_args()
-    input_lidar = args.input_lidar
-    input_lidar_bound = args.input_lidar_bound
-    output_lidar_boundary = args.output_lidar_boundary
+    input_lidar_with_bound = args.input_lidar_with_bound
+    route_id = args.route_id
+    input_sensor_mapping_file = args.input_sensor_mapping_file
     output_latlon_lidar_basename = args.output_latlon_lidar_basename
     lidar_class_to_keep = args.lidar_class_to_keep
 
-    if input_lidar:
-        gdf = get_aerial_lidar_road_geo_df(input_lidar)
-        if 'C' in gdf.columns:
-            print(gdf.C.unique())
+    gdf_with_bound = get_aerial_lidar_road_geo_df(input_lidar_with_bound)
+    if 'C' in gdf_with_bound.columns and lidar_class_to_keep:
+        print(gdf_with_bound.C.unique())
+        gdf_with_bound = gdf_with_bound[gdf_with_bound.C.isin(lidar_class_to_keep)]
+    gdf_bound = gdf_with_bound[gdf_with_bound.BOUND == 1]
+    print(f'gdf_bound shape: {gdf_bound.shape}')
 
-            if lidar_class_to_keep:
-                gdf = gdf[gdf.C.isin(lidar_class_to_keep)]
+    if input_sensor_mapping_file:
+        map_df = get_mapping_dataframe(input_sensor_mapping_file, route_id=route_id)
+        cam_geom_series = add_lidar_x_y_from_lat_lon(map_df)
+        cam_geom_df = pd.DataFrame({
+            'x': cam_geom_series.apply(lambda p: p.x),
+            'y': cam_geom_series.apply(lambda p: p.y)
+        })
+        # Build a KDTree for fast nearest neighbor search
+        camline_points = np.vstack([cam_geom_df['x'].values, cam_geom_df['y'].values]).T
+        camline_kdtree = KDTree(camline_points)
+        gdf_with_bound['SIDE'] = gdf_with_bound.apply(
+            lambda row: classify_lidar_point(np.array([row['X'], row['Y']]), camline_kdtree, cam_geom_df)
+            if row['BOUND'] == 1 else -1, axis=1)
+        gdf_with_bound.drop(columns=['geometry_x', 'geometry_y'], inplace=True)
+        gdf_with_bound['SIDE'] = gdf_with_bound.SIDE.astype(int)
+        gdf_with_bound.to_csv(f'{os.path.splitext(input_lidar_with_bound)[0]}_sides.csv', index=False)
 
-        if output_lidar_boundary:
-            points = gdf[['X', 'Y']].to_numpy()
-            y_grid_sp = 5
-            gdf['Boundary'] = gdf.apply(lambda row: is_boundary([row['X'], row['Y']], points, y_grid_sp), axis=1)
-            df = gdf[['X', 'Y', 'Z', 'Boundary']]
-            df.to_csv(output_lidar_boundary, index=False)
-            # Plot result to verify
-            plt.figure(figsize=(8, 8))
-            plt.gca().invert_yaxis()
-            # sub_df = df[df.Y > 735000]
-            sub_df = df
-            print(df.shape, sub_df.shape)
-            bound_df = sub_df[sub_df.Boundary == True]
-            plt.scatter(sub_df['X'], sub_df['Y'], s=1, c='b')
-            plt.scatter(bound_df['X'], bound_df['Y'], s=2, c='r')
-            plt.show()
-
-    if input_lidar_bound:
-        gdf_bound = get_aerial_lidar_road_geo_df(input_lidar_bound)
-        gdf_bound = gdf_bound[gdf_bound.BOUND == 1]
-        print(f'gdf_bound shape: {gdf_bound.shape}')
-
-    if input_lidar and input_lidar_bound:
-        # combine two lidar points with an added column to indicate whether it belongs to edge/bound or not
-        gdf['BOUND'] = 0
-        gdf_bound['BOUND'] = 1
-        gdf_bound['I'] = 0
-        combined_df = pd.concat([gdf, gdf_bound], ignore_index=True)
-        combined_df = combined_df.drop(columns=['geometry_x', 'geometry_y'])
-        combined_df.to_csv(f'{output_latlon_lidar_basename}.csv', index=False)
-    elif input_lidar:
-        # output latlon csv file
-        output_latlon_from_geometry(gdf, 'geometry_y', f'{output_latlon_lidar_basename}_latlon.csv')
-    elif input_lidar_bound:
-        output_latlon_from_geometry(gdf_bound, 'geometry_y', f'{output_latlon_lidar_basename}_bounds_latlon.csv')
-    sys.exit()
+    if output_latlon_lidar_basename:
+        output_latlon_from_geometry(gdf_with_bound[gdf_with_bound.BOUND == 1].copy(), 'geometry_y',
+                                    f'{output_latlon_lidar_basename}_bounds_latlon.csv')
+    exit()
