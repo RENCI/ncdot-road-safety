@@ -4,7 +4,7 @@ import argparse
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import pandas as pd
-from data_processing.utils import load_pickle_data, LIDARClass, compute_match
+from data_processing.utils import load_pickle_data, LIDARClass
 
 
 parser = argparse.ArgumentParser(description='Process arguments.')
