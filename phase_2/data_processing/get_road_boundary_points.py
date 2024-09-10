@@ -101,6 +101,7 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     first_row_idx = last_row_idx = -1
 
     # determine the first and last row containing the central lane
+    filter_threshold = 25
     for i in range(len(rows_with_potential_lanes)):
         if first_row_idx == -1:
             first_row = lane_contour[lane_contour[:, 1] == rows_with_potential_lanes[i]]
@@ -113,6 +114,9 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
                 if _is_cluster_centered(left_cluster, middle_cluster, right_cluster):
                     first_row_idx = i
                     first_row_center = np.mean(middle_cluster, axis=0)  # Use the centroid of the middle cluster
+                    filter_dist = (np.max(right_cluster[:, 0]) - np.min(left_cluster[:, 0])) / 4
+                    if filter_dist > filter_threshold:
+                        filter_threshold = filter_dist
         if last_row_idx == -1:
             last_row = lane_contour[lane_contour[:, 1] == rows_with_potential_lanes[-(i+1)]]
             # sort x-coordinates of the last row
@@ -127,6 +131,7 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
 
         if first_row_idx > -1 and last_row_idx > -1:
             break
+
     if first_row_idx == -1 or last_row_idx == -1:
         print(f'cannot find start and end middle lane points to create a central axis for filtering: '
               f'first_row_idx: {first_row_idx}, last_row_idx: {last_row_idx}, returning')
@@ -142,6 +147,7 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     # Draw the central axis line for visual debugging
     # point1 = (int(first_row_center[0]), int(first_row_center[1]))
     # point2 = (int(last_row_center[0]), int(last_row_center[1]))
+    # binary_data = np.uint8(img)
     # color_image = cv2.cvtColor(binary_data, cv2.COLOR_GRAY2BGR)
     # cv2.line(color_image, point1, point2, (0, 0, 255), 2)  # Blue line for visibility
     # Image.fromarray(color_image, 'RGB').save(f'{os.path.splitext(image_file_name)[0]}_axis.png')
@@ -155,7 +161,8 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     distance_to_axis = np.linalg.norm(perpendicular_vector, axis=1)
 
     # Filter out points based on the threshold distance
-    filtered_lane_contour = lane_contour[distance_to_axis > 25]
+
+    filtered_lane_contour = lane_contour[distance_to_axis > filter_threshold]
     img[img != 0] = 0
     img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
 
@@ -217,7 +224,6 @@ def get_image_road_points(image_file_name, boundary_only=True):
 def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_name, save_processed_image=False):
     # get mask created from two lanes for masking out road boundaries
     clust_points = _cluster_points(lane_points, eps=30, min_samples=5)
-
     # only use the top two clusters which should represent the left and right lanes
     if len(clust_points) >= 3:
         clust_points.sort(key=len, reverse=True)
