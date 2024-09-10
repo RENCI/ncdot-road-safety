@@ -236,7 +236,7 @@ class SkipOptimizationException(Exception):
     pass
 
 
-def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, alignment_error_threshold, align_errors):
+def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
@@ -257,8 +257,6 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, alignment_er
         row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
         df_2d['X'], df_2d['Y'], side=row['SIDE'], series_side=df_2d['SIDE'])[1], axis=1)
     alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
-    if alignment_error > alignment_error_threshold:
-        raise SkipOptimizationException(CAMERA_ALIGNMENT_RESET_REASONS[1], alignment_error)
     align_errors.append(alignment_error)
     return alignment_error
 
@@ -546,45 +544,44 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
 
     if do_fov_optimize:
         start_idx = 1
-        cam_para_bounds = [((INIT_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] - FOV_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] + FOV_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] - X_TRAN_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] + X_TRAN_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] - Y_TRAN_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] + Y_TRAN_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - Z_TRAN_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + Z_TRAN_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] - Z_ROT_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] + Z_ROT_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] - Y_ROT_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] + Y_ROT_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_ROT_X] - X_ROT_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_ROT_X] + X_ROT_MAX_OFFSET))]
+        cam_para_bounds = [((PREV_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] - FOV_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] + FOV_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] - X_TRAN_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] + X_TRAN_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] - Y_TRAN_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] + Y_TRAN_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - Z_TRAN_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + Z_TRAN_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_Z] - Z_ROT_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_Z] + Z_ROT_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_Y] - Y_ROT_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_Y] + Y_ROT_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_X] - X_ROT_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_X] + X_ROT_MAX_OFFSET))]
         cam_output_columns = ['fov', 'translation_x', 'translation_y', 'translation_z',
                               'rotation_z', 'rotation_y', 'rotation_x']
     else:
         start_idx = 2
-        cam_para_bounds = [((INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] - X_TRAN_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] + X_TRAN_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] - Y_TRAN_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] + Y_TRAN_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - Z_TRAN_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + Z_TRAN_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] - Z_ROT_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] + Z_ROT_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] - Y_ROT_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] + Y_ROT_MAX_OFFSET)),
-                           ((INIT_CAM_OBJ_PARAS[OBJ_ROT_X] - X_ROT_MAX_OFFSET),
-                            (INIT_CAM_OBJ_PARAS[OBJ_ROT_X] + X_ROT_MAX_OFFSET))]
+        cam_para_bounds = [((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] - X_TRAN_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] + X_TRAN_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] - Y_TRAN_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] + Y_TRAN_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - Z_TRAN_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + Z_TRAN_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_Z] - Z_ROT_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_Z] + Z_ROT_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_Y] - Y_ROT_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_Y] + Y_ROT_MAX_OFFSET)),
+                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_X] - X_ROT_MAX_OFFSET),
+                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_X] + X_ROT_MAX_OFFSET))]
         cam_output_columns = ['translation_x', 'translation_y', 'translation_z',
                               'rotation_z', 'rotation_y', 'rotation_x']
 
-    align_err_threshold = 5000
     align_errors = []
     try:
         result = minimize(objective_function_2d, init_cam_paras[start_idx:],
                           args=(input_3d_road_bound_gdf,
-                                input_2d_df, img_width, img_height, align_err_threshold, align_errors),
+                                input_2d_df, img_width, img_height, align_errors),
                           method='Nelder-Mead',
                           # bounds in the order of OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET, \
                           # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
@@ -592,9 +589,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
                           options={'maxiter': NUM_ITERATIONS, 'disp': True})
     except SkipOptimizationException as ex:
         print(ex)
-        if ex.exception_reason == CAMERA_ALIGNMENT_RESET_REASONS[1]:
-            print(f'alignment error ({ex.exception_value}) exceeds threshold {align_err_threshold}, skip this image')
-        elif ex.exception_reason == CAMERA_ALIGNMENT_RESET_REASONS[0]:
+        if ex.exception_reason == CAMERA_ALIGNMENT_RESET_REASONS[0]:
             # reset to initial condition does not work for this image
             print(f'Too few LIDAR points ({ex.exception_value}) remain for alignment, skip this image')
         return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
