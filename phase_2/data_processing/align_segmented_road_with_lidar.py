@@ -506,6 +506,11 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     PREV_CAM_BEARING_VEC['camera'] = cam_v
     PREV_CAM_BEARING_VEC['road'] = road_v
 
+    if m_axis is None or m_centroid is None:
+        # no middle lane axis and centroid can be computed from segmented road lanes, which indicates a
+        # complicated road scene such as 4-way intersection, need to skip this image and return without optimization
+        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
+
     # output base lidar project info to base_lidar_project_info_{image_base_name}.csv file since the base
     # camera orientation/bearing info is updated from the optimized version of its previous image using
     # road tangent info. The optimization is based on updated camera base parameters
@@ -523,11 +528,6 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
         img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
         input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img, seg_image_name)
-        input_list = [input_2d_points]
-
-    # output 2d road boundary points for showing alignment overlay plot
-    # with open(os.path.join(os.path.dirname(out_proj_file), f'input_2d_{input_2d_mapped_image}.pkl'), 'wb') as f:
-    #     pickle.dump(input_list, f)
 
     if input_2d_points.shape[1] == 2:
         # classify each point as left or right side
@@ -539,8 +539,9 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         })
         input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
     else:
-        print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, exiting')
-        exit(1)
+        print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, skip this image '
+              f'and return without optimization')
+        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
 
     if do_fov_optimize:
         start_idx = 1

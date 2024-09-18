@@ -257,7 +257,6 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     distance_to_axis = np.linalg.norm(perpendicular_vector, axis=1)
 
     # Filter out points based on the threshold distance
-
     filtered_lane_contour = lane_contour[distance_to_axis > filter_threshold]
     lane_img[lane_img != 0] = 0
     lane_img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
@@ -361,7 +360,7 @@ def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_n
 
     # filter out smaller road boundary clusters
     clust_road_points = _cluster_points(road_contour, eps=30, min_samples=5)
-    road_boundaries = [clust for clust in clust_road_points if len(clust) > 500]
+    road_boundaries = [clust for clust in clust_road_points if len(clust) > 10]
     if len(road_boundaries) > 0:
         road_boundaries_points = np.vstack(road_boundaries)
         road_boundary_img = np.zeros_like(road_img)
