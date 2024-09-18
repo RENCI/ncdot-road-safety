@@ -333,8 +333,8 @@ def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_n
 
     # extend the top point of both lanes vertically to the image top so that everything
     # between two lanes will be masked out
-    clust_points[0] = np.vstack((np.array([clust_points[0][0][0], 0]), clust_points[0]))
-    clust_points[1] = np.vstack((np.array([clust_points[1][0][0], 0]), clust_points[1]))
+    # clust_points[0] = np.vstack((np.array([clust_points[0][0][0], 0]), clust_points[0]))
+    # clust_points[1] = np.vstack((np.array([clust_points[1][0][0], 0]), clust_points[1]))
     # move left lane certain pixels to the left and right lane to the right to mask out
     # corresponding road boundary lanes since lane lines will be used in the combined image
     if clust_points[0][0][0] < clust_points[1][0][0]:
@@ -395,6 +395,7 @@ if __name__ == '__main__':
         road_image_with_path = os.path.join(input_data_path, f'{img}.png')
         _, _, input_road_img, input_list = get_image_road_points(road_image_with_path)
         input_road_points = input_list[0]
+
         filtered_contour = combine_lane_and_road_boundary(input_lane_points, input_lane_img, input_road_img,
                                                           road_image_with_path, save_processed_image=True)
 
