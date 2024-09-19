@@ -412,7 +412,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
                                                                 end_of_route=eor,
-                                                                fov=(INIT_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] / 2 + 5))
+                                                                fov=90)
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}, {cols}')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=cols)
