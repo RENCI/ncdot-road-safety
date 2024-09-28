@@ -30,9 +30,9 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_
 CAM_NEAR = 0.1
 # camera pose parameter bound constraints put on optimizer
 FOV_OFFSET = 2
-X_TRAN_MAX_OFFSET = Y_TRAN_MAX_OFFSET = 1
-Z_TRAN_MAX_OFFSET = 2
-X_ROT_MAX_OFFSET = Y_ROT_MAX_OFFSET = Z_ROT_MAX_OFFSET = 2
+X_TRAN_MAX_OFFSET = Y_TRAN_MAX_OFFSET = 20
+Z_TRAN_MAX_OFFSET = 20
+X_ROT_MAX_OFFSET = Y_ROT_MAX_OFFSET = Z_ROT_MAX_OFFSET = 90
 
 # Shape matching similarity score threshold for switching from using road lane segmentation to using segmented road
 # boundaries
@@ -620,27 +620,27 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        default='data/d13_route_40001001012/'
+                        default='data_processing/data/d13_route_40001001012/'
                                 'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
-                        default='data/d13_route_40001001012/segmentation',
+                        default='data_processing/data/d13_route_40001001012/segmentation',
                         help='directory to retrieve segmentation images')
     parser.add_argument('--lane_seg_dir', type=str,
-                        default='data/d13_route_40001001012/segmentation',
+                        default='data_processing/data/d13_route_40001001012/segmentation',
                         help='directory to retrieve segmented road lane images')
     parser.add_argument('--obj_image_input', type=str,
-                        default='data/d13_route_40001001012/route_input.csv',
+                        default='data_processing/data/d13_route_40001001012/route_input.csv',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
-                        default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
+                        default='data_processing/data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_init_cam_param_file_with_path', type=str,
-                        default='data/d13_route_40001001012/initial_camera_params.csv',
+                        default='data_processing/data/d13_route_40001001012/initial_camera_params.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--lidar_proj_output_file_path', type=str,
-                        default='data/d13_route_40001001012/test',
+                        default='data_processing/data/d13_route_40001001012/test',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
     parser.add_argument('--optimize_fov', action="store_true",
