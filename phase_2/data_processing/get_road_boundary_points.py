@@ -399,14 +399,15 @@ if __name__ == '__main__':
                                                           road_image_with_path, save_processed_image=True)
 
         # classify each point as left or right side
-        classified_sides = classify_road_edge_points_to_sides(m_axis, m_centroid, filtered_contour)
-        left_mask = classified_sides == ROADSIDE.LEFT.value  # Mask for left side points
-        right_mask = classified_sides == ROADSIDE.RIGHT.value  # Mask for right side points
+        if m_axis is not None and m_centroid is not None:
+            classified_sides = classify_road_edge_points_to_sides(m_axis, m_centroid, filtered_contour)
+            left_mask = classified_sides == ROADSIDE.LEFT.value  # Mask for left side points
+            right_mask = classified_sides == ROADSIDE.RIGHT.value  # Mask for right side points
 
-        input_lane_img[input_lane_img != 0] = 0
-        input_lane_img[filtered_contour[left_mask][:, 1], filtered_contour[left_mask][:, 0]] = 100
-        input_lane_img[filtered_contour[right_mask][:, 1], filtered_contour[right_mask][:, 0]] = 255
-        binary_data = np.uint8(input_lane_img)
-        Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(lane_image_with_path)[0]}_with_sides.png')
+            input_lane_img[input_lane_img != 0] = 0
+            input_lane_img[filtered_contour[left_mask][:, 1], filtered_contour[left_mask][:, 0]] = 100
+            input_lane_img[filtered_contour[right_mask][:, 1], filtered_contour[right_mask][:, 0]] = 255
+            binary_data = np.uint8(input_lane_img)
+            Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(lane_image_with_path)[0]}_with_sides.png')
 
     sys.exit()
