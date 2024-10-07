@@ -556,7 +556,6 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     except ValueError as ex:
         print(f'cannot matching lane shapes due to exception: {ex}, skip this image {row["imageBaseName"]}')
         lane_score = np.inf
-    print(f'lane shape matching score: {lane_score} for image {row["imageBaseName"]}')
 
     # compare shape similarity after combining lane and road boundary
     seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
@@ -574,15 +573,16 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         print(f'matching scores for both lane and combined lane with road boundaries do not match LIDAR data, '
               f'skip this image {row["imageBaseName"]}')
         return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
-    if lane_score > combined_score:
-        # use combined lane and road boundary for better matching with LIDAR road edges
-        input_2d_points = input_2d_points_combined
-        if m_points is not None:
-            # insert the top point in filtered_contour to m_points to account of the far end
-            # curved segment that is not part of the segmented lane but part of the road segmentation boundary
-            min_y_index = np.argmin(input_2d_points[:, 1])
-            if m_points[0, 1] - input_2d_points[min_y_index, 1] > 10:
-                m_points = np.vstack((input_2d_points[min_y_index, :], m_points))
+    print(f'lane shape matching score: {lane_score}, combined shape matching score: {combined_score} for image {row["imageBaseName"]}')
+    # if lane_score > combined_score:
+    # use combined lane and road boundary for better matching with LIDAR road edges
+    input_2d_points = input_2d_points_combined
+    if m_points is not None:
+        # insert the top point in filtered_contour to m_points to account of the far end
+        # curved segment that is not part of the segmented lane but part of the road segmentation boundary
+        min_y_index = np.argmin(input_2d_points[:, 1])
+        if m_points[0, 1] - input_2d_points[min_y_index, 1] > 10:
+            m_points = np.vstack((input_2d_points[min_y_index, :], m_points))
 
     if input_2d_points.shape[1] == 2:
         # classify each point as left or right side
