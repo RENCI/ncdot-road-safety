@@ -4,6 +4,7 @@ import time
 import pandas as pd
 import numpy as np
 import cv2
+from scipy.spatial import KDTree
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 from scipy.interpolate import UnivariateSpline
@@ -11,10 +12,11 @@ from math import radians, tan
 
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    angle_between, get_mapping_dataframe, classify_road_edge_points_to_sides
+    angle_between, get_mapping_dataframe, classify_points_base_on_centerline
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
-from get_road_boundary_points import get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary
+from get_road_boundary_points import (get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary,
+                                      get_axis_from_points)
 
 BASE_CAM_PARA_COL_NAME = 'BASE_CAMERA_OBJ_PARA'
 OPTIMIZED_CAM_PARA_COL_NAME = 'OPTIMIZED_CAMERA_OBJ_PARA'
@@ -80,8 +82,8 @@ def init_transform_from_lidar_to_world_coordinate_system(df, cam_x, cam_y, cam_z
 def transform_to_world_coordinate_system(df, cam_params):
     # transform X, Y, Z in LIDAR coordinate system to world coordinate system where the camera is at the origin,
     # the z-axis is pointing from the camera along the cam_bearing direction, the y-axis is perpendicular to the
-    # z-axis reflecting the elevation Z pointing upwards, and the x-axis is perpendicular to both y-axis and z-axis
-    # reflecting X and Y. Note that LIDAR world coordinate system origin is located at lower-left corner while
+    # z-axis reflecting the elevation Z pointing upwards, and the x-axis is perpendicular to both y-axis and z-axis.
+    # Note that LIDAR world coordinate system origin is located at lower-left corner while
     # screen coordinate system origin is located at upper-left corner
     rotation_x = Rotation.from_euler('x', radians(cam_params[OBJ_ROT_X]))
     rotation_y = Rotation.from_euler('y', radians(cam_params[OBJ_ROT_Y]))
@@ -398,7 +400,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     print(f'lane_image_name: {lane_image_name}')
-    img_width, img_height, lane_image, input_list, m_axis, m_centroid = get_image_lane_points(lane_image_name)
+    img_width, img_height, lane_image, input_list, m_axis, m_points = get_image_lane_points(lane_image_name)
     input_2d_points = input_list[0]
 
     # compute base camera parameters
@@ -506,7 +508,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     PREV_CAM_BEARING_VEC['camera'] = cam_v
     PREV_CAM_BEARING_VEC['road'] = road_v
 
-    if m_axis is None or m_centroid is None:
+    if m_axis is None or m_points is None:
         # no middle lane axis and centroid can be computed from segmented road lanes, which indicates a
         # complicated road scene such as 4-way intersection, need to skip this image and return without optimization
         return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
@@ -528,10 +530,18 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
         img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
         input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img, seg_image_name)
+        if m_axis is not None and m_points is not None:
+            # insert the top point in filtered_contour to m_axis and m_points to account of the far end
+            # curved segment that is not part of the segmented lane but part of the road segmentation boundary
+            min_y_index = np.argmin(input_2d_points[:, 1])
+            if m_points[0, 1] - input_2d_points[min_y_index, 1] > 10:
+                m_axis = np.vstack((get_axis_from_points(m_points[0, :], input_2d_points[min_y_index, :]), m_axis))
+                m_points = np.vstack((input_2d_points[min_y_index, :], m_points))
 
     if input_2d_points.shape[1] == 2:
         # classify each point as left or right side
-        input_2d_sides = classify_road_edge_points_to_sides(m_axis, m_centroid, input_2d_points)
+        m_points_df = pd.DataFrame({'x': m_points[:, 0], 'y': m_points[:, 1]})
+        input_2d_sides = classify_points_base_on_centerline(input_2d_points, KDTree(m_points), m_points_df)
         input_2d_df = pd.DataFrame({
             'X': input_2d_points[:, 0],
             'Y': input_2d_points[:, 1],

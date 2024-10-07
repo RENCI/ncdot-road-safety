@@ -4,11 +4,13 @@ import sys
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
+import pandas as pd
 from PIL import Image
 from skimage import morphology, measure
 from sklearn.cluster import DBSCAN
+from scipy.spatial import KDTree
 
-from data_processing.utils import get_data_from_image, SegmentationClass, classify_road_edge_points_to_sides, ROADSIDE
+from data_processing.utils import get_data_from_image, SegmentationClass, ROADSIDE, classify_points_base_on_centerline
 
 
 def _calculate_slope(pt1, pt2):
@@ -127,6 +129,12 @@ def _get_cluster_info(contour, contour_idx):
     return row_center, row_filter_dist
 
 
+def get_axis_from_points(start_point, end_point):
+    # return axis pointing from start_point to end_point
+    axis = end_point - start_point
+    return axis / np.linalg.norm(axis)  # Normalize the axis
+
+
 def get_image_lane_points(image_file_name, save_processed_image=False):
     image_width, image_height, lane_img = get_data_from_image(image_file_name)
     # remove unwanted pixels
@@ -148,7 +156,7 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     first_row_idx = last_row_idx = -1
 
     # determine the first and last row containing the middle lane
-    filter_threshold = 50
+    filter_threshold = 30
     for i in range(len(rows_with_potential_lanes)):
         if first_row_idx == -1:
             first_row_center, filter_dist = _get_cluster_info(lane_contour, rows_with_potential_lanes[i])
@@ -165,110 +173,74 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
             break
 
     if first_row_idx == -1 or last_row_idx == -1:
-        print(f'cannot find start and end middle lane points to create a central axis for filtering: '
+        print(f'cannot find start and end middle lane points to create a centralline axis for filtering: '
               f'first_row_idx: {first_row_idx}, last_row_idx: {last_row_idx}, returning')
         return image_width, image_height, lane_img, [lane_contour], None, None
 
-    # calculate the central axis and centroid
-    # find the central axis from the last row middle lane pixel (lower) to the first row middle lane pixel (upper)
-    axis = first_row_center - last_row_center
-    # centroid is the middle point of the axis
-    centroid = last_row_center + axis / 2.0
-    # normalize the axis
-    axis = axis / np.linalg.norm(axis)
+    # compute axes and centroids composed of multiple segments from the middle lane
+    middle_points = []
+    middle_axes = []
+    # Loop through the selected rows to create multiple line segments
+    step_size = 50
+    row_center_end = axis = None
+    for idx in range(first_row_idx, last_row_idx, step_size):
+        idx2 = idx + step_size
+        if idx2 >= last_row_idx:
+            idx2 = last_row_idx
+
+        row_center_start, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx])
+        row_center_end, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx2])
+
+        if row_center_start is not None and row_center_end is not None:
+            # Calculate axis for this segment
+            axis = get_axis_from_points(row_center_end, row_center_start)
+            # Append axis and centroid point to lists
+            middle_axes.append(axis)
+            middle_points.append(row_center_start)
+
+    # Convert lists to NumPy arrays
+    middle_axes = np.array(middle_axes)
+    middle_points = np.array(middle_points)
 
     if save_processed_image:
         # Draw the central axis line for visual debugging
-        point1 = (int(first_row_center[0]), int(first_row_center[1]))
-        point2 = (int(last_row_center[0]), int(last_row_center[1]))
         binary_data = np.uint8(lane_img)
         color_image = cv2.cvtColor(binary_data, cv2.COLOR_GRAY2BGR)
-        cv2.line(color_image, point1, point2, (0, 0, 255), 2)  # Blue line for visibility
+        for idx in range(len(middle_points) - 1):
+            point1 = (int(middle_points[idx][0]), int(middle_points[idx][1]))
+            point2 = (int(middle_points[idx + 1][0]), int(middle_points[idx + 1][1]))
+            cv2.line(color_image, point1, point2, (0, 0, 255), 2)  # Blue line for visibility
 
         Image.fromarray(color_image, 'RGB').save(f'{os.path.splitext(image_file_name)[0]}_axis.png')
 
-    middle_lane_slope = _calculate_slope(last_row_center, first_row_center)
-
-    print(f'middle_lane_slope: {middle_lane_slope}, lane_contour shape: {lane_contour.shape}')
-
-    filtered_lane_contour_ul = None
-    if abs(middle_lane_slope) < 1.73:
-        print(f'first_row_idx: {first_row_idx}, last_row_idx: {last_row_idx}')
-        upper_middle_slope = middle_lane_slope
-        lower_middle_slope = middle_lane_slope
-        if last_row_idx - first_row_idx > 110:
-            next_first_row_idx = first_row_idx + 50
-            prev_last_row_idx = last_row_idx - 50
-            next_found_new = prev_found_new = False
-            while next_first_row_idx < prev_last_row_idx:
-                if not next_found_new:
-                    next_row_center, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[next_first_row_idx])
-                    if next_row_center is None:
-                        next_first_row_idx += 1
-                    else:
-                        next_found_new = True
-                if not prev_found_new:
-                    prev_row_center, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[prev_last_row_idx])
-                    if prev_row_center is None:
-                        prev_last_row_idx -= 1
-                    else:
-                        prev_found_new = True
-                if next_found_new and prev_found_new:
-                    break
-
-            if next_found_new:
-                upper_middle_slope = _calculate_slope(next_row_center, first_row_center)
-
-
-            if prev_found_new:
-                lower_middle_slope = _calculate_slope(last_row_center, prev_row_center)
-
-        # when middle lane slope is less than 60 degree, treat it as curved road and extrapolate the middle
-        # lane axis to upper and lower sections to filter out middle lane pixels in those sections separately
-        upper_contour = lane_contour[lane_contour[:, 1] < rows_with_potential_lanes[first_row_idx]]
-        lower_contour = lane_contour[lane_contour[:, 1] > rows_with_potential_lanes[last_row_idx]]
-
-        if upper_contour.size > 0:
-            upper_slopes = _calculate_slope_np(upper_contour, first_row_center)
-            upper_slope_diff = np.abs(upper_slopes - upper_middle_slope)
-        if lower_contour.size > 0:
-            lower_slopes = _calculate_slope_np(lower_contour, last_row_center)
-            lower_slope_diff = np.abs(lower_slopes - lower_middle_slope)
-
-        if upper_contour.size > 0 and lower_contour.size > 0:
-            all_contour = np.concatenate([upper_contour, lower_contour])
-            slope_diff = np.concatenate([upper_slope_diff, lower_slope_diff])
-        elif upper_contour.size > 0:
-            slope_diff = upper_slope_diff
-        else:
-            slope_diff = lower_slope_diff
-
-
-        filtered_lane_contour_ul = all_contour[slope_diff > 0.225]
-        lane_contour = lane_contour[(lane_contour[:, 1] <= rows_with_potential_lanes[last_row_idx]) &
-                                    (lane_contour[:, 1] >= rows_with_potential_lanes[first_row_idx])]
-    # compute the perpendicular distance of each point to the central axis
-    vector_to_centroid = lane_contour - centroid
+    # compute the perpendicular distance of each point to the central axes
+    # Build a KDTree for fast nearest neighbor search
+    middle_line_kdtree = KDTree(middle_points)
+    dists, indices = middle_line_kdtree.query(lane_contour)
+    # Get the corresponding closest middle_points and axis directions
+    closest_middle_points = middle_points[indices]  # Shape: (M, 2)
+    closest_axes = middle_axes[indices]  # Shape: (M, 2)
+    vector_to_middle = lane_contour - closest_middle_points
     # Project the vector to the axis via dot product
-    projection_on_axis = np.dot(vector_to_centroid, axis)
-    # Calculate the perpendicular vector (error vector)
-    perpendicular_vector = vector_to_centroid - np.outer(projection_on_axis, axis)
-    # Calculate the distance of each point to the axis
-    distance_to_axis = np.linalg.norm(perpendicular_vector, axis=1)
+    dot_products = np.sum(vector_to_middle * closest_axes, axis=1)  # Shape: (M,)
+    projections = dot_products[:, np.newaxis] * closest_axes  # Shape: (M, 2)
+
+    # Compute the perpendicular vectors (difference between vectors and their projections)
+    perpendicular_vectors = vector_to_middle - projections  # Shape: (M, 2)
+    # The perpendicular distances are the magnitudes of the perpendicular vectors
+    perpendicular_dists = np.linalg.norm(perpendicular_vectors, axis=1)  # Shape: (M,)
 
     # Filter out points based on the threshold distance
-    filtered_lane_contour = lane_contour[distance_to_axis > filter_threshold]
+    filtered_lane_contour = lane_contour[perpendicular_dists > filter_threshold]
     lane_img[lane_img != 0] = 0
     lane_img[filtered_lane_contour[:, 1], filtered_lane_contour[:, 0]] = 255
-    if filtered_lane_contour_ul is not None:
-        lane_img[filtered_lane_contour_ul[:, 1], filtered_lane_contour_ul[:, 0]] = 255
     lane_img, filtered_lane_contour = _filter_out_small_noisy_clusters(lane_img)
 
     if save_processed_image:
         binary_data = np.uint8(lane_img)
         Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
 
-    return image_width, image_height, lane_img, [filtered_lane_contour], axis, centroid
+    return image_width, image_height, lane_img, [filtered_lane_contour], middle_axes, middle_points
 
 
 def get_image_road_points(image_file_name, boundary_only=True):
@@ -389,7 +361,7 @@ if __name__ == '__main__':
     print(f'images: {images}')
     for img in images:
         lane_image_with_path = os.path.join(input_data_path, f'{img}_lanes.png')
-        _, img_hgt, input_lane_img, input_list, m_axis, m_centroid = get_image_lane_points(lane_image_with_path, save_processed_image=True)
+        _, img_hgt, input_lane_img, input_list, m_axis, m_points = get_image_lane_points(lane_image_with_path, save_processed_image=True)
         input_lane_points = input_list[0]
         road_image_with_path = os.path.join(input_data_path, f'{img}.png')
         _, _, input_road_img, input_list = get_image_road_points(road_image_with_path)
@@ -399,8 +371,17 @@ if __name__ == '__main__':
                                                           road_image_with_path, save_processed_image=True)
 
         # classify each point as left or right side
-        if m_axis is not None and m_centroid is not None:
-            classified_sides = classify_road_edge_points_to_sides(m_axis, m_centroid, filtered_contour)
+        if m_axis is not None and m_points is not None:
+            # insert the top point in filtered_contour to m_axis and m_points to account of the far end
+            # curved segment that is not part of the segmented lane but part of the road segmentation boundary
+            min_y_index = np.argmin(filtered_contour[:, 1])
+            if m_points[0, 1] - filtered_contour[min_y_index, 1] > 10:
+                m_axis = np.vstack((get_axis_from_points(m_points[0, :], filtered_contour[min_y_index, :]), m_axis))
+                m_points = np.vstack((filtered_contour[min_y_index, :], m_points))
+
+            m_points_df = pd.DataFrame({'x': m_points[:, 0], 'y': m_points[:, 1]})
+            classified_sides = classify_points_base_on_centerline(
+                filtered_contour, KDTree(m_points), m_points_df)
             left_mask = classified_sides == ROADSIDE.LEFT.value  # Mask for left side points
             right_mask = classified_sides == ROADSIDE.RIGHT.value  # Mask for right side points
 

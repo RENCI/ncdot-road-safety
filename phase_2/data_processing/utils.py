@@ -304,3 +304,30 @@ def classify_road_edge_points_to_sides(middle_axis, middle_centroid, edge_points
     return np.array([
         ROADSIDE.RIGHT.value if np.cross(middle_axis, point - middle_centroid) > 0 else ROADSIDE.LEFT.value
         for point in edge_points])
+
+
+# classify points (e.g., LIDAR points) into left or right sides based on closest centerline segment
+# (e.g., camera centerline segment)
+def classify_points_base_on_centerline(points, cl_tree, cl_df):
+    # Find the closest centerline points to the input points
+    _, closest_idx = cl_tree.query(points)
+    # Get idx1 and idx2 arrays for the segments
+    # If the closest point is the first centerline point, use its next point to create centerline segment; otherwise,
+    # use its previous point to create centerline segment
+    idx1_ary = np.where(closest_idx == 0, closest_idx, closest_idx - 1)
+    idx2_ary = np.where(closest_idx == 0, closest_idx + 1, closest_idx)
+
+    classification = []
+    for idx1, idx2, point in zip(idx1_ary, idx2_ary, points):
+        # Get the centerline segment points p1 and p2 as arrays
+        p1 = cl_df.iloc[idx1][['x', 'y']].values
+        p2 = cl_df.iloc[idx2][['x', 'y']].values
+
+        # Centerline segment vectors from p1 to p2
+        segment_vec = p2 - p1
+        # Vectors from p1 to each input point
+        point_vec = point - p1
+        cross_product = np.cross(segment_vec, point_vec)
+        classification.append(ROADSIDE.LEFT.value if cross_product > 0 else ROADSIDE.RIGHT.value)
+
+    return np.array(classification)

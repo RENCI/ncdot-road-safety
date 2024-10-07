@@ -3,7 +3,8 @@ import os
 import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
-from utils import ROADSIDE, get_aerial_lidar_road_geo_df, get_mapping_dataframe, add_lidar_x_y_from_lat_lon
+from utils import (ROADSIDE, classify_points_base_on_centerline,
+                   get_aerial_lidar_road_geo_df, get_mapping_dataframe, add_lidar_x_y_from_lat_lon)
 
 
 def output_latlon_from_geometry(idf, geom_col, output_file_name):
@@ -32,34 +33,6 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
             f'{base}_boundary{ext}', index=False)
         out_df[out_df.Boundary == False].drop(columns=['Boundary']).to_csv(
             f'{base}_internal{ext}', index=False)
-
-
-# classify LIDAR points into left or right sides based on closest camera centerline segment
-def classify_lidar_point(lidar_point, cl_tree, cl_df):
-    # Find the closest centerline point to the lidar point
-    _, closest_idx = cl_tree.query(lidar_point)
-
-    # If the closest point is the first centerline point, use its next point to create centerline segment; otherwise,
-    # use its previous point to create centerline segment
-    if closest_idx == 0:
-        idx1 = closest_idx
-        idx2 = closest_idx + 1
-    else:
-        idx1 = closest_idx - 1
-        idx2 = closest_idx
-
-    # Get the centerline segment points
-    p1 = cl_df.iloc[idx1][['x', 'y']].values
-    p2 = cl_df.iloc[idx2][['x', 'y']].values
-
-    # Centerline segment vector from p1 to p2
-    segment_vec = p2 - p1
-    # Vector from p1 to the lidar point
-    lidar_vec = lidar_point - p1
-    cross_product = np.cross(segment_vec, lidar_vec)
-
-    # Classify into L (left) or R (right) based on the sign of the cross product
-    return ROADSIDE.LEFT.value if cross_product > 0 else ROADSIDE.RIGHT.value
 
 
 if __name__ == '__main__':
@@ -104,9 +77,12 @@ if __name__ == '__main__':
         # Build a KDTree for fast nearest neighbor search
         camline_points = np.vstack([cam_geom_df['x'].values, cam_geom_df['y'].values]).T
         camline_kdtree = KDTree(camline_points)
-        gdf_with_bound['SIDE'] = gdf_with_bound.apply(
-            lambda row: classify_lidar_point(np.array([row['X'], row['Y']]), camline_kdtree, cam_geom_df)
-            if row['BOUND'] == 1 else -1, axis=1)
+
+        mask = gdf_with_bound['BOUND'] == 1
+        re_points = gdf_with_bound.loc[mask, ['X', 'Y']].values  # Extract X, Y as a NumPy array
+        classified_sides = classify_points_base_on_centerline(re_points, camline_kdtree, cam_geom_df)
+        gdf_with_bound.loc[mask, 'SIDE'] = classified_sides
+        gdf_with_bound.loc[~mask, 'SIDE'] = -1
         gdf_with_bound.drop(columns=['geometry_x', 'geometry_y'], inplace=True)
         gdf_with_bound['SIDE'] = gdf_with_bound.SIDE.astype(int)
         gdf_with_bound.to_csv(f'{os.path.splitext(input_lidar_with_bound)[0]}_sides.csv', index=False)
