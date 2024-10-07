@@ -381,6 +381,12 @@ def _get_concave_contours(input_points):
         raise ValueError("Unexpected geometry type")
 
 
+def _get_shape_matching_score(input_point1, input_point2):
+    input_contour1 = _get_concave_contours(input_point1)
+    input_contour2 = _get_concave_contours(input_point2)
+    return cv2.matchShapes(input_contour1, input_contour2, 1, 0.0)
+
+
 def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_proj_file_path,
                          do_fov_optimize):
     """
@@ -545,18 +551,32 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
     # compare shape similarity between projected LIDAR road edge points (input_3d_road_bound_gdf) and input_2d_points
     try:
-        seg_2d_contour = _get_concave_contours(input_2d_points)
-        proj_3d_contour = _get_concave_contours(input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy())
-        lane_score = cv2.matchShapes(seg_2d_contour, proj_3d_contour, 1, 0.0)
+        lane_score = _get_shape_matching_score(input_2d_points,
+                                               input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy())
     except ValueError as ex:
-        print(f'cannot matching shapes due to exception: {ex}, skip this image {row["imageBaseName"]}')
-        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
+        print(f'cannot matching lane shapes due to exception: {ex}, skip this image {row["imageBaseName"]}')
+        lane_score = np.inf
     print(f'lane shape matching score: {lane_score} for image {row["imageBaseName"]}')
-    if lane_score > SHAPE_MATCHING_SCORE_THRESHOLD:
-        seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
-        img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
-        input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img, seg_image_name,
-                                                         image_height=img_height)
+
+    # compare shape similarity after combining lane and road boundary
+    seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
+    img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
+    input_2d_points_combined = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img,
+                                                              seg_image_name, image_height=img_height)
+    try:
+        combined_score = _get_shape_matching_score(input_2d_points_combined,
+                                               input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy())
+    except ValueError as ex:
+        print(f'cannot matching combined shapes due to exception: {ex}, skip this image {row["imageBaseName"]}')
+        combined_score = np.inf
+
+    if lane_score == combined_score == np.inf:
+        print(f'matching scores for both lane and combined lane with road boundaries do not match LIDAR data, '
+              f'skip this image {row["imageBaseName"]}')
+        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
+    if lane_score > combined_score:
+        # use combined lane and road boundary for better matching with LIDAR road edges
+        input_2d_points = input_2d_points_combined
         if m_points is not None:
             # insert the top point in filtered_contour to m_points to account of the far end
             # curved segment that is not part of the segmented lane but part of the road segmentation boundary
