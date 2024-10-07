@@ -32,9 +32,11 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_
 CAM_NEAR = 0.1
 # camera pose parameter bound constraints put on optimizer
 FOV_OFFSET = 2
-X_TRAN_MAX_OFFSET = Y_TRAN_MAX_OFFSET = 20
-Z_TRAN_MAX_OFFSET = 20
-X_ROT_MAX_OFFSET = Y_ROT_MAX_OFFSET = Z_ROT_MAX_OFFSET = 90
+X_TRAN_MAX = Y_TRAN_MAX = 10
+Z_TRAN_MAX = 20
+X_ROT_MAX = 40
+Y_ROT_MAX = 90
+Z_ROT_MAX = 20
 
 # Shape matching similarity score threshold for switching from using road lane segmentation to using segmented road
 # boundaries
@@ -557,34 +559,22 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         start_idx = 1
         cam_para_bounds = [((PREV_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] - FOV_OFFSET),
                             (PREV_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] + FOV_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] - X_TRAN_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] + X_TRAN_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] - Y_TRAN_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] + Y_TRAN_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - Z_TRAN_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + Z_TRAN_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_Z] - Z_ROT_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_Z] + Z_ROT_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_Y] - Y_ROT_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_Y] + Y_ROT_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_X] - X_ROT_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_X] + X_ROT_MAX_OFFSET))]
+                           (-X_TRAN_MAX, X_TRAN_MAX),
+                           (-Y_TRAN_MAX, Y_TRAN_MAX),
+                           (-Z_TRAN_MAX, Z_TRAN_MAX),
+                           (-Z_ROT_MAX, Z_ROT_MAX),
+                           (-Y_ROT_MAX, Y_ROT_MAX),
+                           (-X_ROT_MAX, X_ROT_MAX)]
         cam_output_columns = ['fov', 'translation_x', 'translation_y', 'translation_z',
                               'rotation_z', 'rotation_y', 'rotation_x']
     else:
         start_idx = 2
-        cam_para_bounds = [((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] - X_TRAN_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] + X_TRAN_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] - Y_TRAN_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] + Y_TRAN_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - Z_TRAN_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + Z_TRAN_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_Z] - Z_ROT_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_Z] + Z_ROT_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_Y] - Y_ROT_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_Y] + Y_ROT_MAX_OFFSET)),
-                           ((PREV_CAM_OBJ_PARAS[OBJ_ROT_X] - X_ROT_MAX_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[OBJ_ROT_X] + X_ROT_MAX_OFFSET))]
+        cam_para_bounds = [(-X_TRAN_MAX, X_TRAN_MAX),
+                           (-Y_TRAN_MAX, Y_TRAN_MAX),
+                           (-Z_TRAN_MAX, Z_TRAN_MAX),
+                           (-Z_ROT_MAX, Z_ROT_MAX),
+                           (-Y_ROT_MAX, Y_ROT_MAX),
+                           (-X_ROT_MAX, X_ROT_MAX)]
         cam_output_columns = ['translation_x', 'translation_y', 'translation_z',
                               'rotation_z', 'rotation_y', 'rotation_x']
 
