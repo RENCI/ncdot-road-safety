@@ -12,7 +12,6 @@ from math import radians, tan
 import alphashape
 from shapely.geometry import Polygon, MultiPolygon
 
-from data_processing.plotting.create_alignment_overlay_plot import image_height
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
     angle_between, get_mapping_dataframe, classify_points_base_on_centerline
