@@ -10,8 +10,9 @@ from scipy.optimize import minimize
 from scipy.interpolate import UnivariateSpline
 from math import radians, tan
 import alphashape
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 
+from data_processing.plotting.create_alignment_overlay_plot import image_height
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
     angle_between, get_mapping_dataframe, classify_points_base_on_centerline
@@ -365,6 +366,22 @@ def derive_next_camera_params(v1, v2, cam_para1):
     return cam_para2
 
 
+def _get_concave_contours(input_points):
+    """
+    input_points should be a numpy array of 2D points. It returns concave contours to be fed into cv2.matchShapes()
+    """
+    alpha = 0.1
+    concave_hull_2d = alphashape.alphashape(input_points, alpha)
+    if isinstance(concave_hull_2d, Polygon):
+        # Single Polygon case: Extract exterior coordinates
+        return np.array(list(concave_hull_2d.exterior.coords))
+    elif isinstance(concave_hull_2d, MultiPolygon):
+        # MultiPolygon case: Combine all polygon exteriors
+        return np.vstack([np.array(list(poly.exterior.coords)) for poly in concave_hull_2d.geoms])
+    else:
+        raise ValueError("Unexpected geometry type")
+
+
 def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_proj_file_path,
                          do_fov_optimize):
     """
@@ -405,7 +422,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     print(f'lane_image_name: {lane_image_name}')
-    img_width, img_height, lane_image, input_list, m_axis, m_points = get_image_lane_points(lane_image_name)
+    img_width, img_height, lane_image, input_list, _, m_points = get_image_lane_points(lane_image_name)
     input_2d_points = input_list[0]
 
     # compute base camera parameters
@@ -513,7 +530,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     PREV_CAM_BEARING_VEC['camera'] = cam_v
     PREV_CAM_BEARING_VEC['road'] = road_v
 
-    if m_axis is None or m_points is None:
+    if m_points is None:
         # no middle lane axis and centroid can be computed from segmented road lanes, which indicates a
         # complicated road scene such as 4-way intersection, need to skip this image and return without optimization
         return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
@@ -528,31 +545,34 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     if 'SIDE' in cols:
         input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
     # compare shape similarity between projected LIDAR road edge points (input_3d_road_bound_gdf) and input_2d_points
-    alpha = 0.1
-    seg_2d_concave_hull = alphashape.alphashape(input_2d_points, alpha)
-    proj_3d_concave_hull = alphashape.alphashape(
-        input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy(), alpha)
-    lane_score = cv2.matchShapes(np.array(list(seg_2d_concave_hull.exterior.coords)),
-                                 np.array(list(proj_3d_concave_hull.exterior.coords)), 1, 0.0)
-    print(f'lane shape matching score: {lane_score}')
+    try:
+        seg_2d_contour = _get_concave_contours(input_2d_points)
+        proj_3d_contour = _get_concave_contours(input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy())
+        lane_score = cv2.matchShapes(seg_2d_contour, proj_3d_contour, 1, 0.0)
+    except ValueError as ex:
+        print(f'cannot matching shapes due to exception: {ex}, skip this image {row["imageBaseName"]}')
+        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
+    print(f'lane shape matching score: {lane_score} for image {row["imageBaseName"]}')
     if lane_score > SHAPE_MATCHING_SCORE_THRESHOLD:
         seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
         img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
-        input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img, seg_image_name)
-        if m_axis is not None and m_points is not None:
-            # insert the top point in filtered_contour to m_axis and m_points to account of the far end
+        input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img, seg_image_name,
+                                                         image_height=img_height)
+        if m_points is not None:
+            # insert the top point in filtered_contour to m_points to account of the far end
             # curved segment that is not part of the segmented lane but part of the road segmentation boundary
             min_y_index = np.argmin(input_2d_points[:, 1])
             if m_points[0, 1] - input_2d_points[min_y_index, 1] > 10:
-                m_axis = np.vstack((get_axis_from_points(m_points[0, :], input_2d_points[min_y_index, :]), m_axis))
                 m_points = np.vstack((input_2d_points[min_y_index, :], m_points))
 
     if input_2d_points.shape[1] == 2:
         # classify each point as left or right side
         m_points_df = pd.DataFrame({'x': m_points[:, 0], 'y': m_points[:, 1]})
-        input_2d_sides = classify_points_base_on_centerline(input_2d_points, KDTree(m_points), m_points_df)
-        if input_2d_sides is None:
-            # segmentation points cannot be classified into sides, skip this image
+        try:
+            input_2d_sides = classify_points_base_on_centerline(input_2d_points, KDTree(m_points), m_points_df)
+        except Exception as ex:
+            print(f'segmentation points cannot be classified into sides due to exception: {ex}, '
+                  f'skip this image {row["imageBaseName"]}')
             return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
         input_2d_df = pd.DataFrame({
             'X': input_2d_points[:, 0],
