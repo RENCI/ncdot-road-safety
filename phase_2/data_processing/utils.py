@@ -6,6 +6,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 from enum import Enum
+from scipy.spatial import cKDTree
 
 
 class SegmentationClass(Enum):
@@ -254,42 +255,23 @@ def convert_xy_to_lat_lon(x, y):
     return lat_lon_geom.y, lat_lon_geom.x
 
 
-def compute_match(x, y, series_x, series_y, side=None, series_side=pd.Series(dtype='int8')):
+def compute_match(x, y, series_x, series_y):
     # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
-    # (series_x, series_y) pairs has minimal distance to point(x, y). If both side and series_side optional arguments
-    # are passed in where side indicate the left or right side the (x, y) point is in, and series_side indicates
-    # the left or right side each point in (series_x, series_y) is in, the search for matching point in the series
-    # will match the side so that (x, y) point will be matched with a point in (series_x, series_y) with closest
-    # distance on the same side. In addition, grid-based matching search will be applied when both side and series_side
-    # arguments are passed in meaning only those values of series_x and series_y within a grid will be used for matching
-    if side is not None and not series_side.empty:
-        filtered_series_x = series_x[series_side == side]
-        filtered_series_y = series_y[series_side == side]
-        grid_th = 100
-        match_df = pd.DataFrame({'series_x': filtered_series_x, 'series_y': filtered_series_y})
-        match_df['distance_x'] = abs(match_df['series_x'] - x)
-        match_df['distance_y'] = abs(match_df['series_y'] - y)
-        max_grid_x, max_grid_y = max(match_df['distance_x']), max(match_df['distance_y'])
-        grid_df = match_df[(match_df.distance_x < grid_th) & (match_df.distance_y < grid_th)]
-        if len(grid_df) <= 0:
-            # no possible for a match within the grid
-            return [-1, max(max_grid_x, max_grid_y)]
-        distances = (grid_df['series_x'] - x) ** 2 + (grid_df['series_y'] - y) ** 2
-    else:
-        distances = (series_x - x) ** 2 + (series_y - y) ** 2
+    # (series_x, series_y) pairs has minimal distance to point(x, y)
+    distances = (series_x - x) ** 2 + (series_y - y) ** 2
     min_dist = np.min(distances)
     # min_idx = distances.idxmin()
     min_indices = np.where(distances == min_dist)[0]
     return [min_indices, min_dist]
 
 
-def compute_match_3d(x, y, z, series_x, series_y, series_z):
-    # compute match indices in (series_x, series_y, series_z) based on which point in all points represented in
-    # (series_x, series_y, series_z) has minimal distance to point(x, y, z)
-
-    distances = (series_x - x) ** 2 + (series_y - y) ** 2 + (series_z - z) ** 2
-    min_idx = distances.idxmin()
-    return [min_idx, distances[min_idx]]
+def compute_match_kdtree(x, y, series_x, series_y):
+    # compute match indices in (series_x, series_y) based on which point in
+    # (series_x, series_y) has minimal distance to point(x, y). For fast, performance,
+    # kdtree is used for nearest neighbor search
+    tree_2d = cKDTree(np.vstack((series_x.values, series_y.values)).T)
+    dist, min_idx = tree_2d.query([x, y], k=1)
+    return min_idx, dist
 
 
 def angle_between(v1, v2):

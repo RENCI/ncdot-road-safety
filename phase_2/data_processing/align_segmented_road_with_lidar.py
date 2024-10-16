@@ -4,7 +4,7 @@ import time
 import pandas as pd
 import numpy as np
 import cv2
-from scipy.spatial import KDTree
+from scipy.spatial import cKDTree
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 from scipy.interpolate import UnivariateSpline
@@ -13,12 +13,11 @@ import alphashape
 from shapely.geometry import Polygon, MultiPolygon
 
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
-    get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    angle_between, get_mapping_dataframe, classify_points_base_on_centerline
+    get_aerial_lidar_road_geo_df, compute_match_kdtree, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
+    angle_between, get_mapping_dataframe, classify_points_base_on_centerline, ROADSIDE
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
-from get_road_boundary_points import (get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary,
-                                      get_axis_from_points)
+from get_road_boundary_points import get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary
 
 BASE_CAM_PARA_COL_NAME = 'BASE_CAMERA_OBJ_PARA'
 OPTIMIZED_CAM_PARA_COL_NAME = 'OPTIMIZED_CAMERA_OBJ_PARA'
@@ -158,7 +157,6 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     df['PROJ_Y'] = df.apply(
         lambda row: apply_matrix4(row['WORLD_X'], row['WORLD_Y'], row['WORLD_Z'], matrix_elements, return_axis='y'),
         axis=1)
-
     half_width = img_width / 2
     half_height = img_hgt / 2
     df['PROJ_SCREEN_X'] = df['PROJ_X'].apply(
@@ -243,7 +241,7 @@ class SkipOptimizationException(Exception):
     pass
 
 
-def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
+def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors, grid_th=100):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
@@ -260,9 +258,51 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
         # most points are projected out of the bound, need to reset initial condition
         raise SkipOptimizationException(CAMERA_ALIGNMENT_RESET_REASONS[0], len(filtered_df_3d))
 
-    df_3d['MATCH_2D_DIST'] = df_3d.apply(lambda row: compute_match(
-        row['PROJ_SCREEN_X'], row['PROJ_SCREEN_Y'],
-        df_2d['X'], df_2d['Y'], side=row['SIDE'], series_side=df_2d['SIDE'])[1], axis=1)
+    # split df_2d and df_3d based on SIDE
+    df_2d_l = df_2d[df_2d['SIDE'] == ROADSIDE.LEFT.value]
+    df_2d_r = df_2d[df_2d['SIDE'] == ROADSIDE.RIGHT.value]
+    df_3d_l = df_3d[df_3d['SIDE'] == ROADSIDE.LEFT.value]
+    df_3d_r = df_3d[df_3d['SIDE'] == ROADSIDE.RIGHT.value]
+
+    def compute_grid_minimum_distances(x_3d, y_3d, x_2d, y_2d):
+        """
+        Function to compute minimum distances between each point in (x_3d, y_3d) and (x_2d, y_2d)
+        leveraging numpy broadcasting and vectorization
+        """
+        # Compute the absolute differences in x and y directions
+        diff_x = np.abs(x_3d[:, np.newaxis] - x_2d[np.newaxis, :])  # Shape: (n_3d, n_2d)
+        diff_y = np.abs(y_3d[:, np.newaxis] - y_2d[np.newaxis, :])  # Shape: (n_3d, n_2d)
+
+        # Apply the grid threshold filter: Only keep points within grid_th in both x and y directions
+        within_grid_mask = (diff_x < grid_th) & (diff_y < grid_th)
+
+        # Initialize fallback distances with max distances in x and y direction (in case no valid match is found)
+        max_grid_x = np.max(diff_x, axis=1)
+        max_grid_y = np.max(diff_y, axis=1)
+
+        # For points outside the grid, set the distances to a large value to exclude them from being chosen
+        dist_squared = np.where(within_grid_mask, diff_x ** 2 + diff_y ** 2, np.inf)
+        min_distances = np.min(dist_squared, axis=1)
+        # Handle cases where no point is found within the grid (where all distances are inf) - this is very
+        # important to set these values with the maximum grid distance instead of larger value of inf to avoid
+        # harsh penalty of infinite distance for more stable optimization results
+        no_match_mask = np.isinf(min_distances)
+        min_distances[no_match_mask] = np.maximum(max_grid_x[no_match_mask], max_grid_y[no_match_mask])
+        # Find the minimum distance for each 3D point in the filtered data
+        return min_distances
+
+    # compute grid-based distances for both left and right sides
+    x_3d_l = df_3d_l['PROJ_SCREEN_X'].values
+    y_3d_l = df_3d_l['PROJ_SCREEN_Y'].values
+    x_3d_r = df_3d_r['PROJ_SCREEN_X'].values
+    y_3d_r = df_3d_r['PROJ_SCREEN_Y'].values
+    dists_l = compute_grid_minimum_distances(x_3d_l, y_3d_l, df_2d_l['X'].values, df_2d_l['Y'].values)
+    dists_r = compute_grid_minimum_distances(x_3d_r, y_3d_r, df_2d_r['X'].values, df_2d_r['Y'].values)
+
+    # Combine results back into a single array
+    df_3d.loc[df_3d['SIDE'] == ROADSIDE.LEFT.value, 'MATCH_2D_DIST'] = dists_l
+    df_3d.loc[df_3d['SIDE'] == ROADSIDE.RIGHT.value, 'MATCH_2D_DIST'] = dists_r
+
     alignment_error = df_3d['MATCH_2D_DIST'].sum() / len(df_3d)
     align_errors.append(alignment_error)
     return alignment_error
@@ -434,16 +474,17 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = \
         get_mapping_data(mapping_df, input_2d_mapped_image)
     # get the lidar road vertex with the closest distance to the camera location
-    cam_nearest_lidar_idx = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])[0][0]
+    cam_nearest_lidar_idx, _ = compute_match_kdtree(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
     cam_lidar_z = ldf.iloc[cam_nearest_lidar_idx].Z
     print(f'camera Z: {cam_lidar_z}')
-
+    t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
                                                                 end_of_route=eor,
                                                                 fov=90)
     input_3d_points = vertices[0]
-    print(f'len(input_3d_points): {len(input_3d_points)}, {cols}')
+    print(f'len(input_3d_points): {len(input_3d_points)}, cols: {cols}')
+    print(f'time taken for extracting lidar points for camera: {time.time() - t1}s')
     input_3d_df = pd.DataFrame(data=input_3d_points, columns=cols)
 
     if 'BOUND' in cols:
@@ -466,7 +507,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_gdf = add_lidar_x_y_from_lat_lon(cam_df)
     proj_cam_x2 = cam_gdf.iloc[0].x
     proj_cam_y2 = cam_gdf.iloc[0].y
-    cam2_nearest_lidar_idx = compute_match(proj_cam_x2, proj_cam_y2, ldf['X'], ldf['Y'])[0][0]
+    cam2_nearest_lidar_idx, _ = compute_match_kdtree(proj_cam_x2, proj_cam_y2, ldf['X'], ldf['Y'])
     proj_cam_z2 = ldf.iloc[cam2_nearest_lidar_idx].Z
     cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
     cam_v = cam_v / np.linalg.norm(cam_v)
@@ -549,6 +590,14 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     input_3d_road_bound_gdf = input_3d_gdf[input_3d_gdf.BOUND == 1].reset_index(drop=True).copy()
     if 'SIDE' in cols:
         input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
+
+    filtered_road_3d = input_3d_road_bound_gdf[
+        (input_3d_road_bound_gdf['PROJ_SCREEN_X'] >= 0) &
+        (input_3d_road_bound_gdf['PROJ_SCREEN_X'] <= img_width) &
+        (input_3d_road_bound_gdf['PROJ_SCREEN_Y'] >= 0) &
+        (input_3d_road_bound_gdf['PROJ_SCREEN_Y'] <= img_height)]
+
+    lidar_3d_proj_y_min = filtered_road_3d['PROJ_SCREEN_Y'].min()
     # compare shape similarity between projected LIDAR road edge points (input_3d_road_bound_gdf) and input_2d_points
     try:
         lane_score = _get_shape_matching_score(input_2d_points,
@@ -566,7 +615,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         combined_score = _get_shape_matching_score(input_2d_points_combined,
                                                input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy())
     except ValueError as ex:
-        print(f'cannot matching combined shapes due to exception: {ex}, skip this image {row["imageBaseName"]}')
+        print(f'cannot match combined shapes due to exception: {ex}, skip this image {row["imageBaseName"]}')
         combined_score = np.inf
 
     if lane_score == combined_score == np.inf:
@@ -574,9 +623,9 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
               f'skip this image {row["imageBaseName"]}')
         return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
     print(f'lane shape matching score: {lane_score}, combined shape matching score: {combined_score} for image {row["imageBaseName"]}')
-    # if lane_score > combined_score:
-    # use combined lane and road boundary for better matching with LIDAR road edges
-    input_2d_points = input_2d_points_combined
+    if combined_score != np.inf:
+        # use combined lane and road boundary for better matching with LIDAR road edges
+        input_2d_points = input_2d_points_combined
     if m_points is not None:
         # insert the top point in filtered_contour to m_points to account of the far end
         # curved segment that is not part of the segmented lane but part of the road segmentation boundary
@@ -588,7 +637,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         # classify each point as left or right side
         m_points_df = pd.DataFrame({'x': m_points[:, 0], 'y': m_points[:, 1]})
         try:
-            input_2d_sides = classify_points_base_on_centerline(input_2d_points, KDTree(m_points), m_points_df)
+            input_2d_sides = classify_points_base_on_centerline(input_2d_points, cKDTree(m_points), m_points_df)
         except Exception as ex:
             print(f'segmentation points cannot be classified into sides due to exception: {ex}, '
                   f'skip this image {row["imageBaseName"]}')
@@ -598,6 +647,15 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
             'Y': input_2d_points[:, 1],
             'SIDE': input_2d_sides
         })
+        min_road_y = input_2d_df['Y'].min()
+        buffer_y = 10
+        print(f'lidar_3d_proj_y_min: {lidar_3d_proj_y_min}, min_road_y: {min_road_y}')
+        if min_road_y - lidar_3d_proj_y_min > buffer_y:
+            # trim LIDAR far end road points to make them match better with road segmentation
+            print(f'before trimming LIDAR data: {input_3d_road_bound_gdf.shape}')
+            input_3d_road_bound_gdf = input_3d_road_bound_gdf[
+                input_3d_road_bound_gdf.PROJ_SCREEN_Y > (min_road_y - buffer_y)]
+            print(f'after trimming LIDAR data: {input_3d_road_bound_gdf.shape}')
         input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
     else:
         print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, skip this image '
@@ -628,6 +686,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
                               'rotation_z', 'rotation_y', 'rotation_x']
 
     align_errors = []
+    t1 = time.time()
     try:
         result = minimize(objective_function_2d, init_cam_paras[start_idx:],
                           args=(input_3d_road_bound_gdf,
@@ -648,7 +707,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'optimizing result for image {input_2d_mapped_image}: {result}')
     print(f'Status: {result.message}, total evaluations: {result.nfev}')
     print(f'alignment errors: {align_errors}')
-    print(f'optimized_cam_params for image {image_name_with_path}: {optimized_cam_params}')
+    print(f'optimized_cam_params for image {image_name_with_path}: {optimized_cam_params}, '
+          f'time spend: {time.time() - t1}')
 
     full_optimized_cam_paras = get_full_camera_parameters(optimized_cam_params)
     input_3d_gdf = transform_3d_points(input_3d_gdf, full_optimized_cam_paras,
@@ -669,32 +729,31 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        default='data_processing/data/d13_route_40001001012/'
-                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
+                        default='data/d13_route_40001001012/'
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides_reduced.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
-                        default='data_processing/data/d13_route_40001001012/segmentation',
+                        default='data/d13_route_40001001012/segmentation',
                         help='directory to retrieve segmentation images')
     parser.add_argument('--lane_seg_dir', type=str,
-                        default='data_processing/data/d13_route_40001001012/segmentation',
+                        default='data/d13_route_40001001012/segmentation',
                         help='directory to retrieve segmented road lane images')
     parser.add_argument('--obj_image_input', type=str,
-                        default='data_processing/data/d13_route_40001001012/route_input.csv',
+                        default='data/d13_route_40001001012/route_input.csv',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
     parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
-                        default='data_processing/data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
+                        default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_init_cam_param_file_with_path', type=str,
-                        default='data_processing/data/d13_route_40001001012/initial_camera_params.csv',
+                        default='data/d13_route_40001001012/initial_camera_params.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--lidar_proj_output_file_path', type=str,
-                        default='data_processing/data/d13_route_40001001012/test',
+                        default='data/d13_route_40001001012/test',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
     parser.add_argument('--optimize_fov', action="store_true",
                         help='optimize FOV in the camera parameter optimizer if set to True')
-
 
     args = parser.parse_args()
     input_lidar = args.input_lidar_with_path
