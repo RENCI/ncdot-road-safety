@@ -8,7 +8,7 @@ import pandas as pd
 from PIL import Image
 from skimage import morphology, measure
 from sklearn.cluster import DBSCAN
-from scipy.spatial import KDTree
+from scipy.spatial import cKDTree
 
 from data_processing.utils import get_data_from_image, SegmentationClass, ROADSIDE, classify_points_base_on_centerline
 
@@ -182,7 +182,6 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     middle_axes = []
     # Loop through the selected rows to create multiple line segments
     step_size = 50
-    row_center_end = axis = None
     for idx in range(first_row_idx, last_row_idx, step_size):
         idx2 = idx + step_size
         if idx2 >= last_row_idx:
@@ -214,8 +213,8 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
         Image.fromarray(color_image, 'RGB').save(f'{os.path.splitext(image_file_name)[0]}_axis.png')
 
     # compute the perpendicular distance of each point to the central axes
-    # Build a KDTree for fast nearest neighbor search
-    middle_line_kdtree = KDTree(middle_points)
+    # Build a cKDTree for fast nearest neighbor search
+    middle_line_kdtree = cKDTree(middle_points)
     dists, indices = middle_line_kdtree.query(lane_contour)
     # Get the corresponding closest middle_points and axis directions
     closest_middle_points = middle_points[indices]  # Shape: (M, 2)
@@ -382,7 +381,7 @@ if __name__ == '__main__':
 
             m_points_df = pd.DataFrame({'x': m_points[:, 0], 'y': m_points[:, 1]})
             classified_sides = classify_points_base_on_centerline(
-                filtered_contour, KDTree(m_points), m_points_df)
+                filtered_contour, m_points_df)
             left_mask = classified_sides == ROADSIDE.LEFT.value  # Mask for left side points
             right_mask = classified_sides == ROADSIDE.RIGHT.value  # Mask for right side points
 

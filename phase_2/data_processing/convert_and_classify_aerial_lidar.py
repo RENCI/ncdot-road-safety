@@ -2,8 +2,7 @@ import argparse
 import os
 import numpy as np
 import pandas as pd
-from scipy.spatial import KDTree
-from utils import (ROADSIDE, classify_points_base_on_centerline,
+from utils import (classify_points_base_on_centerline,
                    get_aerial_lidar_road_geo_df, get_mapping_dataframe, add_lidar_x_y_from_lat_lon)
 
 
@@ -76,11 +75,10 @@ if __name__ == '__main__':
         })
         # Build a KDTree for fast nearest neighbor search
         camline_points = np.vstack([cam_geom_df['x'].values, cam_geom_df['y'].values]).T
-        camline_kdtree = KDTree(camline_points)
 
         mask = gdf_with_bound['BOUND'] == 1
         re_points = gdf_with_bound.loc[mask, ['X', 'Y']].values  # Extract X, Y as a NumPy array
-        classified_sides = classify_points_base_on_centerline(re_points, camline_kdtree, cam_geom_df)
+        classified_sides = classify_points_base_on_centerline(re_points, cam_geom_df)
         gdf_with_bound.loc[mask, 'SIDE'] = classified_sides
         gdf_with_bound.loc[~mask, 'SIDE'] = -1
         gdf_with_bound.drop(columns=['geometry_x', 'geometry_y'], inplace=True)

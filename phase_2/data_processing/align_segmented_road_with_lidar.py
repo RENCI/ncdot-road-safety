@@ -3,14 +3,10 @@ import os
 import time
 import pandas as pd
 import numpy as np
-import cv2
-from scipy.spatial import cKDTree
 from scipy.spatial.transform import Rotation
-from scipy.optimize import minimize
+from scipy.optimize import minimize, curve_fit
 from scipy.interpolate import UnivariateSpline
 from math import radians, tan
-import alphashape
-from shapely.geometry import Polygon, MultiPolygon
 
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
@@ -39,10 +35,6 @@ Z_TRAN_MAX = 20
 X_ROT_MAX = 5
 Y_ROT_MAX = 5
 Z_ROT_MAX = 5
-
-# Shape matching similarity score threshold for switching from using road lane segmentation to using segmented road
-# boundaries
-SHAPE_MATCHING_SCORE_THRESHOLD = 3.2
 
 INIT_CAM_OBJ_PARAS = None
 PREV_CAM_OBJ_PARAS = None
@@ -206,16 +198,22 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
     full_cam_params = get_full_camera_parameters(cam_params)
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
 
-    if filter_screen_y is not None:
-        # trim the LIDAR points to be more in line with road segmentation based on its baseline alignment
-        df_3d = df_3d[df_3d.PROJ_SCREEN_Y > filter_screen_y]
-
     # get transformed dataframe within projected screen bounds
     filtered_df_3d = df_3d[
         (df_3d['PROJ_SCREEN_X'] >= 0) &
         (df_3d['PROJ_SCREEN_X'] <= img_wd) &
         (df_3d['PROJ_SCREEN_Y'] >= 0) &
         (df_3d['PROJ_SCREEN_Y'] <= img_ht)]
+
+    if filter_screen_y is not None:
+        # trim the LIDAR points to be more in line with road segmentation
+        cam_dist_th = LIDAR_DIST_THRESHOLD[1] * 2.4 # 0.73*3.28 = 2.4 where 3.28 fector converts meter to feet
+        x_data = filtered_df_3d[filtered_df_3d.CAM_DIST >= cam_dist_th]['PROJ_SCREEN_Y'].to_numpy()
+        y_data = filtered_df_3d[filtered_df_3d.CAM_DIST >= cam_dist_th]['CAM_DIST'].to_numpy()
+        params, _ = curve_fit(_linear_model, x_data, y_data)
+        a, b = params
+        filter_cam_dist = _linear_model(filter_screen_y, a, b)
+        df_3d = df_3d[df_3d.CAM_DIST < filter_cam_dist]
 
     if len(filtered_df_3d) < len(df_3d) / 20:
         # most points are projected out of the bound, need to reset initial condition
@@ -368,26 +366,8 @@ def derive_next_camera_params(v1, v2, cam_para1):
     return cam_para2
 
 
-def _get_concave_contours(input_points):
-    """
-    input_points should be a numpy array of 2D points. It returns concave contours to be fed into cv2.matchShapes()
-    """
-    alpha = 0.1
-    concave_hull_2d = alphashape.alphashape(input_points, alpha)
-    if isinstance(concave_hull_2d, Polygon):
-        # Single Polygon case: Extract exterior coordinates
-        return np.array(list(concave_hull_2d.exterior.coords))
-    elif isinstance(concave_hull_2d, MultiPolygon):
-        # MultiPolygon case: Combine all polygon exteriors
-        return np.vstack([np.array(list(poly.exterior.coords)) for poly in concave_hull_2d.geoms])
-    else:
-        raise ValueError("Unexpected geometry type")
-
-
-def _get_shape_matching_score(input_point1, input_point2):
-    input_contour1 = _get_concave_contours(input_point1)
-    input_contour2 = _get_concave_contours(input_point2)
-    return cv2.matchShapes(input_contour1, input_contour2, 1, 0.0)
+def _linear_model(x, a, b):
+    return a * x + b
 
 
 def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_proj_file_path,
@@ -561,34 +541,13 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         (input_3d_road_bound_gdf['PROJ_SCREEN_Y'] <= img_height)]
 
     lidar_3d_proj_y_min = filtered_road_3d['PROJ_SCREEN_Y'].min()
-    # compare shape similarity between projected LIDAR road edge points (input_3d_road_bound_gdf) and input_2d_points
-    try:
-        lane_score = _get_shape_matching_score(input_2d_points,
-                                               input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy())
-    except ValueError as ex:
-        print(f'cannot matching lane shapes due to exception: {ex}, skip this image {row["imageBaseName"]}')
-        lane_score = np.inf
 
     # compare shape similarity after combining lane and road boundary
     seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
     img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
-    input_2d_points_combined = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img,
+    input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img,
                                                               seg_image_name, image_height=img_height)
-    try:
-        combined_score = _get_shape_matching_score(input_2d_points_combined,
-                                               input_3d_road_bound_gdf[['PROJ_SCREEN_X', 'PROJ_SCREEN_Y']].to_numpy())
-    except ValueError as ex:
-        print(f'cannot match combined shapes due to exception: {ex}, skip this image {row["imageBaseName"]}')
-        combined_score = np.inf
-
-    if lane_score == combined_score == np.inf:
-        print(f'matching scores for both lane and combined lane with road boundaries do not match LIDAR data, '
-              f'skip this image {row["imageBaseName"]}')
-        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
-    print(f'lane shape matching score: {lane_score}, combined shape matching score: {combined_score} for image {row["imageBaseName"]}')
-    if combined_score != np.inf:
-        # use combined lane and road boundary for better matching with LIDAR road edges
-        input_2d_points = input_2d_points_combined
+    # use combined lane and road boundary for better matching with LIDAR road edges
     if m_points is not None:
         # insert the top point in filtered_contour to m_points to account of the far end
         # curved segment that is not part of the segmented lane but part of the road segmentation boundary
@@ -600,7 +559,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         # classify each point as left or right side
         m_points_df = pd.DataFrame({'x': m_points[:, 0], 'y': m_points[:, 1]})
         try:
-            input_2d_sides = classify_points_base_on_centerline(input_2d_points, cKDTree(m_points), m_points_df)
+            input_2d_sides = classify_points_base_on_centerline(input_2d_points, m_points_df)
         except Exception as ex:
             print(f'segmentation points cannot be classified into sides due to exception: {ex}, '
                   f'skip this image {row["imageBaseName"]}')

@@ -7,7 +7,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 from enum import Enum
-from scipy.spatial import cKDTree
+from scipy.spatial.distance import cdist
 
 
 class SegmentationClass(Enum):
@@ -288,27 +288,30 @@ def classify_road_edge_points_to_sides(middle_axis, middle_centroid, edge_points
         for point in edge_points])
 
 
-# classify points (e.g., LIDAR points) into left or right sides based on closest centerline segment
-# (e.g., camera centerline segment)
-def classify_points_base_on_centerline(points, cl_tree, cl_df):
+# classify points (e.g., LIDAR points or road edge segmentation boundary points) into left or right sides
+# based on closest centerline segment (e.g., camera centerline segment)
+def classify_points_base_on_centerline(points, cl_df):
     # Find the closest centerline points to the input points
-    _, closest_idx = cl_tree.query(points)
+    centerline_points = cl_df[['x', 'y']].values
+    # Calculate pairwise distances between input points and centerline points
+    distances = cdist(points, centerline_points)
+    # Find the closest centerline point for each input point
+    closest_idx = np.argmin(distances, axis=1)
+
     # Get idx1 and idx2 arrays for the segments
     # If the closest point is the first centerline point, use its next point to create centerline segment; otherwise,
     # use its previous point to create centerline segment
     idx1_ary = np.where(closest_idx == 0, closest_idx, closest_idx - 1)
     idx2_ary = np.where(closest_idx == 0, closest_idx + 1, closest_idx)
 
-    classification = []
-    for idx1, idx2, point in zip(idx1_ary, idx2_ary, points):
-        # Get the centerline segment points p1 and p2 as arrays
-        p1 = cl_df.iloc[idx1][['x', 'y']].values
-        p2 = cl_df.iloc[idx2][['x', 'y']].values
-
-        # Centerline segment vectors from p1 to p2
-        segment_vec = p2 - p1
-        # Vectors from p1 to each input point
-        point_vec = point - p1
-        cross_product = np.cross(segment_vec, point_vec)
-        classification.append(ROADSIDE.LEFT.value if cross_product > 0 else ROADSIDE.RIGHT.value)
-    return np.array(classification)
+    # Get the corresponding p1 and p2 points for each segment
+    p1 = centerline_points[idx1_ary]
+    p2 = centerline_points[idx2_ary]
+    # Calculate segment vectors (p2 - p1) and point vectors (points - p1)
+    segment_vec = p2 - p1
+    point_vec = points - p1
+    # Compute the cross product between the segment vectors and the point vectors
+    cross_product = np.cross(segment_vec, point_vec)
+    # Classify based on the cross product (left or right)
+    classification = np.where(cross_product > 0, ROADSIDE.LEFT.value, ROADSIDE.RIGHT.value)
+    return classification
