@@ -3,9 +3,10 @@ import os
 import sys
 import pandas as pd
 import numpy as np
-from utils import bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df, get_mapping_dataframe
+from utils import (bearing_between_two_latlon_points, get_aerial_lidar_road_geo_df, get_mapping_dataframe,
+                   compute_match)
 from get_road_boundary_points import get_image_lane_points
-from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_coordinate_system, compute_match, \
+from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_coordinate_system, \
     get_mapping_data, get_input_file_with_images, extract_lidar_3d_points_for_camera, LIDAR_DIST_THRESHOLD
 from common.utils import haversine
 
@@ -28,7 +29,7 @@ def create_data(image_name_with_path, seg_lane_dir, input_lidar_file, input_mapp
         get_mapping_dataframe(input_mapping_file), input_2d_mapped_image)
 
     # get the lidar road vertex with the closest distance to the camera location
-    nearest_idx = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])[0][0]
+    nearest_idx, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
     cam_lidar_z = ldf.iloc[nearest_idx].Z
     print(f'camera Z: {cam_lidar_z}, eor: {eor}, dist_th: {LIDAR_DIST_THRESHOLD}')
 
@@ -72,7 +73,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
                         default='data/d13_route_40001001012/'
-                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr.csv',
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
                         help='input file that contains x, y, z vertices from lidar')
     parser.add_argument('--obj_base_image_dir', type=str,
                         default='data/d13_route_40001001012/segmentation',

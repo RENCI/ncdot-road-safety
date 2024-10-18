@@ -1,11 +1,13 @@
 import numpy as np
+import time
 from PIL import Image
-from math import radians, cos, sin, asin, atan2, degrees, pi
+from math import radians, cos, sin, asin, atan2, degrees
 import pickle
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 from enum import Enum
+from scipy.spatial import cKDTree
 
 
 class SegmentationClass(Enum):
@@ -114,27 +116,36 @@ def save_data_to_image(data, output_image_name):
 
 def normalize(rad_angle, is_degree):
     """
-    normalize rad_angle in radians to the range of (0, 2*pi) and convert it to degree as needed
+    normalize rad_angle in radians to the range of (0, 2*pi) and convert it to degree if needed.
+    Supports both scalar and vectorized inputs using numpy
     :param rad_angle: input angle in radians
     :param is_degree: whether to return normalized angle in degree or not
     :return: normalized angle
     """
-    if rad_angle < 0:
-        rad_angle += 2 * pi
-    rad_angle = rad_angle % (2 * pi)
+    rad_angle = np.mod(rad_angle + 2 * np.pi, 2 * np.pi)  # Ensure the angle is within 0 to 2*pi range
     if is_degree:
-        return degrees(rad_angle)
+        return np.degrees(rad_angle)
     else:
         return rad_angle
 
 
 def bearing_between_two_latlon_points(lat1, lon1, lat2, lon2, is_degree):
-    lon_delta_rad = radians(lon2-lon1)
-    lat1_rad = radians(lat1)
-    lat2_rad = radians(lat2)
-    y = sin(lon_delta_rad) * cos(lat2_rad)
-    x = cos(lat1_rad)*sin(lat2_rad) - sin(lat1_rad)*cos(lat2_rad)*cos(lon_delta_rad)
-    theta = atan2(y, x)
+    """
+    Calculate the bearing between two points on the Earth using their latitude and longitude.
+    Supports both scalar and vectorized inputs using NumPy.
+    :param lat1: Latitude of the first point (in degrees)
+    :param lon1: Longitude of the first point (in degrees)
+    :param lat2: Latitude of the second point (in degrees)
+    :param lon2: Longitude of the second point (in degrees)
+    :param is_degree: Whether to return the bearing in degrees (True) or radians (False)
+    :return: The bearing from the first point to the second, either in degrees or radians
+    """
+    lon_delta_rad = np.radians(lon2-lon1)
+    lat1_rad = np.radians(lat1)
+    lat2_rad = np.radians(lat2)
+    y = np.sin(lon_delta_rad) * np.cos(lat2_rad)
+    x = np.cos(lat1_rad) * np.sin(lat2_rad) - np.sin(lat1_rad) * np.cos(lat2_rad) * np.cos(lon_delta_rad)
+    theta = np.atan2(y, x)
     # normalize angle to be between 0 and 360
     return normalize(theta, is_degree=is_degree)
 
@@ -205,7 +216,8 @@ def get_zoe_depth_of_pixel(y, x, depth_data):
 
 
 def get_aerial_lidar_road_geo_df(input_file):
-    gdf = gpd.read_file(input_file)
+    t1 = time.time()
+    gdf = gpd.read_file(input_file, engine='pyogrio')
     gdf.X = gdf.X.astype(float)
     gdf.Y = gdf.Y.astype(float)
     gdf.Z = gdf.Z.astype(float)
@@ -221,12 +233,11 @@ def get_aerial_lidar_road_geo_df(input_file):
     if 'SIDE' in gdf.columns:
         gdf['SIDE'] = gdf['SIDE'].astype(int)
     # Create a new geometry column with Point objects
-    gdf.geometry = [Point(x, y, z) for x, y, z in zip(gdf['X'], gdf['Y'], gdf['Z'])]
-    gdf.crs = 'epsg:6543'
-    convert_geom_df = gdf.geometry.to_crs(epsg=4326)
-    # convert_geom_df is added as a geometry_y column in lidar_df while the initial geometry column is
-    # renamed as geometry_x
-    gdf = gdf.merge(convert_geom_df, left_index=True, right_index=True)
+    geom_series = gpd.GeoSeries([Point(x, y, z) for x, y, z in zip(gdf['X'], gdf['Y'], gdf['Z'])], crs=6543)
+    convert_geom_series = geom_series.to_crs(4326)
+    gdf['geometry_x'] = geom_series
+    gdf['geometry_y'] = convert_geom_series
+    print(f'time taken to load the whole lidar data with geometry coordinate conversion: {time.time() - t1}s')
     return gdf
 
 
@@ -254,42 +265,13 @@ def convert_xy_to_lat_lon(x, y):
     return lat_lon_geom.y, lat_lon_geom.x
 
 
-def compute_match(x, y, series_x, series_y, side=None, series_side=pd.Series(dtype='int8')):
+def compute_match(x, y, series_x, series_y):
     # compute match indices in (series_x, series_y) pairs based on which point in all points represented in
-    # (series_x, series_y) pairs has minimal distance to point(x, y). If both side and series_side optional arguments
-    # are passed in where side indicate the left or right side the (x, y) point is in, and series_side indicates
-    # the left or right side each point in (series_x, series_y) is in, the search for matching point in the series
-    # will match the side so that (x, y) point will be matched with a point in (series_x, series_y) with closest
-    # distance on the same side. In addition, grid-based matching search will be applied when both side and series_side
-    # arguments are passed in meaning only those values of series_x and series_y within a grid will be used for matching
-    if side is not None and not series_side.empty:
-        filtered_series_x = series_x[series_side == side]
-        filtered_series_y = series_y[series_side == side]
-        grid_th = 100
-        match_df = pd.DataFrame({'series_x': filtered_series_x, 'series_y': filtered_series_y})
-        match_df['distance_x'] = abs(match_df['series_x'] - x)
-        match_df['distance_y'] = abs(match_df['series_y'] - y)
-        max_grid_x, max_grid_y = max(match_df['distance_x']), max(match_df['distance_y'])
-        grid_df = match_df[(match_df.distance_x < grid_th) & (match_df.distance_y < grid_th)]
-        if len(grid_df) <= 0:
-            # no possible for a match within the grid
-            return [-1, max(max_grid_x, max_grid_y)]
-        distances = (grid_df['series_x'] - x) ** 2 + (grid_df['series_y'] - y) ** 2
-    else:
-        distances = (series_x - x) ** 2 + (series_y - y) ** 2
+    # (series_x, series_y) pairs has minimal distance to point(x, y)
+    distances = (series_x - x) ** 2 + (series_y - y) ** 2
     min_dist = np.min(distances)
-    # min_idx = distances.idxmin()
-    min_indices = np.where(distances == min_dist)[0]
-    return [min_indices, min_dist]
-
-
-def compute_match_3d(x, y, z, series_x, series_y, series_z):
-    # compute match indices in (series_x, series_y, series_z) based on which point in all points represented in
-    # (series_x, series_y, series_z) has minimal distance to point(x, y, z)
-
-    distances = (series_x - x) ** 2 + (series_y - y) ** 2 + (series_z - z) ** 2
     min_idx = distances.idxmin()
-    return [min_idx, distances[min_idx]]
+    return min_idx, min_dist
 
 
 def angle_between(v1, v2):
