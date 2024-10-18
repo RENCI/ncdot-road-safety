@@ -11,7 +11,7 @@ import cv2
 from math import cos
 from utils import SegmentationClass, get_data_from_image, get_mapping_dataframe, \
     get_camera_latlon_and_bearing_for_image_from_mapping, \
-    compute_match_kdtree, bearing_between_two_latlon_points, LIDARClass
+    compute_match, bearing_between_two_latlon_points, LIDARClass
 from common.utils import MAX_OBJ_DIST_FROM_CAM
 
 
@@ -242,7 +242,7 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
                                                                                 row['PROJ_SCREEN_X']] * slope / 255),
                                                        axis=1)
             # find the nearest LIDAR projected point from the pole ground location (x0, yl)
-            nearest_indices, nearest_dist = compute_match_kdtree(x0, yl,
+            nearest_indices, nearest_dist = compute_match(x0, yl,
                                                           sub_lidar_df['PROJ_SCREEN_X'], sub_lidar_df['PROJ_SCREEN_Y'])
             if len(nearest_indices) <= 1:
                 nearest_idx = nearest_indices[0]
@@ -319,7 +319,7 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
                 (sub_lidar_df['PROJ_SCREEN_Y'] >= object_features[i].bbox[0]) &
                 (sub_lidar_df['PROJ_SCREEN_Y'] <= yl)]
             if len(filtered_lidar_df) > 0:
-                nearest_findices, nearest_fdist = compute_match_kdtree(x0, y0,
+                nearest_findices, nearest_fdist = compute_match(x0, y0,
                                                                 filtered_lidar_df['PROJ_SCREEN_X'],
                                                                 filtered_lidar_df['PROJ_SCREEN_Y'])
                 nearest_fidx = nearest_findices[0]
@@ -327,7 +327,7 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
                 # to determine whether to use nearest_fidx or nearest_idx
                 obj_feat_df = pd.DataFrame(data=object_features[i].coords, columns=['Y', 'X'])
 
-                _, nearest_fdist = compute_match_kdtree(sub_lidar_df.iloc[nearest_fidx].PROJ_SCREEN_X,
+                _, nearest_fdist = compute_match(sub_lidar_df.iloc[nearest_fidx].PROJ_SCREEN_X,
                                                  sub_lidar_df.iloc[nearest_fidx].PROJ_SCREEN_Y,
                                                  obj_feat_df['X'], obj_feat_df['Y'])
                 print(f'nearest_fidx: {nearest_fidx}, nearest_fdist: {nearest_fdist}')

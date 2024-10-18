@@ -12,7 +12,7 @@ from common.utils import haversine
 
 def get_lidar_data_from_shp(lidar_shp_file_path):
     # read shape file
-    df = gpd.read_file(lidar_shp_file_path)
+    df = gpd.read_file(lidar_shp_file_path, engine='pyogrio')
     # lidar_df should have columns Id, ORIG_FID, POINT_X, POINT_Y, POINT_Z, and geometry where geometry is
     # a point geometry, e.g., POINT Z (891488.760 734099.780 2018.620)
     # print(lidar_df.head())
@@ -28,10 +28,13 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
                                        include_all_cols=False, fov=15):
     clat, clon = cam_loc
     next_clat, next_clon = next_cam_loc
-    df['distance'] = df.apply(lambda row: haversine(clon, clat, row['geometry_y'].x, row['geometry_y'].y), axis=1)
+    x_coords = np.array([point.x for point in df['geometry_y']])
+    y_coords = np.array([point.y for point in df['geometry_y']])
+    df['distance'] = haversine(clon, clat, x_coords, y_coords)
+
     cam_bearing = bearing_between_two_latlon_points(clat, clon, next_clat, next_clon, is_degree=False)
-    df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
-        clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
+    bearings = bearing_between_two_latlon_points(clat, clon, y_coords, x_coords, is_degree=False)
+    df['bearing_diff'] = np.abs(cam_bearing - bearings)
     if end_of_route:
         # use lidar road edge as camera bearing direction instead since next_cam_loc is interpolated and does not
         # accurately reflect camera bearing direction
@@ -42,8 +45,7 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
                                                         df.iloc[nidx]['geometry_y'].y,
                                                         df.iloc[nidx]['geometry_y'].x,
                                                         is_degree=False)
-        df['bearing_diff'] = df.apply(lambda row: abs(cam_bearing - bearing_between_two_latlon_points(
-            clat, clon, row['geometry_y'].y, row['geometry_y'].x, is_degree=False)), axis=1)
+        df['bearing_diff'] = np.abs(cam_bearing - bearings)
 
     df = df[(df['distance'] > dist_th[0]) & (df['distance'] < dist_th[1]) & (df['bearing_diff'] < math.pi * fov / 180)]
     if include_all_cols:

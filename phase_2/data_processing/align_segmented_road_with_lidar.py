@@ -13,7 +13,7 @@ import alphashape
 from shapely.geometry import Polygon, MultiPolygon
 
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
-    get_aerial_lidar_road_geo_df, compute_match_kdtree, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
+    get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
     angle_between, get_mapping_dataframe, classify_points_base_on_centerline, ROADSIDE
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
@@ -137,7 +137,7 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     left = -0.5 * width
     right = left + width
     bottom = top - height
-    # print(f'hfov: {degrees(atan2(width/2, cam_params[PERSPECTIVE_NEAR])) * 2}')
+
     x = 2 * cam_params[PERSPECTIVE_NEAR] / (right - left)
     y = 2 * cam_params[PERSPECTIVE_NEAR] / (top - bottom)
     a = (right + left) / (right - left)
@@ -182,47 +182,6 @@ def get_2d_road_points_by_z(idf, filter_col, compare_val, threshold_val=30):
     return idf[abs(idf[filter_col] - compare_val) < threshold_val]
 
 
-def _compute_mse(df, x_col1, x_col2, y_col1, y_col2):
-    """
-    compute mean square error between (x_col1, y_col1) and (x_col2, y_col2)
-    :param df: input dataframe that contains four columns to compute MSE from
-    :param x_col1: the first x column
-    :param x_col2: the second x column
-    :param y_col1: the first y column
-    :param y_col2: the second y column
-    :return: mean square error
-    """
-    # Calculate squared differences for X and Y columns
-    squared_diff_x = (df[x_col1] - df[x_col2]) ** 2
-    squared_diff_y = (df[y_col1] - df[y_col2]) ** 2
-
-    # Calculate mean squared error
-    return np.mean(squared_diff_x + squared_diff_y)
-
-
-def mean_squared_error(points1, points2_df, points2_df_x_col, points2_df_y_col):
-    """
-    calculate the mean squared error between points1 and points2. The given points1 and points2 are assumed
-    to be in the corresponding order for computing the squared difference
-    :param points1: a list of points with each point represented as a tuple (x, y)
-    :param points2_df: a dataframe of points with each row represented as a point
-    with points2_df_x_col, points2_df_y_col columns
-    :param points2_df_x_col: the x column in points2_df
-    :param points2_df_y_col: the y column in points2_df
-    :return: MSE between points1 and points2 in the given order
-    """
-    # Convert the list of tuples to a DataFrame for easier manipulation
-    df1 = pd.DataFrame(points1, columns=['X1', 'Y1'])
-
-    # Merge the df1 DataFrame and given points2_df on the index
-    merged_df = pd.concat([df1, points2_df], axis=1)
-
-    # only keep the first and last rows to test out only aligning the corner points
-    merged_df = merged_df.iloc[[0, -1]]
-    print(f'merged_df: {merged_df}')
-    return _compute_mse(merged_df, 'X1', points2_df_x_col, 'Y1', points2_df_y_col)
-
-
 class SkipOptimizationException(Exception):
     """
     Custom exception to indicate that the optimization initial condition should be reset.
@@ -241,11 +200,15 @@ class SkipOptimizationException(Exception):
     pass
 
 
-def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors, grid_th=100):
+def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors, filter_screen_y, grid_th=100):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
+
+    if filter_screen_y is not None:
+        # trim the LIDAR points to be more in line with road segmentation based on its baseline alignment
+        df_3d = df_3d[df_3d.PROJ_SCREEN_Y > filter_screen_y]
 
     # get transformed dataframe within projected screen bounds
     filtered_df_3d = df_3d[
@@ -474,7 +437,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = \
         get_mapping_data(mapping_df, input_2d_mapped_image)
     # get the lidar road vertex with the closest distance to the camera location
-    cam_nearest_lidar_idx, _ = compute_match_kdtree(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
+    cam_nearest_lidar_idx, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
     cam_lidar_z = ldf.iloc[cam_nearest_lidar_idx].Z
     print(f'camera Z: {cam_lidar_z}')
     t1 = time.time()
@@ -507,7 +470,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_gdf = add_lidar_x_y_from_lat_lon(cam_df)
     proj_cam_x2 = cam_gdf.iloc[0].x
     proj_cam_y2 = cam_gdf.iloc[0].y
-    cam2_nearest_lidar_idx, _ = compute_match_kdtree(proj_cam_x2, proj_cam_y2, ldf['X'], ldf['Y'])
+    cam2_nearest_lidar_idx, _ = compute_match(proj_cam_x2, proj_cam_y2, ldf['X'], ldf['Y'])
     proj_cam_z2 = ldf.iloc[cam2_nearest_lidar_idx].Z
     cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
     cam_v = cam_v / np.linalg.norm(cam_v)
@@ -649,13 +612,10 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         })
         min_road_y = input_2d_df['Y'].min()
         buffer_y = 10
-        print(f'lidar_3d_proj_y_min: {lidar_3d_proj_y_min}, min_road_y: {min_road_y}')
         if min_road_y - lidar_3d_proj_y_min > buffer_y:
-            # trim LIDAR far end road points to make them match better with road segmentation
-            print(f'before trimming LIDAR data: {input_3d_road_bound_gdf.shape}')
-            input_3d_road_bound_gdf = input_3d_road_bound_gdf[
-                input_3d_road_bound_gdf.PROJ_SCREEN_Y > (min_road_y - buffer_y)]
-            print(f'after trimming LIDAR data: {input_3d_road_bound_gdf.shape}')
+            filter_proj_y = min_road_y - buffer_y
+        else:
+            filter_proj_y = None
         input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
     else:
         print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, skip this image '
@@ -690,7 +650,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     try:
         result = minimize(objective_function_2d, init_cam_paras[start_idx:],
                           args=(input_3d_road_bound_gdf,
-                                input_2d_df, img_width, img_height, align_errors),
+                                input_2d_df, img_width, img_height, align_errors, filter_proj_y),
                           method='Nelder-Mead',
                           # bounds in the order of OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET, \
                           # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
@@ -730,7 +690,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
                         default='data/d13_route_40001001012/'
-                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides_reduced.csv',
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
                         default='data/d13_route_40001001012/segmentation',
