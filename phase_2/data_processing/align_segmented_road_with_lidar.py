@@ -192,28 +192,25 @@ class SkipOptimizationException(Exception):
     pass
 
 
-def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors, filter_screen_y, grid_th=100):
+def _filter_dataframe_within_screen_bounds(df, screen_width, screen_height):
+    return df[
+        (df['PROJ_SCREEN_X'] >= 0) &
+        (df['PROJ_SCREEN_X'] <= screen_width) &
+        (df['PROJ_SCREEN_Y'] >= 0) &
+        (df['PROJ_SCREEN_Y'] <= screen_height)
+    ]
+
+def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors, filter_cam_dist, grid_th=100):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
     df_3d = transform_3d_points(df_3d, full_cam_params, img_wd, img_ht)
 
-    # get transformed dataframe within projected screen bounds
-    filtered_df_3d = df_3d[
-        (df_3d['PROJ_SCREEN_X'] >= 0) &
-        (df_3d['PROJ_SCREEN_X'] <= img_wd) &
-        (df_3d['PROJ_SCREEN_Y'] >= 0) &
-        (df_3d['PROJ_SCREEN_Y'] <= img_ht)]
-
-    if filter_screen_y is not None:
-        # trim the LIDAR points to be more in line with road segmentation
-        cam_dist_th = LIDAR_DIST_THRESHOLD[1] * 2.4 # 0.73*3.28 = 2.4 where 3.28 fector converts meter to feet
-        x_data = filtered_df_3d[filtered_df_3d.CAM_DIST >= cam_dist_th]['PROJ_SCREEN_Y'].to_numpy()
-        y_data = filtered_df_3d[filtered_df_3d.CAM_DIST >= cam_dist_th]['CAM_DIST'].to_numpy()
-        params, _ = curve_fit(_linear_model, x_data, y_data)
-        a, b = params
-        filter_cam_dist = _linear_model(filter_screen_y, a, b)
+    if filter_cam_dist is not None:
         df_3d = df_3d[df_3d.CAM_DIST < filter_cam_dist]
+
+    # get transformed dataframe within projected screen bounds
+    filtered_df_3d = _filter_dataframe_within_screen_bounds(df_3d, img_wd, img_ht)
 
     if len(filtered_df_3d) < len(df_3d) / 20:
         # most points are projected out of the bound, need to reset initial condition
@@ -534,12 +531,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     if 'SIDE' in cols:
         input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
 
-    filtered_road_3d = input_3d_road_bound_gdf[
-        (input_3d_road_bound_gdf['PROJ_SCREEN_X'] >= 0) &
-        (input_3d_road_bound_gdf['PROJ_SCREEN_X'] <= img_width) &
-        (input_3d_road_bound_gdf['PROJ_SCREEN_Y'] >= 0) &
-        (input_3d_road_bound_gdf['PROJ_SCREEN_Y'] <= img_height)]
-
+    filtered_road_3d = _filter_dataframe_within_screen_bounds(input_3d_road_bound_gdf, img_width, img_height)
     lidar_3d_proj_y_min = filtered_road_3d['PROJ_SCREEN_Y'].min()
 
     # compare shape similarity after combining lane and road boundary
@@ -571,10 +563,21 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         })
         min_road_y = input_2d_df['Y'].min()
         buffer_y = 10
-        if min_road_y - lidar_3d_proj_y_min > buffer_y:
-            filter_proj_y = min_road_y - buffer_y
+        filter_proj_y = min_road_y - buffer_y
+        if filter_proj_y > lidar_3d_proj_y_min:
+            # trim the LIDAR points to be more in line with road segmentation
+            cam_dist_th = LIDAR_DIST_THRESHOLD[1] * 2.4  # 0.73*3.28 = 2.4 where 3.28 fector converts meter to feet
+            x_data = filtered_road_3d[filtered_road_3d.CAM_DIST >= cam_dist_th]['PROJ_SCREEN_Y'].to_numpy()
+            y_data = filtered_road_3d[filtered_road_3d.CAM_DIST >= cam_dist_th]['CAM_DIST'].to_numpy()
+            if len(x_data) < 10:
+                filter_cam_dist = None
+            else:
+                params, _ = curve_fit(_linear_model, x_data, y_data)
+                a, b = params
+                print(f'a: {a}, b: {b}, len(x_data): {len(x_data)}, len(y_data): {len(y_data)}')
+                filter_cam_dist = _linear_model(filter_proj_y, a, b)
         else:
-            filter_proj_y = None
+            filter_cam_dist = None
         input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
     else:
         print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, skip this image '
@@ -609,7 +612,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     try:
         result = minimize(objective_function_2d, init_cam_paras[start_idx:],
                           args=(input_3d_road_bound_gdf,
-                                input_2d_df, img_width, img_height, align_errors, filter_proj_y),
+                                input_2d_df, img_width, img_height, align_errors, filter_cam_dist),
                           method='Nelder-Mead',
                           # bounds in the order of OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET, \
                           # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
