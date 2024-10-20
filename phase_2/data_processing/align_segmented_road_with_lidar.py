@@ -201,7 +201,7 @@ def _filter_dataframe_within_screen_bounds(df, screen_width, screen_height):
     ]
 
 
-def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors, filter_screen_y, grid_th=100):
+def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors, filter_screen_y):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
     full_cam_params = get_full_camera_parameters(cam_params)
@@ -212,17 +212,19 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
 
     lidar_3d_proj_y_min = filtered_df_3d['PROJ_SCREEN_Y'].min()
     if filter_screen_y > lidar_3d_proj_y_min:
-        # trim the LIDAR points to be more in line with road segmentation
-        cam_dist_th = LIDAR_DIST_THRESHOLD[1] * 2.4  # 0.73*3.28 = 2.4 where 3.28 factor converts meter to feet
-        x_data = filtered_df_3d[filtered_df_3d.CAM_DIST >= cam_dist_th]['PROJ_SCREEN_Y'].to_numpy()
-        y_data = filtered_df_3d[filtered_df_3d.CAM_DIST >= cam_dist_th]['CAM_DIST'].to_numpy()
-        if len(x_data) > 25:
-            params, _ = curve_fit(_linear_model, x_data, y_data)
-            a, b = params
-            filter_cam_dist = _linear_model(filter_screen_y, a, b)
-            print(f'before filtering LIDAR data, len(df_3d) = {len(df_3d)}')
-            df_3d = df_3d[df_3d.CAM_DIST < filter_cam_dist]
-            print(f'after filtering LIDAR data, len(df_3d) = {len(df_3d)}, filter_cam_dist: {filter_cam_dist}')
+        if len(filtered_df_3d[filtered_df_3d.PROJ_SCREEN_Y < filter_screen_y]) > 500:
+            # trim the LIDAR points to be more in line with road segmentation if more than 500 LIDAR road edge points
+            # are beyond the segmented road y range
+            cam_dist_th = LIDAR_DIST_THRESHOLD[1] * 2.4  # 0.73*3.28 = 2.4 where 3.28 factor converts meter to feet
+            x_data = filtered_df_3d[filtered_df_3d.CAM_DIST >= cam_dist_th]['PROJ_SCREEN_Y'].to_numpy()
+            y_data = filtered_df_3d[filtered_df_3d.CAM_DIST >= cam_dist_th]['CAM_DIST'].to_numpy()
+            if len(x_data) > 25:
+                params, _ = curve_fit(_linear_model, x_data, y_data)
+                a, b = params
+                filter_cam_dist = _linear_model(filter_screen_y, a, b)
+                print(f'before filtering LIDAR data, len(df_3d) = {len(df_3d)}')
+                df_3d = df_3d[df_3d.CAM_DIST < filter_cam_dist]
+                print(f'after filtering LIDAR data, len(df_3d) = {len(df_3d)}, filter_cam_dist: {filter_cam_dist}')
 
     if len(filtered_df_3d) < len(df_3d) / 20:
         # most points are projected out of the bound, need to reset initial condition
@@ -234,7 +236,7 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
     df_3d_l = df_3d[df_3d['SIDE'] == ROADSIDE.LEFT.value]
     df_3d_r = df_3d[df_3d['SIDE'] == ROADSIDE.RIGHT.value]
 
-    def compute_grid_minimum_distances(x_3d, y_3d, x_2d, y_2d):
+    def compute_grid_minimum_distances(x_3d, y_3d, x_2d, y_2d, grid_th=100):
         """
         Function to compute minimum distances between each point in (x_3d, y_3d) and (x_2d, y_2d)
         leveraging numpy broadcasting and vectorization
@@ -570,7 +572,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
             'SIDE': input_2d_sides
         })
         min_road_y = input_2d_df['Y'].min()
-        filter_proj_y = min_road_y - 10
+        filter_proj_y = min_road_y - 50
         input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
     else:
         print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, skip this image '
