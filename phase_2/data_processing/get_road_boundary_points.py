@@ -174,22 +174,20 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
 
     if first_row_idx == -1 or last_row_idx == -1:
         print(f'cannot find start and end middle lane points to create a centralline axis for filtering: '
-              f'first_row_idx: {first_row_idx}, last_row_idx: {last_row_idx}, returning')
+              f'first_row_idx: {first_row_idx}, last_row_idx: {last_row_idx}, {image_file_name}, returning')
         return image_width, image_height, lane_img, [lane_contour], None, None
 
     # compute axes and centroids composed of multiple segments from the middle lane
     middle_points = []
     middle_axes = []
     # Loop through the selected rows to create multiple line segments
-    step_size = 50
+    step_size = 30
     for idx in range(first_row_idx, last_row_idx, step_size):
         idx2 = idx + step_size
         if idx2 >= last_row_idx:
             idx2 = last_row_idx
-
         row_center_start, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx])
         row_center_end, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx2])
-
         if row_center_start is not None and row_center_end is not None:
             # Calculate axis for this segment
             axis = get_axis_from_points(row_center_end, row_center_start)
