@@ -4,7 +4,7 @@ import time
 import pandas as pd
 import numpy as np
 from scipy.spatial.transform import Rotation
-from scipy.optimize import minimize, curve_fit
+from scipy.optimize import minimize
 from scipy.interpolate import UnivariateSpline
 from math import radians, tan
 
@@ -201,6 +201,32 @@ def _filter_dataframe_within_screen_bounds(df, screen_width, screen_height):
     ]
 
 
+def _trim_lidar_by_cam_dist_and_proj_screen_y(input_df_3d):
+    # trim lidar data before feeding to the optimizer to make sure when distance to camera increases,
+    # projected screen y value decreases within tolerance
+    tol = 30 # set 30 pixel tolerance
+    df_sorted = input_df_3d.sort_values(by=['SIDE', 'CAM_DIST'])
+    mask_list = []
+
+    # Group by the 'SIDE' column and apply the filtering logic separately for each group
+    for side, group in df_sorted.groupby('SIDE'):
+        # Within each group, track the minimum PROJ_SCREEN_Y encountered so far
+        min_proj_screen_y = group['PROJ_SCREEN_Y'].cummin()
+
+        # Keep the row if PROJ_SCREEN_Y is less than or equal to the minimum cumulative value plus tolerance
+        group_keep = group['PROJ_SCREEN_Y'] <= (min_proj_screen_y + tol)
+
+        # Append the mask for the current group
+        mask_list.append(group_keep)
+
+    # Concatenate all group masks into a single boolean mask
+    keep = pd.concat(mask_list)
+
+    # Apply the mask to filter rows
+    df_filtered = df_sorted[keep].reset_index(drop=True)
+    return df_filtered
+
+
 def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
     # compute alignment error corresponding to the cam_params using the sum of squared distances between projected
     # LIDAR vertices and the road boundary pixels
@@ -214,6 +240,7 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
         # most points are projected out of the bound, need to reset initial condition
         raise SkipOptimizationException(CAMERA_ALIGNMENT_RESET_REASONS[0], len(filtered_df_3d))
 
+    df_3d = _trim_lidar_by_cam_dist_and_proj_screen_y(filtered_df_3d)
     # split df_2d and df_3d based on SIDE
     df_2d_l = df_2d[df_2d['SIDE'] == ROADSIDE.LEFT.value]
     df_2d_r = df_2d[df_2d['SIDE'] == ROADSIDE.RIGHT.value]
