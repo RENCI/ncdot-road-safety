@@ -292,6 +292,7 @@ def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_n
                                    image_height=1200):
     # get mask created from two lanes for masking out road boundaries
     clust_points = _cluster_points(lane_points, eps=30, min_samples=5)
+
     if len(clust_points) > 2:
         clust_points = _cluster_points(lane_points, eps=60, min_samples=5)
 
@@ -300,24 +301,25 @@ def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_n
         clust_points.sort(key=len, reverse=True)
         clust_points = clust_points[:2]
 
-    # extend the top point of both lanes vertically to the image top so that everything
-    # between two lanes will be masked out
-    # clust_points[0] = np.vstack((np.array([clust_points[0][0][0], 0]), clust_points[0]))
-    # clust_points[1] = np.vstack((np.array([clust_points[1][0][0], 0]), clust_points[1]))
-    # move left lane certain pixels to the left and right lane to the right to mask out
-    # corresponding road boundary lanes since lane lines will be used in the combined image
-    if clust_points[0][0][0] < clust_points[1][0][0]:
-        # clust_points[0] is left lane and clust_points[1] is right lane
-        clust_points[0][:, 0] -= (clust_points[0][:, 1] * 100 / image_height).astype(int)
-        clust_points[1][:, 0] += (clust_points[1][:, 1] * 100 / image_height).astype(int)
-    else:
-        # clust_points[0] is right lane and clust_points[1] is left lane
-        clust_points[0][:, 0] += (clust_points[0][:, 1] * 100 / image_height).astype(int)
-        clust_points[1][:, 0] -= (clust_points[1][:, 1] * 100 / image_height).astype(int)
-    # clustered points are sorted from top to bottom, i.e., by y in increasing order, so need to
-    # flip the sorting order for the second cluster so that bottom of the first cluster can connect
-    # to bottom of the second cluster when vstack them
-    clust_points[1] = np.flip(clust_points[1], 0)
+    if len(clust_points) >= 2:
+        # extend the top point of both lanes vertically to the image top so that everything
+        # between two lanes will be masked out
+        # clust_points[0] = np.vstack((np.array([clust_points[0][0][0], 0]), clust_points[0]))
+        # clust_points[1] = np.vstack((np.array([clust_points[1][0][0], 0]), clust_points[1]))
+        # move left lane certain pixels to the left and right lane to the right to mask out
+        # corresponding road boundary lanes since lane lines will be used in the combined image
+        if clust_points[0][0][0] < clust_points[1][0][0]:
+            # clust_points[0] is left lane and clust_points[1] is right lane
+            clust_points[0][:, 0] -= (clust_points[0][:, 1] * 100 / image_height).astype(int)
+            clust_points[1][:, 0] += (clust_points[1][:, 1] * 100 / image_height).astype(int)
+        else:
+            # clust_points[0] is right lane and clust_points[1] is left lane
+            clust_points[0][:, 0] += (clust_points[0][:, 1] * 100 / image_height).astype(int)
+            clust_points[1][:, 0] -= (clust_points[1][:, 1] * 100 / image_height).astype(int)
+        # clustered points are sorted from top to bottom, i.e., by y in increasing order, so need to
+        # flip the sorting order for the second cluster so that bottom of the first cluster can connect
+        # to bottom of the second cluster when vstack them
+        clust_points[1] = np.flip(clust_points[1], 0)
     clust_points = np.vstack(clust_points)
     # plt.plot(clust_points[:, 0], img_hgt - clust_points[:, 1], 'b--', lw=2)
     # plt.show()
@@ -325,6 +327,7 @@ def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_n
     lane_mask = np.zeros_like(lane_img)
     cv2.fillPoly(lane_mask, [clust_points], 255)
     filtered_road_boundaries = cv2.bitwise_and(road_img, road_img, mask=cv2.bitwise_not(lane_mask))
+
     road_indices = np.where(filtered_road_boundaries == 255)
     road_contour = np.column_stack((road_indices[1], road_indices[0]))
 
