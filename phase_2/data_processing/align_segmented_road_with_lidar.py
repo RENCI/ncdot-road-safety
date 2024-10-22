@@ -5,12 +5,11 @@ import pandas as pd
 import numpy as np
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
-from scipy.interpolate import UnivariateSpline
 from math import radians, tan
 
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    angle_between, get_mapping_dataframe, classify_points_base_on_centerline, ROADSIDE
+    get_mapping_dataframe, classify_points_base_on_centerline, ROADSIDE
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary
@@ -38,14 +37,10 @@ Z_ROT_MAX = 5
 
 INIT_CAM_OBJ_PARAS = None
 PREV_CAM_OBJ_PARAS = None
-PREV_CAM_BEARING_VEC = {'camera': {},
-                        'road': {}}
+PREV_CAM_BEARING_VEC = {}
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 
 LIDAR_DIST_THRESHOLD = (0, 210)
-SPLINE_FIT_DIST_THRESHOLD = 15
-SPLINE_SMOOTHING_FACTOR = 100
-USE_ROAD_TANGENT_ANGLE_THRESHOLD = 30
 
 CAMERA_ALIGNMENT_RESET_REASONS = ['Too few LIDAR points', 'alignment error threshold exceeded']
 
@@ -424,8 +419,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     if row['OBJ_BASE_TRANS_LIST']:
         INIT_CAM_OBJ_PARAS = row['OBJ_BASE_TRANS_LIST']
         PREV_CAM_OBJ_PARAS = None
-        PREV_CAM_BEARING_VEC = {'camera': {},
-                                'road': {}}
+        PREV_CAM_BEARING_VEC = {}
 
     out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{input_2d_mapped_image}.csv')
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
@@ -476,60 +470,12 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
     cam_v = cam_v / np.linalg.norm(cam_v)
 
-    # fit a spline to the LIDAR road points in the radius of SPLINE_FIT_DIST_THRESHOLD along camera bearing direction
     filtered_road_bound_ldf = input_3d_gdf[input_3d_gdf.BOUND == 1]
     print(f'filtered_road_bound_ldf shape: {filtered_road_bound_ldf.shape}')
-    filtered_road_ldf = filtered_road_bound_ldf[filtered_road_bound_ldf.CAM_DIST < SPLINE_FIT_DIST_THRESHOLD]
-    print(f'filtered_road_ldf shape: {filtered_road_ldf.shape}, '
-          f'cam_dist min: {filtered_road_bound_ldf.CAM_DIST.min()}, '
-          f'max: {filtered_road_bound_ldf.CAM_DIST.max()}')
-    if filtered_road_ldf.CAM_DIST.min() > 4:
-        # road bound points are too far away from the camera location to be used to compute road tangent
-        no_points_for_spline = True
-    elif len(filtered_road_ldf) > 4:
-        no_points_for_spline = False
-        filtered_road_ldf.sort_values(by=['CAM_DIST'], inplace=True)
-        x = filtered_road_ldf['X'].values
-        y = filtered_road_ldf['Y'].values
-        z = filtered_road_ldf['Z'].values
-        unique_x, unique_indices = np.unique(x, return_index=True)
-        unique_y = y[unique_indices]
-        unique_z = z[unique_indices]
-        try:
-            spline_xy = UnivariateSpline(unique_x, unique_y, s=SPLINE_SMOOTHING_FACTOR)
-            spline_xz = UnivariateSpline(unique_x, unique_z, s=SPLINE_SMOOTHING_FACTOR)
-            cam_tan_x = spline_xy.derivative()(filtered_road_ldf['X'].iloc[0])
-            cam_tan_y = spline_xy.derivative()(filtered_road_ldf['Y'].iloc[0])
-            cam_tan_z = spline_xz.derivative()(filtered_road_ldf['Z'].iloc[0])
-            road_v = np.array([cam_tan_x, cam_tan_y, cam_tan_z])
-            road_v = road_v / np.linalg.norm(road_v)
-            print(f'cam_v: {cam_v}, road_v: {road_v}, image: {row["imageBaseName"]}, '
-                  f'PREV_CAM_VEC: {PREV_CAM_BEARING_VEC}')
-        except Exception as ex:
-            print(f'Exception {ex} encountered when trying spline, use camera vector instead')
-            no_points_for_spline = True
-    else:
-        no_points_for_spline = True
-
-    if no_points_for_spline is True:
-        # use camera vector since there are not enough LIDAR road edge points to get the road vector
-        prev_v = PREV_CAM_BEARING_VEC['camera']
-        v = cam_v
-        road_v = np.zeros(3)
-        print('use camera vector, no_points_for_spline is True')
 
     if PREV_CAM_OBJ_PARAS is not None:
-        if no_points_for_spline is False:
-            bet_angle = angle_between(cam_v, road_v)
-            print(f'bet_angle: {bet_angle}')
-            if bet_angle < USE_ROAD_TANGENT_ANGLE_THRESHOLD and not np.all(PREV_CAM_BEARING_VEC['road'] == 0):
-                prev_v = PREV_CAM_BEARING_VEC['road']
-                v = road_v
-                print('use road tangent')
-            else:
-                prev_v = PREV_CAM_BEARING_VEC['camera']
-                v = cam_v
-                print('use camera vector')
+        prev_v = PREV_CAM_BEARING_VEC
+        v = cam_v
         init_cam_paras = derive_next_camera_params(prev_v, v, PREV_CAM_OBJ_PARAS)
         print(f'derived camera parameters: {init_cam_paras}')
     else:
@@ -537,8 +483,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
 
     # update global variables to prepare for the next image row iteration
     PREV_CAM_OBJ_PARAS = init_cam_paras
-    PREV_CAM_BEARING_VEC['camera'] = cam_v
-    PREV_CAM_BEARING_VEC['road'] = road_v
+    PREV_CAM_BEARING_VEC = cam_v
+
 
     if m_points is None:
         # no middle lane axis and centroid can be computed from segmented road lanes, which indicates a
@@ -655,7 +601,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
                         default='data/d13_route_40001001012/'
-                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides_reduced.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
                         default='data/d13_route_40001001012/segmentation',
