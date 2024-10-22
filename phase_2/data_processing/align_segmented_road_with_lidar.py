@@ -240,7 +240,6 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
         # most points are projected out of the bound, need to reset initial condition
         raise SkipOptimizationException(CAMERA_ALIGNMENT_RESET_REASONS[0], len(filtered_df_3d))
 
-    df_3d = _trim_lidar_by_cam_dist_and_proj_screen_y(filtered_df_3d)
     # split df_2d and df_3d based on SIDE
     df_2d_l = df_2d[df_2d['SIDE'] == ROADSIDE.LEFT.value]
     df_2d_r = df_2d[df_2d['SIDE'] == ROADSIDE.RIGHT.value]
