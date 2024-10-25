@@ -29,18 +29,19 @@ CAM_NEAR = 0.1
 # camera pose parameter bound constraints put on optimizer
 FOV_OFFSET = 2
 # each lane in a typical two-lane road measures 12 feet wide
-X_TRAN_MAX = Y_TRAN_MAX = 10
+X_TRAN_MAX = 10
+Y_TRAN_MAX = 10
 Z_TRAN_MAX = 20
-X_ROT_MAX = 5
-Y_ROT_MAX = 5 
-Z_ROT_MAX = 5
+X_ROT_MAX = 10
+Y_ROT_MAX = 10
+Z_ROT_MAX = 10
 
 INIT_CAM_OBJ_PARAS = None
 PREV_CAM_OBJ_PARAS = None
 PREV_CAM_BEARING_VEC = {}
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 
-LIDAR_DIST_THRESHOLD = (0, 210)
+LIDAR_DIST_THRESHOLD = (3.5, 210)
 
 CAMERA_ALIGNMENT_RESET_REASONS = ['Too few LIDAR points', 'alignment error threshold exceeded']
 
@@ -431,10 +432,12 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     # compute base camera parameters
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = \
         get_mapping_data(mapping_df, input_2d_mapped_image)
+
     # get the lidar road vertex with the closest distance to the camera location
     cam_nearest_lidar_idx, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
     cam_lidar_z = ldf.iloc[cam_nearest_lidar_idx].Z
     print(f'camera Z: {cam_lidar_z}')
+
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
@@ -453,6 +456,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     input_3d_df['Z'] = input_3d_df['Z'].astype(float)
     if 'C' in cols:
         input_3d_df['C'] = input_3d_df['C'].astype(int)
+
     input_3d_gdf = create_gdf_from_df(input_3d_df)
     # calculate the bearing of each 3D point to the camera
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
@@ -465,8 +469,9 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_gdf = add_lidar_x_y_from_lat_lon(cam_df)
     proj_cam_x2 = cam_gdf.iloc[0].x
     proj_cam_y2 = cam_gdf.iloc[0].y
-    cam2_nearest_lidar_idx, _ = compute_match(proj_cam_x2, proj_cam_y2, ldf['X'], ldf['Y'])
-    proj_cam_z2 = ldf.iloc[cam2_nearest_lidar_idx].Z
+    cam2_nearest_lidar_idx, _ = compute_match(proj_cam_x2, proj_cam_y2, input_3d_df['X'],
+                                              input_3d_df['Y'])
+    proj_cam_z2 = input_3d_df.iloc[cam2_nearest_lidar_idx].Z
     cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
     cam_v = cam_v / np.linalg.norm(cam_v)
 
