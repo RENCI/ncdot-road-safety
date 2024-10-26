@@ -91,8 +91,8 @@ def _is_cluster_centered(left_cluster, middle_cluster, right_cluster):
     left_centroid_x = np.mean(left_cluster[:, 0])
     right_centroid_x = np.mean(right_cluster[:, 0])
     middle_centroid_x = np.mean(middle_cluster[:, 0])
-
-    return abs((middle_centroid_x - left_centroid_x) - (right_centroid_x - middle_centroid_x)) < 100
+    
+    return abs((middle_centroid_x - left_centroid_x) - (right_centroid_x - middle_centroid_x)) < 300
 
 
 def _cluster_row(contours, row_no):
@@ -154,7 +154,6 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     unique_rows, counts = np.unique(sorted_lane_contour[:, 1], return_counts=True)
     rows_with_potential_lanes = unique_rows[counts >= 3]  # Use rows with 2 or more points
     first_row_idx = last_row_idx = -1
-
     # determine the first and last row containing the middle lane
     filter_threshold = 30
     for i in range(len(rows_with_potential_lanes)):
@@ -194,6 +193,8 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
             # Append axis and centroid point to lists
             middle_axes.append(axis)
             middle_points.append(row_center_start)
+    if len(middle_axes) <= 0:
+        return image_width, image_height, lane_img, [lane_contour], None, None
 
     # Convert lists to NumPy arrays
     middle_axes = np.array(middle_axes)
@@ -207,7 +208,10 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
             point1 = (int(middle_points[idx][0]), int(middle_points[idx][1]))
             point2 = (int(middle_points[idx + 1][0]), int(middle_points[idx + 1][1]))
             cv2.line(color_image, point1, point2, (0, 0, 255), 2)  # Blue line for visibility
-
+        # cv2.line(color_image, (0, rows_with_potential_lanes[first_row_idx]),
+        #           (2000, rows_with_potential_lanes[first_row_idx]), (0, 0, 255), 2)
+        # cv2.line(color_image, (0, rows_with_potential_lanes[last_row_idx]),
+        #           (2000, rows_with_potential_lanes[last_row_idx]), (0, 0, 255), 2)
         Image.fromarray(color_image, 'RGB').save(f'{os.path.splitext(image_file_name)[0]}_axis.png')
 
     # compute the perpendicular distance of each point to the central axes
