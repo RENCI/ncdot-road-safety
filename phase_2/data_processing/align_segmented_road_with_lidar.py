@@ -31,10 +31,10 @@ FOV_OFFSET = 2
 # each lane in a typical two-lane road measures 12 feet wide
 X_TRAN_MAX = 10
 Y_TRAN_MAX = 10
-Z_TRAN_MAX = 25
+Z_TRAN_MAX = 26
 X_ROT_MAX = 5
 Y_ROT_MAX = 5
-Z_ROT_MAX = 5
+Z_ROT_MAX = 7
 
 INIT_CAM_OBJ_PARAS = None
 PREV_CAM_OBJ_PARAS = None
@@ -242,7 +242,7 @@ def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors
     df_3d_l = df_3d[df_3d['SIDE'] == ROADSIDE.LEFT.value]
     df_3d_r = df_3d[df_3d['SIDE'] == ROADSIDE.RIGHT.value]
 
-    def compute_grid_minimum_distances(x_3d, y_3d, x_2d, y_2d, grid_th=100):
+    def compute_grid_minimum_distances(x_3d, y_3d, x_2d, y_2d, grid_th=300):
         """
         Function to compute minimum distances between each point in (x_3d, y_3d) and (x_2d, y_2d)
         leveraging numpy broadcasting and vectorization
