@@ -31,7 +31,7 @@ FOV_OFFSET = 2
 # each lane in a typical two-lane road measures 12 feet wide
 X_TRAN_MAX = 10
 Y_TRAN_MAX = 10
-Z_TRAN_MAX = 20
+Z_TRAN_MAX = 25
 X_ROT_MAX = 5
 Y_ROT_MAX = 5
 Z_ROT_MAX = 5
@@ -426,7 +426,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     print(f'lane_image_name: {lane_image_name}')
-    img_width, img_height, lane_image, input_list, _, m_points = get_image_lane_points(lane_image_name)
+    img_width, img_height, lane_image, input_list, m_points = get_image_lane_points(lane_image_name)
     input_2d_points = input_list[0]
 
     # compute base camera parameters
@@ -437,6 +437,13 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_nearest_lidar_idx, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
     cam_lidar_z = ldf.iloc[cam_nearest_lidar_idx].Z
     print(f'camera Z: {cam_lidar_z}')
+
+    # temporary workaround to get around occluded LIDAR points which need to be removed in another run
+    if int(row.name) < 65:
+        LIDAR_DIST_THRESHOLD = (3.5, 120)
+    else:
+        LIDAR_DIST_THRESHOLD = (3.5, 210)
+
 
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],

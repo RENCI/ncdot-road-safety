@@ -174,7 +174,7 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     if first_row_idx == -1 or last_row_idx == -1:
         print(f'cannot find start and end middle lane points to create a centralline axis for filtering: '
               f'first_row_idx: {first_row_idx}, last_row_idx: {last_row_idx}, {image_file_name}, returning')
-        return image_width, image_height, lane_img, [lane_contour], None, None
+        return image_width, image_height, lane_img, [lane_contour], None
 
     # compute axes and centroids composed of multiple segments from the middle lane
     middle_points = []
@@ -194,7 +194,7 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
             middle_axes.append(axis)
             middle_points.append(row_center_start)
     if len(middle_axes) <= 0:
-        return image_width, image_height, lane_img, [lane_contour], None, None
+        return image_width, image_height, lane_img, [lane_contour], None
 
     # Convert lists to NumPy arrays
     middle_axes = np.array(middle_axes)
@@ -241,7 +241,7 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
         binary_data = np.uint8(lane_img)
         Image.fromarray(binary_data, 'L').save(f'{os.path.splitext(image_file_name)[0]}_processed_filtered.png')
 
-    return image_width, image_height, lane_img, [filtered_lane_contour], middle_axes, middle_points
+    return image_width, image_height, lane_img, [filtered_lane_contour], middle_points
 
 
 def get_image_road_points(image_file_name, boundary_only=True):
@@ -366,7 +366,7 @@ if __name__ == '__main__':
     print(f'images: {images}')
     for img in images:
         lane_image_with_path = os.path.join(input_data_path, f'{img}_lanes.png')
-        _, img_hgt, input_lane_img, input_list, m_axis, m_points = get_image_lane_points(lane_image_with_path, save_processed_image=True)
+        _, img_hgt, input_lane_img, input_list, m_points = get_image_lane_points(lane_image_with_path, save_processed_image=True)
         input_lane_points = input_list[0]
         road_image_with_path = os.path.join(input_data_path, f'{img}.png')
         _, _, input_road_img, input_list = get_image_road_points(road_image_with_path)
@@ -376,12 +376,11 @@ if __name__ == '__main__':
                                                           road_image_with_path, save_processed_image=True)
 
         # classify each point as left or right side
-        if m_axis is not None and m_points is not None:
-            # insert the top point in filtered_contour to m_axis and m_points to account of the far end
+        if m_points is not None:
+            # insert the top point in filtered_contour to m_points to account of the far end
             # curved segment that is not part of the segmented lane but part of the road segmentation boundary
             min_y_index = np.argmin(filtered_contour[:, 1])
             if m_points[0, 1] - filtered_contour[min_y_index, 1] > 10:
-                m_axis = np.vstack((get_axis_from_points(m_points[0, :], filtered_contour[min_y_index, :]), m_axis))
                 m_points = np.vstack((filtered_contour[min_y_index, :], m_points))
 
             m_points_df = pd.DataFrame({'x': m_points[:, 0], 'y': m_points[:, 1]})
