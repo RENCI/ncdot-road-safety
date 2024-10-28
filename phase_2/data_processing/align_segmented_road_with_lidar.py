@@ -497,18 +497,24 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     PREV_CAM_OBJ_PARAS = init_cam_paras
     PREV_CAM_BEARING_VEC = cam_v
 
-
-    if m_points is None:
-        # no middle lane axis and centroid can be computed from segmented road lanes, which indicates a
-        # complicated road scene such as 4-way intersection, need to skip this image and return without optimization
-        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
-
     # output base lidar project info to base_lidar_project_info_{image_base_name}.csv file since the base
     # camera orientation/bearing info is updated from the optimized version of its previous image using
     # road tangent info. The optimization is based on updated camera base parameters
     input_3d_gdf = transform_3d_points(input_3d_gdf, init_cam_paras, img_width, img_height)
     input_3d_gdf.to_csv(os.path.join(out_proj_file_path, f'base_lidar_project_info_{row["imageBaseName"]}.csv'),
                         index=False)
+
+    if m_points is None:
+        # no middle lane axis and centroid can be computed from segmented road lanes, which indicates a
+        # complicated road scene such as 4-way intersection, need to skip this image and return without optimization
+        if input_2d_points.shape[1] == 2:
+            input_2d_df = pd.DataFrame({
+                'X': input_2d_points[:, 0],
+                'Y': input_2d_points[:, 1]
+            })
+            input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
+        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
+
     input_3d_road_bound_gdf = input_3d_gdf[input_3d_gdf.BOUND == 1].reset_index(drop=True).copy()
     if 'SIDE' in cols:
         input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
@@ -517,13 +523,13 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
     input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img,
                                                               seg_image_name, image_height=img_height)
+
     # use combined lane and road boundary for better matching with LIDAR road edges
-    if m_points is not None:
-        # insert the top point in filtered_contour to m_points to account of the far end
-        # curved segment that is not part of the segmented lane but part of the road segmentation boundary
-        min_y_index = np.argmin(input_2d_points[:, 1])
-        if m_points[0, 1] - input_2d_points[min_y_index, 1] > 10:
-            m_points = np.vstack((input_2d_points[min_y_index, :], m_points))
+    # insert the top point in filtered_contour to m_points to account of the far end
+    # curved segment that is not part of the segmented lane but part of the road segmentation boundary
+    min_y_index = np.argmin(input_2d_points[:, 1])
+    if m_points[0, 1] - input_2d_points[min_y_index, 1] > 10:
+        m_points = np.vstack((input_2d_points[min_y_index, :], m_points))
 
     if input_2d_points.shape[1] == 2:
         # classify each point as left or right side
@@ -533,7 +539,13 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         except Exception as ex:
             print(f'segmentation points cannot be classified into sides due to exception: {ex}, '
                   f'skip this image {row["imageBaseName"]}')
+            input_2d_df = pd.DataFrame({
+                'X': input_2d_points[:, 0],
+                'Y': input_2d_points[:, 1]
+            })
+            input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
             return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
+
         input_2d_df = pd.DataFrame({
             'X': input_2d_points[:, 0],
             'Y': input_2d_points[:, 1],
