@@ -32,7 +32,7 @@ FOV_OFFSET = 2
 X_TRAN_MAX = 10
 Y_TRAN_MAX = 10
 Z_TRAN_MAX = 26
-X_ROT_MAX = 5
+X_ROT_MAX = 7
 Y_ROT_MAX = 5
 Z_ROT_MAX = 7
 
@@ -439,7 +439,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     print(f'camera Z: {cam_lidar_z}')
 
     # temporary workaround to get around occluded LIDAR points which need to be removed in another run
-    if int(row.name) < 65:
+    if int(row.name) < 170:
         LIDAR_DIST_THRESHOLD = (3.5, 120)
     else:
         LIDAR_DIST_THRESHOLD = (3.5, 210)
