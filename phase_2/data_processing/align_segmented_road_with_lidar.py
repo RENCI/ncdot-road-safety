@@ -41,8 +41,9 @@ PREV_CAM_OBJ_PARAS = None
 PREV_CAM_BEARING_VEC = {}
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 
-LIDAR_DIST_THRESHOLD = (3.5, 210)
-
+# temporary workaround to get around occluded LIDAR points by reducing LIDAR points extraction distance threshold
+LIDAR_DIST_THRESHOLD = (3.5, 120)
+# LIDAR_DIST_THRESHOLD = (3.5, 210)
 CAMERA_ALIGNMENT_RESET_REASONS = ['Too few LIDAR points', 'alignment error threshold exceeded']
 
 def rotate_point(point, quaternion):
@@ -437,13 +438,6 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_nearest_lidar_idx, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
     cam_lidar_z = ldf.iloc[cam_nearest_lidar_idx].Z
     print(f'camera Z: {cam_lidar_z}')
-
-    # temporary workaround to get around occluded LIDAR points which need to be removed in another run
-    if int(row.name) < 170:
-        LIDAR_DIST_THRESHOLD = (3.5, 120)
-    else:
-        LIDAR_DIST_THRESHOLD = (3.5, 210)
-
 
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
