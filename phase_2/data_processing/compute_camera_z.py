@@ -2,6 +2,7 @@ import argparse
 from utils import get_aerial_lidar_road_geo_df, compute_match, get_mapping_dataframe
 from align_segmented_road_with_lidar import get_mapping_data, get_input_file_with_images
 
+PREV_CAM_Z = None
 
 def compute_camera_locs(row, ldf, mapping_df):
     """
@@ -11,7 +12,7 @@ def compute_camera_locs(row, ldf, mapping_df):
     for determining bearing direction
     :return: the computed camera locations for each image frame row
     """
-
+    global PREV_CAM_Z
     if len(row["imageBaseName"]) == 11:
         # get input image base name
         input_2d_mapped_image = row["imageBaseName"]
@@ -25,7 +26,12 @@ def compute_camera_locs(row, ldf, mapping_df):
     # get the lidar road vertex with the closest distance to the camera location
     cam_nearest_lidar_idx, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
     cam_lidar_z = ldf.iloc[cam_nearest_lidar_idx].Z
+    if PREV_CAM_Z is not None:
+        if abs(cam_lidar_z - PREV_CAM_Z) > 10:
+            print(f'{input_2d_mapped_image} cam_lidar_z: {cam_lidar_z}, too far from its previous cam z: {PREV_CAM_Z}')
+            cam_lidar_z = PREV_CAM_Z
 
+    PREV_CAM_Z = cam_lidar_z
     return cam_lidar_z
 
 

@@ -270,7 +270,7 @@ def get_mapping_data(df, input_image_name):
 
 def get_input_file_with_images(input_file):
     # load input file to get the image names for alignment
-    df = pd.read_csv(input_file, dtype=str)
+    df = pd.read_csv(input_file, dtype={'imageBaseName': str, 'CAM_Z': float})
     # make sure only use the front image (ending with 1) for alignment
     # df['imageBaseName'] = df['imageBaseName'].str[:-1] + '1'
     print(f'input df shape: {df.shape}')
@@ -358,7 +358,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
         get_mapping_data(mapping_df, input_2d_mapped_image)
 
     cam_lidar_z = row['CAM_Z']
-
+    
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
