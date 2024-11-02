@@ -51,14 +51,6 @@ def rotate_point(point, quaternion):
     return rotated_point
 
 
-def interpolate_camera_z(p1_z, p2_z, p1_dist, p2_dist):
-    """
-    interpolate camera z value based on camera's closet points on one side of the road, (p1_dist, p1_z) and
-    (p2_dist, p2_z) where p_dist is the distance from the point to camera and p_z is the LIDAR Z value
-    """
-    return p1_z - p1_dist * (p2_z - p1_z) / (p2_dist - p1_dist)
-
-
 def init_transform_from_lidar_to_world_coordinate_system(df, cam_x, cam_y, cam_z):
     # transform LIDAR points from LIDAR projection coordinate system to world coordinate system without
     # considering camera pose parameters
@@ -155,22 +147,6 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     return df
 
 
-def get_2d_road_points_by_z(idf, filter_col, compare_val, threshold_val=30):
-    """
-    get road points from idf in which the difference between its filter_col value and compare_val is less than a
-    threshold
-    :param idf: input dataframe that includes filter_col
-    :param filter_col: filter column included in the input dataframe
-    :param compare_val: the value to compare difference with in idf[filter_col]
-    :param threshold_val: the threshold value for comparing the absolute difference from for filtering
-    :return: a filtered dataframe that meets the filtering condition
-    """
-    if filter_col not in idf.columns:
-        print(f'{filter_col} not in input dataframe {idf}, return the input dataframe without filtering')
-        return idf
-    return idf[abs(idf[filter_col] - compare_val) < threshold_val]
-
-
 class SkipOptimizationException(Exception):
     """
     Custom exception to indicate that the optimization initial condition should be reset.
@@ -196,32 +172,6 @@ def _filter_dataframe_within_screen_bounds(df, screen_width, screen_height):
         (df['PROJ_SCREEN_Y'] >= 0) &
         (df['PROJ_SCREEN_Y'] <= screen_height)
     ]
-
-
-def _trim_lidar_by_cam_dist_and_proj_screen_y(input_df_3d):
-    # trim lidar data before feeding to the optimizer to make sure when distance to camera increases,
-    # projected screen y value decreases within tolerance
-    tol = 30 # set 30 pixel tolerance
-    df_sorted = input_df_3d.sort_values(by=['SIDE', 'CAM_DIST'])
-    mask_list = []
-
-    # Group by the 'SIDE' column and apply the filtering logic separately for each group
-    for side, group in df_sorted.groupby('SIDE'):
-        # Within each group, track the minimum PROJ_SCREEN_Y encountered so far
-        min_proj_screen_y = group['PROJ_SCREEN_Y'].cummin()
-
-        # Keep the row if PROJ_SCREEN_Y is less than or equal to the minimum cumulative value plus tolerance
-        group_keep = group['PROJ_SCREEN_Y'] <= (min_proj_screen_y + tol)
-
-        # Append the mask for the current group
-        mask_list.append(group_keep)
-
-    # Concatenate all group masks into a single boolean mask
-    keep = pd.concat(mask_list)
-
-    # Apply the mask to filter rows
-    df_filtered = df_sorted[keep].reset_index(drop=True)
-    return df_filtered
 
 
 def objective_function_2d(cam_params, df_3d, df_2d, img_wd, img_ht, align_errors):
@@ -301,24 +251,6 @@ def transform_2d_points_to_3d(df, fl_x, fl_y, img_width, img_hgt, x_header='X', 
     return df
 
 
-def linear_interpolation(point1, point2, n):
-    """
-    Lindarly interpolate n points between two given points
-    :param point1: first given point as Tuple (x1, y1)
-    :param point2: second given point as Tuple (x2, y2)
-    :param n: number of points in total including interpolated points and the given two end points
-    :return: list of tuples representing the interpolated points enclosed by the given two end points
-    """
-    x1, y1 = point1
-    x2, y2 = point2
-
-    # Calculate the step size for interpolation
-    step_size = 1.0 / (n - 1)
-    print(f'step_size: {step_size}, n: {n}')
-    # Perform linear interpolation
-    return [(round(x1 + i * step_size * (x2 - x1)), round(y1 + i * step_size * (y2 - y1))) for i in range(0, n)]
-
-
 def get_mapping_data(df, input_image_name):
     cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, base_img2, eor = get_camera_latlon_and_bearing_for_image_from_mapping(
         df, input_image_name, is_degree=False)
@@ -356,11 +288,6 @@ def get_full_camera_parameters(cam_p):
     return combined
 
 
-def get_updated_z_axis_from_rotation_angles(x_angle, y_angle, z_angle, v_initial):
-    rot_mat = Rotation.from_euler('xyz', np.array([x_angle, y_angle, z_angle]), degrees=True).as_matrix()
-    return np.dot(rot_mat, v_initial)
-
-
 def derive_next_camera_params(v1, v2, cam_para1):
     rot_mat1 = Rotation.from_euler('xyz', np.array([cam_para1[OBJ_ROT_X], cam_para1[OBJ_ROT_Y],
                                                     cam_para1[OBJ_ROT_Z]]), degrees=True).as_matrix()
@@ -382,10 +309,6 @@ def derive_next_camera_params(v1, v2, cam_para1):
         Rotation.from_matrix(rot_mat2).as_euler('xyz', degrees=True)
 
     return cam_para2
-
-
-def _linear_model(x, a, b):
-    return a * x + b
 
 
 def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_proj_file_path,
@@ -434,10 +357,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = \
         get_mapping_data(mapping_df, input_2d_mapped_image)
 
-    # get the lidar road vertex with the closest distance to the camera location
-    cam_nearest_lidar_idx, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
-    cam_lidar_z = ldf.iloc[cam_nearest_lidar_idx].Z
-    print(f'camera Z: {cam_lidar_z}')
+    cam_lidar_z = row['CAM_Z']
 
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
@@ -470,9 +390,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     cam_gdf = add_lidar_x_y_from_lat_lon(cam_df)
     proj_cam_x2 = cam_gdf.iloc[0].x
     proj_cam_y2 = cam_gdf.iloc[0].y
-    cam2_nearest_lidar_idx, _ = compute_match(proj_cam_x2, proj_cam_y2, input_3d_df['X'],
-                                              input_3d_df['Y'])
-    proj_cam_z2 = input_3d_df.iloc[cam2_nearest_lidar_idx].Z
+    proj_cam_z2 = row['CAM_Z_next'] if pd.notna(row['CAM_Z_next']) else row['CAM_Z']
+    print(f'proj_cam_z2: {proj_cam_z2}')
     cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
     cam_v = cam_v / np.linalg.norm(cam_v)
 
@@ -684,6 +603,9 @@ if __name__ == '__main__':
 
     map_df = get_mapping_dataframe(input_sensor_mapping_file_with_path)
 
+
+    # Shift CAM_Z column to get the next row's value
+    input_df['CAM_Z_next'] = input_df['CAM_Z'].shift(-1)
     input_df[[BASE_CAM_PARA_COL_NAME, OPTIMIZED_CAM_PARA_COL_NAME]] = input_df.apply(lambda row: align_image_to_lidar(
         row,
         image_seg_dir,
@@ -692,5 +614,6 @@ if __name__ == '__main__':
         map_df,
         lidar_proj_output_file_path, optimize_fov), axis=1, result_type='expand')
 
+    input_df.drop(columns=['CAM_Z', 'CAM_Z_next'], inplace=True)
     input_df.to_csv(f'{os.path.splitext(obj_image_input)[0]}_with_cam_paras.csv', index=False)
     print(f'execution time: {time.time() - start_time}')

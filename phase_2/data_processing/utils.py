@@ -170,8 +170,8 @@ def get_camera_latlon_and_bearing_for_image_from_mapping(mapping_df, mapped_imag
     next_row = mapping_df.iloc[mapped_image_df.index + 1]
     if next_row.iloc[0]['ROUTEID'] != mapped_image_df.iloc[0]['ROUTEID']:
         # this image is the end of the route, use the previous camera location to compute bearing instead
-        cam_lat2 = float(mapping_df.iloc[mapped_image_df.index - 1]['LATITUDE'])
-        cam_lon2 = float(mapping_df.iloc[mapped_image_df.index - 1]['LONGITUDE'])
+        cam_lat2 = float(mapping_df.iloc[mapped_image_df.index - 1].iloc[0]['LATITUDE'])
+        cam_lon2 = float(mapping_df.iloc[mapped_image_df.index - 1].iloc[0]['LONGITUDE'])
         # compute bearing
         cam_br = bearing_between_two_latlon_points(cam_lat2, cam_lon2, cam_lat, cam_lon, is_degree)
         # compute next interpolated camera location based on cam_br
