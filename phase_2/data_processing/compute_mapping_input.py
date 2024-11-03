@@ -9,8 +9,7 @@ from PIL import Image
 from sklearn.linear_model import LinearRegression
 import cv2
 from math import cos
-from utils import SegmentationClass, get_data_from_image, get_mapping_dataframe, \
-    get_camera_latlon_and_bearing_for_image_from_mapping, \
+from utils import SegmentationClass, get_data_from_image, \
     compute_match, bearing_between_two_latlon_points, LIDARClass, get_set_minute_sub_path
 from common.utils import MAX_OBJ_DIST_FROM_CAM
 
@@ -105,8 +104,9 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
         if minute_str is None:
             # not a valid image
             continue
-        with Image.open(os.path.join(input_depth_path, set_str, minute_str,
-                                     f'{input_image_base_name}_depth.png')) as depth_img:
+        depth_image_path = os.path.join(input_depth_path, set_str, minute_str,
+                                     f'{input_image_base_name}_depth.png')
+        with Image.open(depth_image_path) as depth_img:
             depth_data = np.asarray(depth_img, dtype=np.uint8)
             # reduce depth_data shape from (image_height, image_width, 3) to (image_height, image_width)
             depth_data = depth_data[:, :, 0]
@@ -138,7 +138,9 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
                                       & (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
 
         if suffix != '1.png':
-            with Image.open(os.path.join(input_depth_path, input_image_base_name[:3], f'{input_image_base_name[:-1]}1_depth.png')) as fnt_dep_img:
+            front_depth_image_path = os.path.join(input_depth_path, set_str, minute_str,
+                                                  f'{input_image_base_name[:-1]}1_depth.png')
+            with Image.open(front_depth_image_path) as fnt_dep_img:
                 front_depth_data = np.asarray(fnt_dep_img, dtype=np.uint8)
                 front_depth_data = front_depth_data[:, :, 0]
                 front_depth_data = 255 - front_depth_data
