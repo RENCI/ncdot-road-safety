@@ -11,7 +11,7 @@ import cv2
 from math import cos
 from utils import SegmentationClass, get_data_from_image, get_mapping_dataframe, \
     get_camera_latlon_and_bearing_for_image_from_mapping, \
-    compute_match, bearing_between_two_latlon_points, LIDARClass
+    compute_match, bearing_between_two_latlon_points, LIDARClass, get_set_minute_sub_path
 from common.utils import MAX_OBJ_DIST_FROM_CAM
 
 
@@ -44,14 +44,11 @@ def extract_lon_lat(geom):
     return lon, lat
 
 
-def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_pattern):
-    cam_lat, cam_lon, cam_br, cam_lat2, cam_lon2, _, _ = get_camera_latlon_and_bearing_for_image_from_mapping(
-        mdf, mapped_image)
-    if cam_lat is None:
-        # no camera location
-        print(f'no camera location found for {mapped_image}')
-        return
-
+def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
+    mapped_image = row['imageBaseName']
+    cam_lon = row['LONGITUDE']
+    cam_lat = row['LATITUDE']
+    seg_path = row['ONEFORMER']
     if front_only:
         image_suffix_list = ('1.png', )
     else:
@@ -76,7 +73,7 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
     structuring_element = disk(1)
     for suffix in image_suffix_list:
         # get camera location for the mapped image
-        input_image_name = os.path.join(path, f'{mapped_image}{suffix}')
+        input_image_name = os.path.join(seg_path, f'{mapped_image}{suffix}')
         image_width, image_height, input_data = get_data_from_image(input_image_name)
 
         # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25,
@@ -104,7 +101,12 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
             continue
         object_features = skimage.measure.regionprops(labeled_data)
         input_image_base_name = os.path.basename(os.path.splitext(input_image_name)[0])
-        with Image.open(os.path.join(input_depth_path, f'{input_image_base_name}_depth.png')) as depth_img:
+        set_str, minute_str = get_set_minute_sub_path(input_image_base_name)
+        if minute_str is None:
+            # not a valid image
+            continue
+        with Image.open(os.path.join(input_depth_path, set_str, minute_str,
+                                     f'{input_image_base_name}_depth.png')) as depth_img:
             depth_data = np.asarray(depth_img, dtype=np.uint8)
             # reduce depth_data shape from (image_height, image_width, 3) to (image_height, image_width)
             depth_data = depth_data[:, :, 0]
@@ -136,7 +138,7 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
                                       & (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
 
         if suffix != '1.png':
-            with Image.open(os.path.join(input_depth_path, f'{input_image_base_name[:-1]}1_depth.png')) as fnt_dep_img:
+            with Image.open(os.path.join(input_depth_path, input_image_base_name[:3], f'{input_image_base_name[:-1]}1_depth.png')) as fnt_dep_img:
                 front_depth_data = np.asarray(fnt_dep_img, dtype=np.uint8)
                 front_depth_data = front_depth_data[:, :, 0]
                 front_depth_data = 255 - front_depth_data
@@ -375,7 +377,7 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
                   f'minx: {object_features[i].bbox[1]}, maxx: {object_features[i].bbox[3]}, '
                   f'miny: {object_features[i].bbox[0]}, maxy: {yl}, '
                   f'xdiff: {object_features[i].bbox[3] - object_features[i].bbox[1]}, '
-                  f'ydiff: {object_features[i].bbox[2] - object_features[i].bbox[0]}, cam_br:{cam_br}, '
+                  f'ydiff: {object_features[i].bbox[2] - object_features[i].bbox[0]}, '
                   f'br_angle: {br_angle}, depth: {obj_depth}')
             obj_cnt += 1
         if obj_cnt > 0:
@@ -384,55 +386,39 @@ def compute_mapping_input(mdf, input_depth_path, mapped_image, path, lidar_file_
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
-    parser.add_argument('--input_seg_map_info_with_path', type=str,
-                        # default='data/d13_route_40001001011/other/test_route_road_pole_labels_test_image.csv',
-                        default='data/new_test_scene/test_route_road_pole_labels_test_images.csv',
-                        help='input csv file that includes input segmented image path and name for computing depth')
-    parser.add_argument('--route_id', type=str,
-                        # default='40001001011',
-                        default='40001001012',
-                        help='route id to filter input_seg_map_info_with_path data with')
-    parser.add_argument('--model_col_header', type=str, default='ONEFORMER',
-                        help='input model column header in the input_seg_map_info_with_path to get segmentation path')
-    parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
-                        # default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13.csv',
-                        default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
-                        help='input csv file that includes mapped image lat/lon info')
+    parser.add_argument('--input_base_image_file', type=str,
+                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_input.csv',
+                        help='input csv file that includes input base images for computing mapping input')
+    parser.add_argument('--segmentation_path', type=str,
+                        default='/projects/ncdot/NC_2018_Secondary_2/segmentations/d13',
+                        help='segmentation image route path')
     parser.add_argument('--input_depth_image_path', type=str,
-                        default='../depth_anything/output/new_test_scene',
+                        default='/projects/ncdot/NC_2018_Secondary_2/depth_prediction/d13',
                         help='input path that includes depth prediction output images')
     parser.add_argument('--lidar_project_info_file_pattern', type=str,
-                        default='data/new_test_scene/full_route_test/lidar_project_info_{}.csv',
-                        # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/lidar_project_info_{}.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_geotagging_output/'
+                                'lidar_project_info_{}.csv',
                         help='input LIDAR projection info file pattern')
     parser.add_argument('--output_file', type=str,
-                        # default='data/d13_route_40001001011/oneformer/output/all_lidar_vertices/test_mapping_input.csv',
-                        default='data/new_test_scene/full_route_test/test_mapping_input.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_mapping_input.csv',
                         help='output file that contains image base names and corresponding segmented object depths')
     parser.add_argument('--front_only', action="store_true",
                         help='whether to compute mapping inputs for front view images only')
 
 
     args = parser.parse_args()
-    input_seg_map_info_with_path = args.input_seg_map_info_with_path
-    route_id = args.route_id
-    model_col_header = args.model_col_header
-    input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
+    input_base_image_file = args.input_base_image_file
+    segmentation_path = args.segmentation_path
     input_depth_image_path = args.input_depth_image_path
     lidar_project_info_file_pattern = args.lidar_project_info_file_pattern
     output_file = args.output_file
     front_only = args.front_only
 
-    df = pd.read_csv(input_seg_map_info_with_path, index_col=None,
-                     usecols=['ROUTEID', 'MAPPED_IMAGE', model_col_header], dtype=str)
-    if route_id:
-        df = df[df.ROUTEID == route_id]
-
-    mapping_df = get_mapping_dataframe(input_sensor_mapping_file_with_path)
+    df = pd.read_csv(input_base_image_file, index_col=None,
+                     usecols=['ROUTEID', 'imageBaseName', 'LATITUDE', 'LONGITUDE'], dtype=str)
+    df['ONEFORMER'] = segmentation_path + '/' + df['imageBaseName'].str[:3]
     img_input_list = []
-    df.apply(lambda row: compute_mapping_input(mapping_df, input_depth_image_path,
-                                               row['MAPPED_IMAGE'], row[model_col_header],
-                                               lidar_project_info_file_pattern), axis=1)
+    df.apply(lambda row: compute_mapping_input(row, input_depth_image_path, lidar_project_info_file_pattern), axis=1)
     out_df = pd.DataFrame(img_input_list, columns=["imageBaseName", "lat", "lon", "x", "y", "bearing", "depth"])
     out_df.to_csv(output_file, index=False)
     sys.exit(0)

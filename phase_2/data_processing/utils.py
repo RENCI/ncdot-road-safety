@@ -315,3 +315,21 @@ def classify_points_base_on_centerline(points, cl_df):
     # Classify based on the cross product (left or right)
     classification = np.where(cross_product > 0, ROADSIDE.LEFT.value, ROADSIDE.RIGHT.value)
     return classification
+
+
+def get_set_minute_sub_path(image_name):
+    set_str = image_name[:3]
+    hour = image_name[3:5]
+    minute = image_name[5:7]
+    if hour not in ['00', '01', '02']:
+        print(f"{image_name}: hour in the image base name must be 00 or 01 or 02")
+        return set_str, None
+    if int(minute) > 59:
+        print(f"{image_name}: minute in the image base name must be less than 60")
+        return set_str, None
+    if hour == '00':
+        # strip prefix 0 from minute if any
+        minute_str = str(int(minute))
+    else:  # hour == '01'
+        minute_str = str(int(minute) + int(hour) * 60)
+    return set_str, minute_str
