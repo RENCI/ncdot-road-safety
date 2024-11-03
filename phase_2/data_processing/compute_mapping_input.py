@@ -132,7 +132,7 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
                                 (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
         sub_lidar_df['PROJ_SCREEN_X'] = sub_lidar_df['PROJ_SCREEN_X'] - xb_min
 
-        front_lidar_fit_df = lidar_df[(lidar_df.C == LIDARClass.ROAD.value | lidar_df.C == LIDARClass.BRIDGE.value)
+        front_lidar_fit_df = lidar_df[((lidar_df.C == LIDARClass.ROAD.value) | (lidar_df.C == LIDARClass.BRIDGE.value))
                                       & (lidar_df.CAM_DIST_M < MAX_OBJ_DIST_FROM_CAM)
                                       & (lidar_df.PROJ_SCREEN_X >= 0) & (lidar_df.PROJ_SCREEN_X < image_width)
                                       & (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
