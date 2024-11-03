@@ -270,8 +270,9 @@ def compute_match(x, y, series_x, series_y):
     # (series_x, series_y) pairs has minimal distance to point(x, y)
     distances = (series_x - x) ** 2 + (series_y - y) ** 2
     min_dist = np.min(distances)
-    min_idx = distances.idxmin()
-    return min_idx, min_dist
+    # min_idx = distances.idxmin()
+    min_indices = np.where(distances == min_dist)[0]
+    return min_indices, min_dist
 
 
 def angle_between(v1, v2):

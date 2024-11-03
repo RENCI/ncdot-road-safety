@@ -29,8 +29,8 @@ def create_data(image_name_with_path, seg_lane_dir, input_lidar_file, input_mapp
         get_mapping_dataframe(input_mapping_file), input_2d_mapped_image)
 
     # get the lidar road vertex with the closest distance to the camera location
-    nearest_idx, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
-    cam_lidar_z = ldf.iloc[nearest_idx].Z
+    nearest_indices, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
+    cam_lidar_z = ldf.iloc[nearest_indices[0]].Z
     print(f'camera Z: {cam_lidar_z}, eor: {eor}, dist_th: {LIDAR_DIST_THRESHOLD}')
 
     input_3d_gdf, cam_br, _ = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],

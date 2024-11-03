@@ -45,8 +45,8 @@ def extract_lon_lat(geom):
 
 def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
     mapped_image = row['imageBaseName']
-    cam_lon = row['LONGITUDE']
-    cam_lat = row['LATITUDE']
+    cam_lon = float(row['LONGITUDE'])
+    cam_lat = float(row['LATITUDE'])
     seg_path = row['ONEFORMER']
     if front_only:
         image_suffix_list = ('1.png', )
@@ -105,7 +105,7 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
             # not a valid image
             continue
         depth_image_path = os.path.join(input_depth_path, set_str, minute_str,
-                                     f'{input_image_base_name}_depth.png')
+                                        f'{input_image_base_name}_depth.png')
         with Image.open(depth_image_path) as depth_img:
             depth_data = np.asarray(depth_img, dtype=np.uint8)
             # reduce depth_data shape from (image_height, image_width, 3) to (image_height, image_width)
@@ -254,7 +254,7 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
                 # use the candidate among nearest_indices with minimum depth to obj_depth as nearest_idx
                 diff_depths = [abs(sub_lidar_df.iloc[ni].DEPTH - obj_depth) for ni in nearest_indices]
                 nearest_idx = nearest_indices[diff_depths.index(min(diff_depths))]
-            print(f'object x, y: {x0}, {yl}, len(nearest_indices): {len(nearest_indices)}, '
+                print(f'object x, y: {x0}, {yl}, len(nearest_indices): {len(nearest_indices)}, '
                   f'nearest_idx: {nearest_idx}, nearest_dist: {nearest_dist}, '
                   f'ldf: {sub_lidar_df.iloc[nearest_idx]}')
 

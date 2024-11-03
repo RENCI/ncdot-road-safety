@@ -25,9 +25,16 @@ def compute_camera_locs(row, ldf, mapping_df):
     _, _, proj_cam_x, proj_cam_y, _, _, _, _ = get_mapping_data(mapping_df, input_2d_mapped_image)
 
     # get the lidar road vertex with the closest distance to the camera location
-    cam_nearest_lidar_idx, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
-    cam_lidar_z = ldf.iloc[cam_nearest_lidar_idx].Z
+    cam_nearest_lidar_indices, _ = compute_match(proj_cam_x, proj_cam_y, ldf['X'], ldf['Y'])
+    cam_lidar_z = ldf.iloc[cam_nearest_lidar_indices[0]].Z
     if PREV_CAM_Z is not None:
+        if len(cam_nearest_lidar_indices) > 1:
+            cam_dist_diff = abs(cam_lidar_z - PREV_CAM_Z)
+            for idx in cam_nearest_lidar_indices[1:]:
+                if abs(ldf.iloc[idx].Z - PREV_CAM_Z) < cam_dist_diff:
+                    cam_lidar_z = ldf.iloc[idx].Z
+                    cam_dist_diff = abs(ldf.iloc[idx].Z - PREV_CAM_Z)
+
         if abs(cam_lidar_z - PREV_CAM_Z) > 10:
             print(f'{input_2d_mapped_image} cam_lidar_z: {cam_lidar_z}, too far from its previous cam z: {PREV_CAM_Z}')
             cam_lidar_z = PREV_CAM_Z
