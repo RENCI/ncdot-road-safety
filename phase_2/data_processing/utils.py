@@ -241,6 +241,20 @@ def get_aerial_lidar_road_geo_df(input_file):
     return gdf
 
 
+def create_df_from_lidar_points(input_points, input_cols):
+    df = pd.DataFrame(data=input_points, columns=input_cols)
+
+    if 'BOUND' in input_cols:
+        df['BOUND'] = df['BOUND'].astype(int)
+
+    df['X'] = df['X'].astype(float)
+    df['Y'] = df['Y'].astype(float)
+    df['Z'] = df['Z'].astype(float)
+    if 'C' in input_cols:
+        df['C'] = df['C'].astype(int)
+    return df
+
+
 def create_gdf_from_df(input_df, x_col_name='X', y_col_name='Y'):
     """
     create geographic dataframe in LIDAR coordinate system with EPSG:6543 from X, Y column in input dataframe

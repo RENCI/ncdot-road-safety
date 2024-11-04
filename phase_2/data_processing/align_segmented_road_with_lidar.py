@@ -8,8 +8,8 @@ from scipy.optimize import minimize
 from math import radians, tan
 
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
-    get_aerial_lidar_road_geo_df, compute_match, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    get_mapping_dataframe, classify_points_base_on_centerline, ROADSIDE
+    get_aerial_lidar_road_geo_df, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
+    get_mapping_dataframe, classify_points_base_on_centerline, ROADSIDE, create_df_from_lidar_points
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary
@@ -365,17 +365,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}, cols: {cols}')
     print(f'time taken for extracting lidar points for camera: {time.time() - t1}s')
-    input_3d_df = pd.DataFrame(data=input_3d_points, columns=cols)
-
-    if 'BOUND' in cols:
-        input_3d_df['BOUND'] = input_3d_df['BOUND'].astype(int)
-
-    input_3d_df['X'] = input_3d_df['X'].astype(float)
-    input_3d_df['Y'] = input_3d_df['Y'].astype(float)
-    input_3d_df['Z'] = input_3d_df['Z'].astype(float)
-    if 'C' in cols:
-        input_3d_df['C'] = input_3d_df['C'].astype(int)
-
+    input_3d_df = create_df_from_lidar_points(input_3d_points, cols)
     input_3d_gdf = create_gdf_from_df(input_3d_df)
     # calculate the bearing of each 3D point to the camera
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
