@@ -73,7 +73,11 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
     for suffix in image_suffix_list:
         # get camera location for the mapped image
         input_image_name = os.path.join(seg_path, f'{mapped_image}{suffix}')
-        image_width, image_height, input_data = get_data_from_image(input_image_name)
+        try:
+            image_width, image_height, input_data = get_data_from_image(input_image_name)
+        except FileNotFoundError as e:
+            print(e)
+            continue
 
         # Depth-Height threshold, e.g., if D < 10, filter out those with H < 500; elif D<25,
         # filter out those with H < 350
