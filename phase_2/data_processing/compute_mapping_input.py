@@ -66,8 +66,8 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
                                                          'geometry_y', 'Z', 'C', 'BEARING', 'INITIAL_WORLD_X'])
         lidar_df[['lon', 'lat']] = lidar_df['geometry_y'].apply(lambda x: pd.Series(extract_lon_lat(x)))
     else:
-        print(f'Projected LIDAR data for image {mapped_image} does not exist, so cannot compute mapping input, exiting')
-        sys.exit(1)
+        # no projected lidar file exist for this image, nothing to do
+        return
 
     structuring_element = disk(1)
     for suffix in image_suffix_list:
