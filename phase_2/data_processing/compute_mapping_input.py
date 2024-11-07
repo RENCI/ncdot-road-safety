@@ -134,6 +134,9 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
 
         sub_lidar_df = lidar_df[(lidar_df.PROJ_SCREEN_X >= xb_min) & (lidar_df.PROJ_SCREEN_X < xb_max) &
                                 (lidar_df.PROJ_SCREEN_Y >= 0) & (lidar_df.PROJ_SCREEN_Y < image_height)].copy()
+        if len(sub_lidar_df.index) == 0:
+            # the filtered dataframe is empty, nothing to match for
+            continue
         sub_lidar_df['PROJ_SCREEN_X'] = sub_lidar_df['PROJ_SCREEN_X'] - xb_min
 
         front_lidar_fit_df = lidar_df[((lidar_df.C == LIDARClass.ROAD.value) | (lidar_df.C == LIDARClass.BRIDGE.value))
