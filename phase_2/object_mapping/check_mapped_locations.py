@@ -8,32 +8,34 @@
 import sys
 import argparse
 import pandas as pd
-from data_processing.utils import get_aerial_lidar_road_geo_df, LIDARClass
-from common.utils import haversine
+import numpy as np
+from data_processing.utils import get_aerial_lidar_road_geo_df, LIDARClass, add_lidar_x_y_from_lat_lon
+from scipy.spatial import KDTree
 
 
-def compute_min_distance(ilon, ilat, lon_lat_geom_series):
-    lon_lat_df = pd.DataFrame(lon_lat_geom_series)
-    lon_lat_df['DISTANCE'] = lon_lat_df.apply(lambda row: haversine(ilon, ilat,
-                                                                    row['geometry_y'].x, row['geometry_y'].y), axis=1)
-    return lon_lat_df['DISTANCE'].min() * 3.28084
+def compute_min_distance(in_row, in_tree):
+    input_x = in_row['geometry'].x
+    input_y = in_row['geometry'].y
+    dist, _ = in_tree.query([input_x, input_y])
+    return dist
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--geotag_file', type=str,
-                        default='../data_processing/data/new_test_scene/full_route_test/'
-                                'test_mapping_output_further_clustering.csv',
+                        default='../data_processing/data/d13_route_40001001012/'
+                                'route_40001001012_mapping_output_further_clustering.csv',
                         help='input geotagged pole file name with path')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        default='../data_processing/data/new_test_scene/new_test_scene_all_lidar_with_road_bounds.csv',
+                        default='../data_processing/data/d13_route_40001001012/'
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--threshold_to_road', type=int, default=5,
                         help='distance threshold in feet of geotagged pole to road edge to filter out geotagged pole '
                              'smaller than the threshold in geotag_file input')
     parser.add_argument('--output_geotag_file', type=str,
-                        default='../data_processing/data/new_test_scene/full_route_test/'
-                                'test_mapping_output_processed.csv',
+                        default='../data_processing/data/d13_route_40001001012/'
+                                'route_40001001012_mapping_output_processed.csv',
                         help='output geotagged pole file name with path')
 
     args = parser.parse_args()
@@ -43,10 +45,15 @@ if __name__ == '__main__':
     output_geotag_file = args.output_geotag_file
 
     ldf = get_aerial_lidar_road_geo_df(input_lidar_with_path)
-    ldf = ldf[(ldf.C == LIDARClass.ROAD.value) & (ldf.BOUND == 1)]
-    geotag_df = pd.read_csv(geotag_file, dtype=str)
-    geotag_df['DISTANCE'] = geotag_df.apply(lambda row: compute_min_distance(row['lon'], row['lat'],
-                                                                             ldf['geometry_y']), axis=1)
+    print(f'ldf shape: {ldf.shape}')
+    ldf = ldf[ldf.C == LIDARClass.ROAD.value]
+    print(f'ldf road shape: {ldf.shape}')
+    geotag_df = pd.read_csv(geotag_file)
+    geotag_df.rename(columns={'lat': 'LATITUDE', 'lon': 'LONGITUDE'}, inplace=True)
+    geotag_df['geometry'] = add_lidar_x_y_from_lat_lon(geotag_df)
+
+    lidar_tree = KDTree(np.array(ldf[['X', 'Y']]))
+    geotag_df['DISTANCE'] = geotag_df.apply(lambda row: compute_min_distance(row, lidar_tree), axis=1)
     print(f'geotag_df before filtering: {geotag_df}')
     geotag_df = geotag_df[geotag_df.DISTANCE > threshold_to_road]
     print(f'geotag_df shape after filtering: {geotag_df.shape}')
