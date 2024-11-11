@@ -46,7 +46,8 @@ if __name__ == '__main__':
 
     ldf = get_aerial_lidar_road_geo_df(input_lidar_with_path)
     print(f'ldf shape: {ldf.shape}')
-    ldf = ldf[ldf.C == LIDARClass.ROAD.value]
+    ldf = ldf[(ldf.C == LIDARClass.ROAD.value) | (ldf.C == LIDARClass.BRIDGE.value) |
+              (ldf.C == LIDARClass.BUILDING.value)]
     print(f'ldf road shape: {ldf.shape}')
     geotag_df = pd.read_csv(geotag_file)
     geotag_df.rename(columns={'lat': 'LATITUDE', 'lon': 'LONGITUDE'}, inplace=True)
