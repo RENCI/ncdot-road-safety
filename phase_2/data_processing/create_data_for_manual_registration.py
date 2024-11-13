@@ -36,7 +36,7 @@ def create_data(image_name_with_path, seg_lane_dir, input_lidar_file, input_mapp
     input_3d_gdf, cam_br, _ = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                  dist_th=LIDAR_DIST_THRESHOLD,
                                                                  end_of_route=eor,
-                                                                 include_all_cols=True)
+                                                                 include_all_cols=True, fov=90)
     input_3d_gdf['BEARING'] = input_3d_gdf['geometry_y'].apply(lambda geom: bearing_between_two_latlon_points(
         cam_lat, cam_lon, geom.y, geom.x, is_degree=False) - cam_br)
     print(input_3d_gdf.shape)
