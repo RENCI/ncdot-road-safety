@@ -1,6 +1,6 @@
 import pandas as pd
 import argparse
-from utils import LIDARClass
+from data_processing.utils import LIDARClass
 
 
 if __name__ == '__main__':

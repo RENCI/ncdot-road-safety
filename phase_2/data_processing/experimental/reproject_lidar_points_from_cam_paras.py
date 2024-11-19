@@ -1,10 +1,11 @@
 import argparse
 import os
 import pandas as pd
-from extract_lidar_3d_points import extract_lidar_3d_points_for_camera
-from align_segmented_road_with_lidar import (get_mapping_data, transform_3d_points, get_input_file_with_images,
-                                             init_transform_from_lidar_to_world_coordinate_system)
-from utils import (get_mapping_dataframe, get_aerial_lidar_road_geo_df, create_gdf_from_df,
+from data_processing.extract_lidar_3d_points import extract_lidar_3d_points_for_camera
+from data_processing.align_segmented_road_with_lidar import (get_mapping_data, transform_3d_points,
+                                                             get_input_file_with_images,
+                                                             init_transform_from_lidar_to_world_coordinate_system)
+from data_processing.utils import (get_mapping_dataframe, get_aerial_lidar_road_geo_df, create_gdf_from_df,
                    bearing_between_two_latlon_points, create_df_from_lidar_points)
 
 LIDAR_DIST_THRESHOLD = (3.5, 210)
