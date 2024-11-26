@@ -9,3 +9,4 @@ pillow==11.0.0
 matplotlib==3.9.2
 opencv-python==4.10.0.84
 pyogrio==0.10.0
+geopy==2.4.1
