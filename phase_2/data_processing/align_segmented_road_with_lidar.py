@@ -9,7 +9,7 @@ from math import radians, tan
 
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    get_mapping_dataframe, classify_points_base_on_centerline, ROADSIDE, create_df_from_lidar_points
+    classify_points_base_on_centerline, ROADSIDE, create_df_from_lidar_points
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary
@@ -270,7 +270,8 @@ def get_mapping_data(df, input_image_name):
 
 def get_input_file_with_images(input_file):
     # load input file to get the image names for alignment
-    df = pd.read_csv(input_file, dtype={'imageBaseName': str, 'CAM_Z': float})
+    df = pd.read_csv(input_file)
+    df['imageBaseName'] = df['imageBaseName'].astype(str)
     print(f'input df shape: {df.shape}')
     df.drop_duplicates(subset=['imageBaseName'], inplace=True)
     print(f'input df shape after removing duplicates: {df.shape}')
@@ -309,15 +310,12 @@ def derive_next_camera_params(v1, v2, cam_para1):
     return cam_para2
 
 
-def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_proj_file_path,
-                         do_fov_optimize):
+def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_path, do_fov_optimize):
     """
     :param row: the image metadata dataframe row to be processed
     :param seg_image_dir: path in which segmentation images are located
     :param seg_lane_dir: path in which road lanes segmentation images are located
     :param ldf: lidar 3D point geodataframe
-    :param mapping_df: mapping dataframe to extract camera location and its next camera location
-    for determining bearing direction
     :param out_proj_file_path: output path for aligned road info which will be appended with
     lidar_project_info_{image name} to have lidar projection info for each input image
     :param do_fov_optimize: whether to do FOV in the optimizer
@@ -352,15 +350,32 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, mapping_df, out_
     input_2d_points = input_list[0]
 
     # compute base camera parameters
-    cam_lat, cam_lon, proj_cam_x, proj_cam_y, cam_br, cam_lat2, cam_lon2, eor = \
-        get_mapping_data(mapping_df, input_2d_mapped_image)
+    cam_lat = float(row['LATITUDE'])
+    cam_lon = float(row['LONGITUDE'])
+
+    if pd.notna(row['LATITUDE_next']) and pd.notna(row['LONGITUDE_next']):
+        cam_lat2 = float(row['LATITUDE_next'])
+        cam_lon2 = float(row['LONGITUDE_next'])
+    else:
+        # end of the route, skip alignment and return
+        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
+
+    # compute bearing
+    cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2, is_degree=False)
+
+    # LIDAR road vertices in input_3d is in NAD83(2011) / North Carolina (ftUS) CRS with EPSG:6543, and
+    # the cam_lat/cam_lon is in WGS84 CRS with EPSG:4326, need to transform cam_lat/cam_lon to the same CRS as
+    # input_3d
+    cam_geom_df = add_lidar_x_y_from_lat_lon(pd.DataFrame(data={'LONGITUDE': [cam_lon], 'LATITUDE': [cam_lat]}))
+    proj_cam_x = cam_geom_df.iloc[0].x
+    proj_cam_y = cam_geom_df.iloc[0].y
 
     cam_lidar_z = row['CAM_Z']
 
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
-                                                                end_of_route=eor,
+                                                                end_of_route=False,
                                                                 fov=90)
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}, cols: {cols}')
@@ -538,9 +553,6 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001012/route_input.csv',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
-    parser.add_argument('--input_sensor_mapping_file_with_path', type=str,
-                        default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
-                        help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--input_init_cam_param_file_with_path', type=str,
                         default='data/d13_route_40001001012/initial_camera_params.csv',
                         help='input csv file that includes mapped image lat/lon info')
@@ -556,7 +568,6 @@ if __name__ == '__main__':
     image_seg_dir = args.image_seg_dir
     lane_seg_dir = args.lane_seg_dir
     obj_image_input = args.obj_image_input
-    input_sensor_mapping_file_with_path = args.input_sensor_mapping_file_with_path
     input_init_cam_param_file_with_path = args.input_init_cam_param_file_with_path
     lidar_proj_output_file_path = args.lidar_proj_output_file_path
     optimize_fov = args.optimize_fov
@@ -589,19 +600,17 @@ if __name__ == '__main__':
     input_df['OBJ_BASE_TRANS_LIST'] = input_df['OBJ_BASE_TRANS_LIST'].apply(lambda x: x if isinstance(x, list) else [])
     start_time = time.time()
 
-    map_df = get_mapping_dataframe(input_sensor_mapping_file_with_path)
-
-
-    # Shift CAM_Z column to get the next row's value
+    # Shift CAM_Z, LATITUDE, and LONGITUDE columns to get the next row's value
     input_df['CAM_Z_next'] = input_df['CAM_Z'].shift(-1)
+    input_df['LATITUDE_next'] = input_df['LATITUDE'].shift(-1)
+    input_df['LONGITUDE_next'] = input_df['LONGITUDE'].shift(-1)
     input_df[[BASE_CAM_PARA_COL_NAME, OPTIMIZED_CAM_PARA_COL_NAME]] = input_df.apply(lambda row: align_image_to_lidar(
         row,
         image_seg_dir,
         lane_seg_dir,
         lidar_df,
-        map_df,
         lidar_proj_output_file_path, optimize_fov), axis=1, result_type='expand')
 
-    input_df.drop(columns=['CAM_Z', 'CAM_Z_next'], inplace=True)
+    input_df.drop(columns=['CAM_Z', 'CAM_Z_next', 'LATITUDE_next', 'LONGITUDE_next'], inplace=True)
     input_df.to_csv(f'{os.path.splitext(obj_image_input)[0]}_with_cam_paras.csv', index=False)
     print(f'execution time: {time.time() - start_time}')
