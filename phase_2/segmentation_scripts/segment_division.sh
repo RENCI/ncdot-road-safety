@@ -11,7 +11,7 @@ job_files=($(find "$job_dir" -type f -name "*.job"))
 
 # Submit each job one by one
 for job_file in "${job_files[@]}"; do
-    # If it's not the first job, set dependencies using aftercorr
+    # If it's not the first job, set dependencies
     if [ ${#job_ids[@]} -gt 0 ]; then
         # Join previous job IDs with commas
         dependencies=$(IFS=,; echo "${job_ids[*]}")
