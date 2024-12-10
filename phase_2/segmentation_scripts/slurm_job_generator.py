@@ -7,6 +7,7 @@ def get_parser():
     parser.add_argument('-d', '--division', type=int, required=True, help='Division number')
     parser.add_argument('-s', '--start_folder', type=int, required=True, help='Lowest numbered folder name')
     parser.add_argument('-e', '--end_folder', type=int, required=True, help='Highest numbered folder name')
+    parser.add_argument('-j', '--job_number', type=int, default=0, help='Starting job number')
     parser.add_argument('-i', '--increment', type=int, default=15, help='Folders to process in each job')
     parser.add_argument('-o', '--output_dir', type=str, default='job_dir', help='Directory to output job files')
 
@@ -19,8 +20,9 @@ def main(args):
     division = str(args.division).zfill(2)
     increment = args.increment
     output_dir = args.output_dir
+    job_num = args.job_number
 
-    counter = 0
+    counter = job_num
     chunk_start = start_folder
     while chunk_start <= end_folder:
         chunk_end = chunk_start + increment if chunk_start + increment <= end_folder + 1 else end_folder + 1
@@ -32,14 +34,16 @@ def main(args):
         #SBATCH --output=output.d{division}-{chunk_start}-{chunk_end - 1}
         #SBATCH --error=output_err.d{division}-{chunk_start}-{chunk_end - 1}
         #SBATCH -p gpu
+        #SBATCH --gres=gpu:1
         #SBATCH -c 16
-        #SBATCH --mem-per-cpu=2048
-        #SBATCH -t 120:00:00
+        #SBATCH --mem=128G
+        #SBATCH -t 5-00:00:00
         #SBATCH --mail-type=ALL
         #SBATCH --mail-user=satusky@renci.org
         
-        ## Load gcc
+        ## Load gcc and cuda
         module load gcc/11
+        module load cuda
         
         ## Load the python interpreter
         source ~/.bashrc
