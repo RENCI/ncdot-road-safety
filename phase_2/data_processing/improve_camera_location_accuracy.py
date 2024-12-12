@@ -33,7 +33,6 @@ def interpolate_along_path(df, lat_col='LATITUDE', lon_col='LONGITUDE'):
     # Total path length and interpolated distances
     total_distance = cumulative_distances[-1]
     spacing_m = total_distance / (num_points - 1)
-    print(f'spacing for interpolation in feet: {spacing_m * 3.28084}')
     interpolated_distances = np.arange(0, total_distance + spacing_m, spacing_m)
 
     # Find the segment indices for each interpolated distance

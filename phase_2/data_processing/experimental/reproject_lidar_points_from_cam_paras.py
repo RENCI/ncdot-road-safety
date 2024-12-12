@@ -8,7 +8,7 @@ from data_processing.align_segmented_road_with_lidar import (get_mapping_data, t
 from data_processing.utils import (get_mapping_dataframe, get_aerial_lidar_road_geo_df, create_gdf_from_df,
                    bearing_between_two_latlon_points, create_df_from_lidar_points)
 
-LIDAR_DIST_THRESHOLD = (3.5, 210)
+LIDAR_DIST_THRESHOLD = (11.5, 689)  # in feet
 
 
 def reproject_points_from_cam_paras(df_row, mapping_df, ldf, img_wd, img_hgt, out_path):

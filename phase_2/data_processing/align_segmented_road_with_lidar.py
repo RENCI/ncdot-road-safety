@@ -6,7 +6,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 from math import radians, tan
-
+from raycasting import find_occluded_points
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
     classify_points_base_on_centerline, ROADSIDE, create_df_from_lidar_points
@@ -41,9 +41,7 @@ PREV_CAM_OBJ_PARAS = None
 PREV_CAM_BEARING_VEC = {}
 NUM_ITERATIONS = 1000  # optimizer hyperparameters
 
-# temporary workaround to get around occluded LIDAR points by reducing LIDAR points extraction distance threshold
-LIDAR_DIST_THRESHOLD = (3.5, 120)
-# LIDAR_DIST_THRESHOLD = (3.5, 210)
+LIDAR_DIST_THRESHOLD = (11.5, 689)  # in feet
 CAMERA_ALIGNMENT_RESET_REASONS = ['Too few LIDAR points', 'alignment error threshold exceeded']
 
 def rotate_point(point, quaternion):
@@ -54,10 +52,11 @@ def rotate_point(point, quaternion):
 def init_transform_from_lidar_to_world_coordinate_system(df, cam_x, cam_y, cam_z):
     # transform LIDAR points from LIDAR projection coordinate system to world coordinate system without
     # considering camera pose parameters
-    df['UPDATE_X'] = df.X - cam_x
-    df['UPDATE_Y'] = df.Y - cam_y
-    # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
-    df['CAM_DIST'] = np.sqrt(np.square(df.UPDATE_X) + np.square(df.UPDATE_Y))
+    if 'CAM_DIST' not in df.columns:
+        df['UPDATE_X'] = df.X - cam_x
+        df['UPDATE_Y'] = df.Y - cam_y
+        # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
+        df['CAM_DIST'] = np.sqrt(np.square(df.UPDATE_X) + np.square(df.UPDATE_Y))
     df['INITIAL_WORLD_Z'] = -df.CAM_DIST * np.cos(df.BEARING)
     df['INITIAL_WORLD_Y'] = df.Z - cam_z
     df['INITIAL_WORLD_X'] = df.CAM_DIST * np.sin(df.BEARING)
@@ -376,7 +375,9 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
                                                                 end_of_route=False,
-                                                                fov=90)
+                                                                fov=90,
+                                                                proj_cam_x=proj_cam_x,
+                                                                proj_cam_y=proj_cam_y)
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}, cols: {cols}')
     print(f'time taken for extracting lidar points for camera: {time.time() - t1}s')
@@ -473,6 +474,10 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
               f'and return without optimization')
         return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
 
+    input_3d_road_bound_gdf = find_occluded_points(input_3d_road_bound_gdf,
+                                                   np.array([proj_cam_x, proj_cam_y, cam_lidar_z]),
+                                                   img_width, img_height, ground_only=False)
+    input_3d_road_bound_gdf = input_3d_road_bound_gdf[input_3d_road_bound_gdf.OCCLUDED == False]
     if do_fov_optimize:
         start_idx = 1
         cam_para_bounds = [((PREV_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] - FOV_OFFSET),
@@ -487,9 +492,9 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
                               'rotation_z', 'rotation_y', 'rotation_x']
     else:
         start_idx = 2
-        cam_para_bounds = [(-X_TRAN_MAX, X_TRAN_MAX),
-                           (-Y_TRAN_MAX, Y_TRAN_MAX),
-                           (-Z_TRAN_MAX, Z_TRAN_MAX),
+        cam_para_bounds = [(2.5, 4.5),
+                           (-9.2, -7.2),
+                           (-4.5, -2.5),
                            (-Z_ROT_MAX, Z_ROT_MAX),
                            (-Y_ROT_MAX, Y_ROT_MAX),
                            (-X_ROT_MAX, X_ROT_MAX)]
@@ -541,7 +546,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
                         default='data/d13_route_40001001012/'
-                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides_reduced.csv',
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
                         default='data/d13_route_40001001012/segmentation',

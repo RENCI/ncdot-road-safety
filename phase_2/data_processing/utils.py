@@ -10,6 +10,8 @@ from enum import Enum
 from scipy.spatial.distance import cdist
 
 
+METER_TO_FEET = 3.28054
+
 class SegmentationClass(Enum):
     # ROAD 1 and POLE 2 are classification code for old test route
     # ROAD = 1
@@ -212,7 +214,7 @@ def get_zoe_depth_data(image_name):
 
 def get_zoe_depth_of_pixel(y, x, depth_data):
     # get depth of a pixel in feet
-    return depth_data[y, x] * 3.28084 / 256.0
+    return depth_data[y, x] * METER_TO_FEET / 256.0
 
 
 def get_aerial_lidar_road_geo_df(input_file):
