@@ -30,16 +30,20 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
     next_clat, next_clon = next_cam_loc
     x_coords = np.array([point.x for point in df['geometry_y']])
     y_coords = np.array([point.y for point in df['geometry_y']])
-    if proj_cam_x is not None and proj_cam_y is not None:
-        df['UPDATE_X'] = df.X - proj_cam_x
-        df['UPDATE_Y'] = df.Y - proj_cam_y
-        df['CAM_DIST'] = np.sqrt(np.square(df.UPDATE_X) + np.square(df.UPDATE_Y))
-    else:
-        df['CAM_DIST'] = haversine(clon, clat, x_coords, y_coords) * METER_TO_FEET
 
     cam_bearing = bearing_between_two_latlon_points(clat, clon, next_clat, next_clon, is_degree=False)
     bearings = bearing_between_two_latlon_points(clat, clon, y_coords, x_coords, is_degree=False)
     df['bearing_diff'] = np.abs(cam_bearing - bearings)
+
+    if proj_cam_x is not None and proj_cam_y is not None:
+        # save expensive np.sqrt() operation to later after filtering for better performance
+        df['CAM_DIST'] = (df['X'] - proj_cam_x) ** 2 + (df['Y'] - proj_cam_y) ** 2
+        df = df[(df['CAM_DIST'] > dist_th[0] ** 2) & (df['CAM_DIST'] < dist_th[1] ** 2)]
+        df['CAM_DIST'] = np.sqrt(df['CAM_DIST'])
+    else:
+        df['CAM_DIST'] = haversine(clon, clat, x_coords, y_coords) * METER_TO_FEET
+        df = df[(df['CAM_DIST'] > dist_th[0]) & (df['CAM_DIST'] < dist_th[1])]
+
     if end_of_route:
         # use lidar road edge as camera bearing direction instead since next_cam_loc is interpolated and does not
         # accurately reflect camera bearing direction
@@ -52,7 +56,8 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
                                                         is_degree=False)
         df['bearing_diff'] = np.abs(cam_bearing - bearings)
 
-    df = df[(df['CAM_DIST'] > dist_th[0]) & (df['CAM_DIST'] < dist_th[1]) & (df['bearing_diff'] < math.pi * fov / 180)]
+    df = df[df['bearing_diff'] < math.pi * fov / 180]
+
     if include_all_cols:
         df = df.drop(columns=['bearing_diff'])
         return df.copy(), cam_bearing, df.columns

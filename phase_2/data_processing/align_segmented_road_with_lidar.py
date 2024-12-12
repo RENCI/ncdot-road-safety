@@ -53,10 +53,8 @@ def init_transform_from_lidar_to_world_coordinate_system(df, cam_x, cam_y, cam_z
     # transform LIDAR points from LIDAR projection coordinate system to world coordinate system without
     # considering camera pose parameters
     if 'CAM_DIST' not in df.columns:
-        df['UPDATE_X'] = df.X - cam_x
-        df['UPDATE_Y'] = df.Y - cam_y
         # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
-        df['CAM_DIST'] = np.sqrt(np.square(df.UPDATE_X) + np.square(df.UPDATE_Y))
+        df['CAM_DIST'] = np.sqrt(np.square(df.X - cam_x) + np.square(df.Y - cam_y))
     df['INITIAL_WORLD_Z'] = -df.CAM_DIST * np.cos(df.BEARING)
     df['INITIAL_WORLD_Y'] = df.Z - cam_z
     df['INITIAL_WORLD_X'] = df.CAM_DIST * np.sin(df.BEARING)
@@ -107,10 +105,12 @@ def meet_camera_parameter_constraint(cam_params):
 def transform_3d_points(df, cam_params, img_width, img_hgt):
     if not meet_camera_parameter_constraint(cam_params):
         return df
+
     df = transform_to_world_coordinate_system(df, cam_params)
+
     aspect = img_width / img_hgt
-    # far = max(df['INITIAL_WORLD_X'].max(), df['INITIAL_WORLD_Y'].max(), df['INITIAL_WORLD_Z'].max()) * 10
     far = df['INITIAL_WORLD_Z'].abs().max() * 1.5
+
     top = cam_params[PERSPECTIVE_NEAR] * tan(radians(0.5 * cam_params[PERSPECTIVE_VFOV]))
     height = 2 * top
     width = aspect * height
@@ -118,31 +118,43 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     right = left + width
     bottom = top - height
 
+    # precompute matrix elements
     x = 2 * cam_params[PERSPECTIVE_NEAR] / (right - left)
     y = 2 * cam_params[PERSPECTIVE_NEAR] / (top - bottom)
     a = (right + left) / (right - left)
     b = (top + bottom) / (top - bottom)
     c = - (far + cam_params[PERSPECTIVE_NEAR]) / (far - cam_params[PERSPECTIVE_NEAR])
     d = (- 2 * far * cam_params[PERSPECTIVE_NEAR]) / (far - cam_params[PERSPECTIVE_NEAR])
-    matrix_elements = [
-        x, 0, 0, 0,
-        0, y, 0, 0,
-        a, b, c, -1,
-        0, 0, d, 0
-    ]
-    # project to 2D camera coordinate system
-    df['PROJ_X'] = df.apply(
-        lambda row: apply_matrix4(row['WORLD_X'], row['WORLD_Y'], row['WORLD_Z'], matrix_elements, return_axis='x'),
-        axis=1)
-    df['PROJ_Y'] = df.apply(
-        lambda row: apply_matrix4(row['WORLD_X'], row['WORLD_Y'], row['WORLD_Z'], matrix_elements, return_axis='y'),
-        axis=1)
+
+    # construct projection matrix
+    matrix = np.array([
+        [x, 0, a, 0],
+        [0, y, b, 0],
+        [0, 0, c, d],
+        [0, 0, -1, 1]
+    ])
+
+    # Convert DataFrame to numpy array for vectorized operations
+    world_points = df[['WORLD_X', 'WORLD_Y', 'WORLD_Z']].values
+    ones = np.ones((len(world_points), 1))
+    points_4d = np.hstack((world_points, ones))
+
+    # apply projection matrix to project to 2D camera coordinate system
+    projected_points = points_4d @ matrix.T
+
+    # handle invalid points before normalization
+    with np.errstate(invalid='ignore', divide='ignore'):
+        projected_points /= projected_points[:, 3].reshape(-1, 1)
+
+    # replace NaNs with a large off-screen value
+    projected_points[np.isnan(projected_points)] = -99999
+
+    # Map to screen coordinates
     half_width = img_width / 2
     half_height = img_hgt / 2
-    df['PROJ_SCREEN_X'] = df['PROJ_X'].apply(
-        lambda x: int(x * half_width + half_width))
-    df['PROJ_SCREEN_Y'] = df['PROJ_Y'].apply(
-        lambda y: int(-(y * half_height) + half_height))
+
+    df['PROJ_SCREEN_X'] = (projected_points[:, 0] * half_width + half_width).astype(int)
+    df['PROJ_SCREEN_Y'] = (-projected_points[:, 1] * half_height + half_height).astype(int)
     return df
 
 
@@ -371,6 +383,10 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
 
     cam_lidar_z = row['CAM_Z']
 
+    # filter out LIDAR points approximately by distance for performance improvement
+    ldf = ldf[((ldf.X - proj_cam_x).abs() < LIDAR_DIST_THRESHOLD[1]) &
+              ((ldf.Y - proj_cam_y).abs() < LIDAR_DIST_THRESHOLD[1])]
+
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
@@ -476,8 +492,12 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
 
     input_3d_road_bound_gdf = find_occluded_points(input_3d_road_bound_gdf,
                                                    np.array([proj_cam_x, proj_cam_y, cam_lidar_z]),
-                                                   img_width, img_height, ground_only=False)
+                                                   img_width, img_height, ground_only=False, lowest_hit=False)
     input_3d_road_bound_gdf = input_3d_road_bound_gdf[input_3d_road_bound_gdf.OCCLUDED == False]
+    print(f'after occlusion filtering, input_3d_road_bound_gdf.shape: {input_3d_road_bound_gdf.shape}')
+    input_3d_road_bound_gdf.to_csv(os.path.join(out_proj_file_path,
+                                                f'base_lidar_project_info_{row["imageBaseName"]}_non_occluded.csv'),
+                                   index=False)
     if do_fov_optimize:
         start_idx = 1
         cam_para_bounds = [((PREV_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] - FOV_OFFSET),
