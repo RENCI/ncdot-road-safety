@@ -41,6 +41,20 @@ def process_boundary_in_image(in_img):
     # Apply Canny edge detection
     edges = cv2.Canny(blurred_image, 100, 200)
 
+    # Filter out ROAD boundary pixels that overlap with vehicle pixels
+    # Expand the vehicle mask to touch potentially shared road boundary pixels
+    vehicle_mask = ((in_img == SegmentationClass.CAR.value) |
+                    (in_img == SegmentationClass.TRUCK.value) |
+                    (in_img == SegmentationClass.BUS.value) |
+                    (in_img == SegmentationClass.BICYCLE.value) |
+                    (in_img == SegmentationClass.MOTORCYCLE.value) |
+                    (in_img == SegmentationClass.TRAIN.value))
+    structuring_element = np.array([[0, 1, 0],
+                                    [1, 1, 1],
+                                    [0, 1, 0]])
+    adjusted_vehicle_mask = binary_dilation(vehicle_mask, structure=structuring_element)
+    edges[adjusted_vehicle_mask] = 0
+
     # Find all connected components in the edge image
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(edges, connectivity=8)
     # The first label is the background, skip it
@@ -166,24 +180,31 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     middle_axes = []
     # Loop through the selected rows to create multiple line segments
     step_size = 30
+    last_valid_end = None
     for idx in range(first_row_idx, last_row_idx, step_size):
         idx2 = idx + step_size
         if idx2 >= last_row_idx:
             idx2 = last_row_idx
-        row_center_start, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx])
+        if last_valid_end is not None:
+            row_center_start = last_valid_end
+        else:
+            row_center_start, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx])
         row_center_end, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx2])
-        if row_center_start is not None and row_center_end is not None:
+        if (row_center_start is not None and row_center_end is not None
+                and abs(row_center_start[0] - row_center_end[0]) <= 300):
             # Calculate axis for this segment
             axis = get_axis_from_points(row_center_end, row_center_start)
             # Append axis and centroid point to lists
             middle_axes.append(axis)
             middle_points.append(row_center_start)
+            last_valid_end = row_center_end
+
     if len(middle_axes) <= 0:
         return image_width, image_height, lane_img, [lane_contour], None
 
     # Convert lists to NumPy arrays
     middle_axes = np.array(middle_axes)
-    middle_points = np.array(middle_points)
+    middle_points = np.array(middle_points[:-1])
 
     if save_processed_image:
         # Draw the central axis line for visual debugging
@@ -233,23 +254,10 @@ def get_image_road_points(image_file_name, boundary_only=True):
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
     # Create a mask for ROAD and vehicle classes
     road_mask = seg_img == SegmentationClass.ROAD.value
-    vehicle_mask = ((seg_img == SegmentationClass.CAR.value) |
-                    (seg_img == SegmentationClass.TRUCK.value) |
-                    (seg_img == SegmentationClass.BUS.value) |
-                    (seg_img == SegmentationClass.BICYCLE.value) |
-                    (seg_img == SegmentationClass.MOTORCYCLE.value) |
-                    (seg_img == SegmentationClass.TRAIN.value))
     # Assign values: 255 for filtered ROAD pixels, 0 otherwise
     seg_img[:] = 0
     seg_img[road_mask] = 255
     process_img, process_contour = process_boundary_in_image(seg_img)
-    # Filter out ROAD boundary pixels that overlap with vehicle pixels
-    # Expand the vehicle mask to touch potentially shared road boundary pixels
-    structuring_element = np.array([[0, 1, 0],
-                                    [1, 1, 1],
-                                    [0, 1, 0]])
-    adjusted_vehicle_mask = binary_dilation(vehicle_mask, structure=structuring_element)
-    process_img[adjusted_vehicle_mask] = 0
 
     if boundary_only:
         return image_width, image_height, process_img, process_contour
