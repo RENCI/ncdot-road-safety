@@ -24,6 +24,12 @@ class SegmentationClass(Enum):
     SIGN = 7
     WALL = 3
     FENCE = 4
+    CAR = 13
+    TRUCK = 14
+    BUS = 15
+    TRAIN = 16
+    MOTORCYCLE = 17
+    BICYCLE = 18
 
 
 class LIDARClass(Enum):

@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import Delaunay
 from typing import List
+from utils import LIDARClass
 
 
 class QuadTree:
@@ -289,7 +290,11 @@ def find_occluded_points(
     #  Create filters
     lidar_filter = np.ones(len(df), dtype=bool)
     if ground_only:
-        lidar_filter = np.logical_and(lidar_filter, np.array([c == 2 or c == 3 or c == 11 or c == 15 for c in df["C"].astype(int)]))
+        lidar_filter = np.logical_and(lidar_filter,
+                                      np.array([c == LIDARClass.GROUND.value or c == LIDARClass.LOW_VEG.value
+                                                or c == LIDARClass.ROAD.value or c == LIDARClass.POLE.value
+                                                or c == LIDARClass.BUILDING.value
+                                                for c in df["C"].astype(int)]))
 
     if lowest_hit:
         lidar_filter = np.logical_and(lidar_filter, df["LOWEST_HIT"].to_numpy())

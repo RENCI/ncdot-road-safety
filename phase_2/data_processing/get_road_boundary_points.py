@@ -9,24 +9,9 @@ from PIL import Image
 from skimage import morphology, measure
 from sklearn.cluster import DBSCAN
 from scipy.spatial import cKDTree
+from scipy.ndimage import binary_dilation
 
 from data_processing.utils import get_data_from_image, SegmentationClass, ROADSIDE, classify_points_base_on_centerline
-
-
-def _calculate_slope(pt1, pt2):
-    """Calculate the slope between two points (x1, y1) and (x2, y2)."""
-    if pt2[0] == pt1[0]:
-        return float('inf')  # Vertical line
-    return (pt2[1] - pt1[1]) / (pt2[0] - pt1[0])
-
-
-def _calculate_slope_np(pts, middle_pt):
-    """Calculate the slopes between two sets of points, using numpy vectorized operations."""
-    dx = pts[:, 0] - middle_pt[0]
-    dy = pts[:, 1] - middle_pt[1]
-
-    # Handle division by zero for vertical lines (returning infinity)
-    return np.divide(dy, dx, out=np.full_like(dy, np.inf), where=dx != 0)
 
 
 def _get_road_intersections_by_y(contours, y):
@@ -246,11 +231,25 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
 
 def get_image_road_points(image_file_name, boundary_only=True):
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
-    # assign road with 255 and the rest with 0
-    seg_img[seg_img == SegmentationClass.ROAD.value] = 255
-    seg_img[seg_img != 255] = 0
-
+    # Create a mask for ROAD and vehicle classes
+    road_mask = seg_img == SegmentationClass.ROAD.value
+    vehicle_mask = ((seg_img == SegmentationClass.CAR.value) |
+                    (seg_img == SegmentationClass.TRUCK.value) |
+                    (seg_img == SegmentationClass.BUS.value) |
+                    (seg_img == SegmentationClass.BICYCLE.value) |
+                    (seg_img == SegmentationClass.MOTORCYCLE.value) |
+                    (seg_img == SegmentationClass.TRAIN.value))
+    # Assign values: 255 for filtered ROAD pixels, 0 otherwise
+    seg_img[:] = 0
+    seg_img[road_mask] = 255
     process_img, process_contour = process_boundary_in_image(seg_img)
+    # Filter out ROAD boundary pixels that overlap with vehicle pixels
+    # Expand the vehicle mask to touch potentially shared road boundary pixels
+    structuring_element = np.array([[0, 1, 0],
+                                    [1, 1, 1],
+                                    [0, 1, 0]])
+    adjusted_vehicle_mask = binary_dilation(vehicle_mask, structure=structuring_element)
+    process_img[adjusted_vehicle_mask] = 0
 
     if boundary_only:
         return image_width, image_height, process_img, process_contour

@@ -35,6 +35,9 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
     bearings = bearing_between_two_latlon_points(clat, clon, y_coords, x_coords, is_degree=False)
     df['bearing_diff'] = np.abs(cam_bearing - bearings)
 
+    if not end_of_route:
+        df = df[df['bearing_diff'] < math.pi * fov / 180]
+
     if proj_cam_x is not None and proj_cam_y is not None:
         # save expensive np.sqrt() operation to later after filtering for better performance
         df['CAM_DIST'] = (df['X'] - proj_cam_x) ** 2 + (df['Y'] - proj_cam_y) ** 2
@@ -55,8 +58,7 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
                                                         df.iloc[nidx]['geometry_y'].x,
                                                         is_degree=False)
         df['bearing_diff'] = np.abs(cam_bearing - bearings)
-
-    df = df[df['bearing_diff'] < math.pi * fov / 180]
+        df = df[df['bearing_diff'] < math.pi * fov / 180]
 
     if include_all_cols:
         df = df.drop(columns=['bearing_diff'])
