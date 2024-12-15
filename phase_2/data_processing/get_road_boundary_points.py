@@ -29,7 +29,7 @@ def _get_road_intersections_by_y(contours, y):
     return intersects
 
 
-def process_boundary_in_image(in_img):
+def process_boundary_in_image(in_img, vehicle_mask=None):
     cleaned_mask = morphology.remove_small_objects(in_img, min_size=1000)
     labeled_data, count = measure.label(cleaned_mask, connectivity=2, return_num=True)
     labeled_data = labeled_data.astype('uint8')
@@ -40,21 +40,8 @@ def process_boundary_in_image(in_img):
     blurred_image = cv2.GaussianBlur(binary_data, (5, 5), 0)
     # Apply Canny edge detection
     edges = cv2.Canny(blurred_image, 100, 200)
-
-    # Filter out ROAD boundary pixels that overlap with vehicle pixels
-    # Expand the vehicle mask to touch potentially shared road boundary pixels
-    vehicle_mask = ((in_img == SegmentationClass.CAR.value) |
-                    (in_img == SegmentationClass.TRUCK.value) |
-                    (in_img == SegmentationClass.BUS.value) |
-                    (in_img == SegmentationClass.BICYCLE.value) |
-                    (in_img == SegmentationClass.MOTORCYCLE.value) |
-                    (in_img == SegmentationClass.TRAIN.value))
-    structuring_element = np.array([[0, 1, 0],
-                                    [1, 1, 1],
-                                    [0, 1, 0]])
-    adjusted_vehicle_mask = binary_dilation(vehicle_mask, structure=structuring_element)
-    edges[adjusted_vehicle_mask] = 0
-
+    if vehicle_mask is not None:
+        edges[vehicle_mask] = 0
     # Find all connected components in the edge image
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(edges, connectivity=8)
     # The first label is the background, skip it
@@ -254,10 +241,24 @@ def get_image_road_points(image_file_name, boundary_only=True):
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
     # Create a mask for ROAD and vehicle classes
     road_mask = seg_img == SegmentationClass.ROAD.value
+
+    # Filter out ROAD boundary pixels that overlap with vehicle pixels
+    # Expand the vehicle mask to touch potentially shared road boundary pixels
+    vehicle_mask = ((seg_img == SegmentationClass.CAR.value) |
+                    (seg_img == SegmentationClass.TRUCK.value) |
+                    (seg_img == SegmentationClass.BUS.value) |
+                    (seg_img == SegmentationClass.BICYCLE.value) |
+                    (seg_img == SegmentationClass.MOTORCYCLE.value) |
+                    (seg_img == SegmentationClass.TRAIN.value))
+    structuring_element = np.array([[0, 1, 0],
+                                    [1, 1, 1],
+                                    [0, 1, 0]])
+    adjusted_vehicle_mask = binary_dilation(vehicle_mask, structure=structuring_element)
+
     # Assign values: 255 for filtered ROAD pixels, 0 otherwise
     seg_img[:] = 0
     seg_img[road_mask] = 255
-    process_img, process_contour = process_boundary_in_image(seg_img)
+    process_img, process_contour = process_boundary_in_image(seg_img, vehicle_mask = adjusted_vehicle_mask)
 
     if boundary_only:
         return image_width, image_height, process_img, process_contour
