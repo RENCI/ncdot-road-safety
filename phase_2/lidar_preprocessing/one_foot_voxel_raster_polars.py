@@ -19,7 +19,7 @@ def get_parser():
     return parser
 
 def get_lidar_data(las_files):
-    print("Fetching data from files")
+    print("Fetching data from files...")
     for i, las_file in enumerate(las_files):
         # Read the laz file
         las = laspy.read(las_file)
@@ -33,11 +33,11 @@ def get_lidar_data(las_files):
         else:
             point_data = np.concatenate((point_data, points))
 
-    print(f"Lidar data points: {len(point_data)}")
+    print(f"Lidar data points: {len(point_data)}.")
     return create_df(point_data)
 
 def create_df(point_data):
-    print("Creating dataframe")
+    print("Creating dataframe...")
     df = pl.DataFrame(
         {
             "RAW_X": point_data[:, 0] / 100,
@@ -58,7 +58,7 @@ def create_df(point_data):
     return df
 
 def rasterize(df):
-    print("Rasterizing")
+    print("Rasterizing...")
     q = (
         df.lazy()
         .group_by("VOX_X", "VOX_Y", "VOX_Z")
@@ -80,11 +80,11 @@ def rasterize(df):
         pl.col("C").list.tail(1).explode().alias("C")
     )
 
-    print(f"Rasterized data points: {len(vox)}")
+    print(f"Rasterized data points: {len(vox)}.")
     return vox
 
 def fix_road_and_bridge(df, road_class, bridge_class):
-    print("Fixing road and bridge")
+    print("Fixing road and bridge...")
     df = df.with_columns(
         pl.when(pl.col("ANY_BRIDGE"))
         .then(bridge_class)
@@ -97,7 +97,7 @@ def fix_road_and_bridge(df, road_class, bridge_class):
     return df
 
 def find_edges(df, road_class, bridge_class):
-    print("Finding edges")
+    print("Finding edges...")
     road = df.filter((pl.col("C") == road_class) | (pl.col("C") == bridge_class)).select(["VOX_Y", "VOX_X", "VOX_Z"]).to_numpy()
     mins = np.min(road[:, :-1], axis=0)
     road[:, :-1] -= mins.astype(int)
@@ -115,7 +115,7 @@ def find_edges(df, road_class, bridge_class):
     return create_edge_df(xy_image, z_image, mins)
 
 def create_edge_df(edge_image, height_image, mins):
-    print("Creating edge dataframe")
+    print("Creating edge dataframe...")
     edge_df = pl.DataFrame(
         {
             "VOX_X": np.where(edge_image)[1] + mins[1],
@@ -134,7 +134,7 @@ def create_edge_df(edge_image, height_image, mins):
     return edge_df
 
 def join_dfs(df, edge_df, output_path):
-    print("Joining dataframes")
+    print("Joining dataframes...")
     df = df.join(edge_df, on=["VOX_X", "VOX_Y", "VOX_Z"], how="left")
 
     df = df.with_columns(
@@ -143,12 +143,13 @@ def join_dfs(df, edge_df, output_path):
         .otherwise(pl.lit(True))
         .alias("EDGE")
     )
+    print(f"Edge data points: {df['EDGE'].sum()}.")
 
-    print("Writing output files")
+    print("Writing output files...")
     df.select(pl.col(["X", "Y", "Z", "C", "EDGE"])).write_csv(output_path)
     df.select(pl.col(["VOX_X", "VOX_Y", "VOX_Z", "C", "EDGE"])).write_csv(output_path.replace(".csv", "_normalized.csv"))
 
-    print("Done")
+    print("Done.")
 
 if __name__ == "__main__":
     ARGS = get_parser().parse_args()
