@@ -47,7 +47,7 @@ def process_boundary_in_image(in_img, vehicle_mask=None):
     # The first label is the background, skip it
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
-        if area < 350:
+        if area < 360:
             # Set the pixel values of this small component to 0 to remove it
             labels[labels == i] = 0
 
@@ -92,7 +92,8 @@ def _filter_out_small_noisy_clusters(input_img):
     # filter out small noisy clusters
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(input_img, connectivity=8)
     for i in range(num_labels):
-        if stats[i, cv2.CC_STAT_AREA] < 30:
+        if stats[i, cv2.CC_STAT_AREA] < 30 or (stats[i, cv2.CC_STAT_AREA] == stats[i, cv2.CC_STAT_WIDTH]
+                                               and stats[i, cv2.CC_STAT_AREA] < 210):
             input_img[labels == i] = 0
     # extract lane contour points
     obj_indices = np.where(input_img == 255)
@@ -382,7 +383,6 @@ if __name__ == '__main__':
 
         filtered_contour = combine_lane_and_road_boundary(input_lane_points, input_lane_img, input_road_img,
                                                           road_image_with_path, save_processed_image=True)
-
         # classify each point as left or right side
         if m_points is not None:
             # insert the top point in filtered_contour to m_points to account of the far end
