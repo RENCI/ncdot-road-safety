@@ -25,18 +25,9 @@ OPTIMIZED_CAM_PARA_COL_NAME = 'OPTIMIZED_CAMERA_OBJ_PARA'
 PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET, \
     OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X = 0, 1, 2, 3, 4, 5, 6, 7
 
-CAM_NEAR = 0.1
-# camera pose parameter bound constraints put on optimizer
-FOV_OFFSET = 2
-
-X_ROT_MAX = 2.15
-Y_ROT_MAX = 2
-Z_ROT_MAX = 1
-
 INIT_CAM_OBJ_PARAS = None
 PREV_CAM_OBJ_PARAS = None
 PREV_CAM_BEARING_VEC = np.empty(3)
-NUM_ITERATIONS = 1000  # optimizer hyperparameters
 
 LIDAR_DIST_THRESHOLD = (40, 850)  # in feet
 CAMERA_ALIGNMENT_RESET_REASONS = ['Too few LIDAR points', 'alignment error threshold exceeded']
@@ -525,7 +516,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
                           # bounds in the order of OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET, \
                           # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
                           bounds=cam_para_bounds,
-                          options={'maxiter': NUM_ITERATIONS, 'disp': True})
+                          options={'maxiter': 1000, 'disp': True})
     except SkipOptimizationException as ex:
         print(ex)
         if ex.exception_reason == CAMERA_ALIGNMENT_RESET_REASONS[0]:
@@ -607,7 +598,7 @@ if __name__ == '__main__':
     # in the order of PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET,
     # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
     init_cam_param_df['OBJ_BASE_TRANS_LIST'] = init_cam_param_df.apply(lambda row:
-                                                                       [CAM_NEAR, row['vFOV'], -row['posX'],
+                                                                       [0.1, row['vFOV'], -row['posX'],
                                                                         -row['posY'], -row['posZ'], -row['rotZ'],
                                                                         -row['rotY'], -row['rotX']], axis=1)
     init_cam_param_df.drop(columns=['vFOV', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ'], inplace=True)
