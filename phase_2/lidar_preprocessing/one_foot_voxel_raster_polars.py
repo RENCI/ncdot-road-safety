@@ -184,13 +184,6 @@ def join_dfs(df, edge_df, output_path):
     print("Joining dataframes...")
     df = df.join(edge_df, on=["VOX_X", "VOX_Y", "VOX_Z"], how="left").fill_null(False)
 
-    # df = df.with_columns(
-    #     pl.when(pl.col("EDGE").is_null())
-    #     .then(pl.lit(False))
-    #     .otherwise(pl.lit(True))
-    #     .alias("EDGE")
-    # )
-
     print(f"Edge data points: {df['EDGE'].sum()}")
     return df
 
