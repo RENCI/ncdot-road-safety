@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import Delaunay
 from typing import List
+from utils import LIDARClass
 
 
 class QuadTree:
@@ -147,11 +148,17 @@ def ray_triangle_intersection(
 
     edge1 = triangle_vertices[:, 1] - triangle_vertices[:, 0]
     edge2 = triangle_vertices[:, 2] - triangle_vertices[:, 0]
+    normals = np.cross(edge1, edge2)
+
+    # get triangles with dot products less than 0 meaning they are facing the ray rather than facing away from the ray
+    facing_ray = np.sum(normals * ray_direction, axis=1) < 0
+
     h = np.cross(ray_direction, edge2)
 
     det = np.sum(edge1 * h, axis=1)
-    # Prevent divide by 0
-    det[np.abs(det) < epsilon] = 1.0
+    # when det is close to 0, the ray is nearly parallel to the triangle plane. Assigning np.inf prevents
+    # divisions by zero and also makes inv_det = 0, thus treating parallel rays as non-intersections.
+    det[np.abs(det) < epsilon] = np.inf
 
     inv_det = 1.0 / det
     s = ray_origin - triangle_vertices[:, 0]
@@ -161,7 +168,7 @@ def ray_triangle_intersection(
     t = inv_det * np.sum(edge2 * q, axis=1)
 
     intersected = np.logical_and.reduce(
-        [np.abs(det) >= epsilon, u >= 0.0, v >= 0.0, u + v <= 1.0, t > epsilon, t <= ray_mag]
+        [facing_ray, u >= 0.0, v >= 0.0, u + v <= 1.0, t > epsilon, t <= ray_mag]
     )
 
     return np.any(intersected)
@@ -289,7 +296,11 @@ def find_occluded_points(
     #  Create filters
     lidar_filter = np.ones(len(df), dtype=bool)
     if ground_only:
-        lidar_filter = np.logical_and(lidar_filter, np.array([c == 2 or c == 3 or c == 11 or c == 15 for c in df["C"].astype(int)]))
+        lidar_filter = np.logical_and(lidar_filter,
+                                      np.array([c == LIDARClass.GROUND.value or c == LIDARClass.LOW_VEG.value
+                                                or c == LIDARClass.ROAD.value or c == LIDARClass.POLE.value
+                                                or c == LIDARClass.BUILDING.value
+                                                for c in df["C"].astype(int)]))
 
     if lowest_hit:
         lidar_filter = np.logical_and(lidar_filter, df["LOWEST_HIT"].to_numpy())

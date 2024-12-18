@@ -9,24 +9,9 @@ from PIL import Image
 from skimage import morphology, measure
 from sklearn.cluster import DBSCAN
 from scipy.spatial import cKDTree
+from scipy.ndimage import binary_dilation
 
 from data_processing.utils import get_data_from_image, SegmentationClass, ROADSIDE, classify_points_base_on_centerline
-
-
-def _calculate_slope(pt1, pt2):
-    """Calculate the slope between two points (x1, y1) and (x2, y2)."""
-    if pt2[0] == pt1[0]:
-        return float('inf')  # Vertical line
-    return (pt2[1] - pt1[1]) / (pt2[0] - pt1[0])
-
-
-def _calculate_slope_np(pts, middle_pt):
-    """Calculate the slopes between two sets of points, using numpy vectorized operations."""
-    dx = pts[:, 0] - middle_pt[0]
-    dy = pts[:, 1] - middle_pt[1]
-
-    # Handle division by zero for vertical lines (returning infinity)
-    return np.divide(dy, dx, out=np.full_like(dy, np.inf), where=dx != 0)
 
 
 def _get_road_intersections_by_y(contours, y):
@@ -44,7 +29,7 @@ def _get_road_intersections_by_y(contours, y):
     return intersects
 
 
-def process_boundary_in_image(in_img):
+def process_boundary_in_image(in_img, vehicle_mask=None):
     cleaned_mask = morphology.remove_small_objects(in_img, min_size=1000)
     labeled_data, count = measure.label(cleaned_mask, connectivity=2, return_num=True)
     labeled_data = labeled_data.astype('uint8')
@@ -55,13 +40,14 @@ def process_boundary_in_image(in_img):
     blurred_image = cv2.GaussianBlur(binary_data, (5, 5), 0)
     # Apply Canny edge detection
     edges = cv2.Canny(blurred_image, 100, 200)
-
+    if vehicle_mask is not None:
+        edges[vehicle_mask] = 0
     # Find all connected components in the edge image
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(edges, connectivity=8)
     # The first label is the background, skip it
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
-        if area < 350:
+        if area < 360:
             # Set the pixel values of this small component to 0 to remove it
             labels[labels == i] = 0
 
@@ -106,7 +92,8 @@ def _filter_out_small_noisy_clusters(input_img):
     # filter out small noisy clusters
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(input_img, connectivity=8)
     for i in range(num_labels):
-        if stats[i, cv2.CC_STAT_AREA] < 30:
+        if stats[i, cv2.CC_STAT_AREA] < 30 or (stats[i, cv2.CC_STAT_AREA] == stats[i, cv2.CC_STAT_WIDTH]
+                                               and stats[i, cv2.CC_STAT_AREA] < 210):
             input_img[labels == i] = 0
     # extract lane contour points
     obj_indices = np.where(input_img == 255)
@@ -181,24 +168,31 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     middle_axes = []
     # Loop through the selected rows to create multiple line segments
     step_size = 30
+    last_valid_end = None
     for idx in range(first_row_idx, last_row_idx, step_size):
         idx2 = idx + step_size
         if idx2 >= last_row_idx:
             idx2 = last_row_idx
-        row_center_start, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx])
+        if last_valid_end is not None:
+            row_center_start = last_valid_end
+        else:
+            row_center_start, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx])
         row_center_end, _ = _get_cluster_info(lane_contour, rows_with_potential_lanes[idx2])
-        if row_center_start is not None and row_center_end is not None:
+        if (row_center_start is not None and row_center_end is not None
+                and abs(row_center_start[0] - row_center_end[0]) <= 300):
             # Calculate axis for this segment
             axis = get_axis_from_points(row_center_end, row_center_start)
             # Append axis and centroid point to lists
             middle_axes.append(axis)
             middle_points.append(row_center_start)
+            last_valid_end = row_center_end
+
     if len(middle_axes) <= 0:
         return image_width, image_height, lane_img, [lane_contour], None
 
     # Convert lists to NumPy arrays
     middle_axes = np.array(middle_axes)
-    middle_points = np.array(middle_points)
+    middle_points = np.array(middle_points[:-1])
 
     if save_processed_image:
         # Draw the central axis line for visual debugging
@@ -246,11 +240,26 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
 
 def get_image_road_points(image_file_name, boundary_only=True):
     image_width, image_height, seg_img = get_data_from_image(image_file_name)
-    # assign road with 255 and the rest with 0
-    seg_img[seg_img == SegmentationClass.ROAD.value] = 255
-    seg_img[seg_img != 255] = 0
+    # Create a mask for ROAD and vehicle classes
+    road_mask = seg_img == SegmentationClass.ROAD.value
 
-    process_img, process_contour = process_boundary_in_image(seg_img)
+    # Filter out ROAD boundary pixels that overlap with vehicle pixels
+    # Expand the vehicle mask to touch potentially shared road boundary pixels
+    vehicle_mask = ((seg_img == SegmentationClass.CAR.value) |
+                    (seg_img == SegmentationClass.TRUCK.value) |
+                    (seg_img == SegmentationClass.BUS.value) |
+                    (seg_img == SegmentationClass.BICYCLE.value) |
+                    (seg_img == SegmentationClass.MOTORCYCLE.value) |
+                    (seg_img == SegmentationClass.TRAIN.value))
+    structuring_element = np.array([[0, 1, 0],
+                                    [1, 1, 1],
+                                    [0, 1, 0]])
+    adjusted_vehicle_mask = binary_dilation(vehicle_mask, structure=structuring_element)
+
+    # Assign values: 255 for filtered ROAD pixels, 0 otherwise
+    seg_img[:] = 0
+    seg_img[road_mask] = 255
+    process_img, process_contour = process_boundary_in_image(seg_img, vehicle_mask = adjusted_vehicle_mask)
 
     if boundary_only:
         return image_width, image_height, process_img, process_contour
@@ -374,7 +383,6 @@ if __name__ == '__main__':
 
         filtered_contour = combine_lane_and_road_boundary(input_lane_points, input_lane_img, input_road_img,
                                                           road_image_with_path, save_processed_image=True)
-
         # classify each point as left or right side
         if m_points is not None:
             # insert the top point in filtered_contour to m_points to account of the far end

@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import math
 from scipy.spatial import Delaunay
-from utils import bearing_between_two_latlon_points, get_next_road_index, get_aerial_lidar_road_geo_df
+from utils import bearing_between_two_latlon_points, get_next_road_index, get_aerial_lidar_road_geo_df, METER_TO_FEET
 from common.utils import haversine
 
 
@@ -25,20 +25,32 @@ def get_lidar_data_from_shp(lidar_shp_file_path):
 
 
 def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 190), end_of_route=False,
-                                       include_all_cols=False, fov=15):
+                                       include_all_cols=False, fov=90, proj_cam_x=None, proj_cam_y=None):
     clat, clon = cam_loc
     next_clat, next_clon = next_cam_loc
     x_coords = np.array([point.x for point in df['geometry_y']])
     y_coords = np.array([point.y for point in df['geometry_y']])
-    df['distance'] = haversine(clon, clat, x_coords, y_coords)
 
     cam_bearing = bearing_between_two_latlon_points(clat, clon, next_clat, next_clon, is_degree=False)
     bearings = bearing_between_two_latlon_points(clat, clon, y_coords, x_coords, is_degree=False)
     df['bearing_diff'] = np.abs(cam_bearing - bearings)
+
+    if not end_of_route:
+        df = df[df['bearing_diff'] < math.pi * fov / 180]
+
+    if proj_cam_x is not None and proj_cam_y is not None:
+        # save expensive np.sqrt() operation to later after filtering for better performance
+        df['CAM_DIST'] = (df['X'] - proj_cam_x) ** 2 + (df['Y'] - proj_cam_y) ** 2
+        df = df[(df['CAM_DIST'] > dist_th[0] ** 2) & (df['CAM_DIST'] < dist_th[1] ** 2)]
+        df['CAM_DIST'] = np.sqrt(df['CAM_DIST'])
+    else:
+        df['CAM_DIST'] = haversine(clon, clat, x_coords, y_coords) * METER_TO_FEET
+        df = df[(df['CAM_DIST'] > dist_th[0]) & (df['CAM_DIST'] < dist_th[1])]
+
     if end_of_route:
         # use lidar road edge as camera bearing direction instead since next_cam_loc is interpolated and does not
         # accurately reflect camera bearing direction
-        lidx = df['distance'].idxmin()
+        lidx = df['CAM_DIST'].idxmin()
         nidx = get_next_road_index(lidx, df, 'bearing_diff')
         cam_bearing = bearing_between_two_latlon_points(df.iloc[lidx]['geometry_y'].y,
                                                         df.iloc[lidx]['geometry_y'].x,
@@ -46,17 +58,16 @@ def extract_lidar_3d_points_for_camera(df, cam_loc, next_cam_loc, dist_th=(20, 1
                                                         df.iloc[nidx]['geometry_y'].x,
                                                         is_degree=False)
         df['bearing_diff'] = np.abs(cam_bearing - bearings)
+        df = df[df['bearing_diff'] < math.pi * fov / 180]
 
-    df = df[(df['distance'] > dist_th[0]) & (df['distance'] < dist_th[1]) & (df['bearing_diff'] < math.pi * fov / 180)]
     if include_all_cols:
         df = df.drop(columns=['bearing_diff'])
         return df.copy(), cam_bearing, df.columns
     else:
         if 'X' in df.columns:
+            inc_cols = ['X', 'Y', 'Z', 'CAM_DIST']
             if 'C' in df.columns:
-                inc_cols = ['X', 'Y', 'Z', 'C']
-            else:
-                inc_cols = ['X', 'Y', 'Z']
+                inc_cols.append('C')
             if 'I' in df.columns:
                 inc_cols.append('I')
             if 'BOUND' in df.columns:
@@ -147,8 +158,8 @@ if __name__ == '__main__':
                         default=[35.6847461, -81.5218077],
                         help='next camera loc to define camera/driving bearing direction')
     parser.add_argument('--distance_threshold', type=str,
-                        default=(20, 154),
-                        help='distance threshold in meter to filter out lidar vertices')
+                        default=(60, 505),
+                        help='distance threshold in feet to filter out lidar vertices')
 
     args = parser.parse_args()
     input_lidar_with_path = args.input_lidar_with_path

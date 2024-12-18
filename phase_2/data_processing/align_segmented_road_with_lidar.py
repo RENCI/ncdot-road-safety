@@ -6,7 +6,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 from math import radians, tan
-
+from raycasting import find_occluded_points
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
     classify_points_base_on_centerline, ROADSIDE, create_df_from_lidar_points
@@ -25,25 +25,11 @@ OPTIMIZED_CAM_PARA_COL_NAME = 'OPTIMIZED_CAMERA_OBJ_PARA'
 PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET, \
     OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X = 0, 1, 2, 3, 4, 5, 6, 7
 
-CAM_NEAR = 0.1
-# camera pose parameter bound constraints put on optimizer
-FOV_OFFSET = 2
-# each lane in a typical two-lane road measures 12 feet wide
-X_TRAN_MAX = 10
-Y_TRAN_MAX = 10
-Z_TRAN_MAX = 26
-X_ROT_MAX = 5
-Y_ROT_MAX = 5
-Z_ROT_MAX = 7
-
 INIT_CAM_OBJ_PARAS = None
 PREV_CAM_OBJ_PARAS = None
-PREV_CAM_BEARING_VEC = {}
-NUM_ITERATIONS = 1000  # optimizer hyperparameters
+PREV_CAM_BEARING_VEC = np.empty(3)
 
-# temporary workaround to get around occluded LIDAR points by reducing LIDAR points extraction distance threshold
-LIDAR_DIST_THRESHOLD = (3.5, 120)
-# LIDAR_DIST_THRESHOLD = (3.5, 210)
+LIDAR_DIST_THRESHOLD = (40, 850)  # in feet
 CAMERA_ALIGNMENT_RESET_REASONS = ['Too few LIDAR points', 'alignment error threshold exceeded']
 
 def rotate_point(point, quaternion):
@@ -54,10 +40,13 @@ def rotate_point(point, quaternion):
 def init_transform_from_lidar_to_world_coordinate_system(df, cam_x, cam_y, cam_z):
     # transform LIDAR points from LIDAR projection coordinate system to world coordinate system without
     # considering camera pose parameters
-    df['UPDATE_X'] = df.X - cam_x
-    df['UPDATE_Y'] = df.Y - cam_y
-    # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
-    df['CAM_DIST'] = np.sqrt(np.square(df.UPDATE_X) + np.square(df.UPDATE_Y))
+    if 'CAM_DIST' not in df.columns:
+        # Calculate the distance between the cam_x, cam_y point and the first two X, Y columns of input_3d_points
+        df['CAM_DIST'] = np.sqrt(np.square(df.X - cam_x) + np.square(df.Y - cam_y))
+    # Use the OpenGL camera coordinate system, the z-axis is pointing out of screen, x-axis is pointing to the right,
+    # y-axis is pointing upward. In our case, the z-axis is pointing from the camera opposite to the cam_bearing
+    # direction, the y-axis is perpendicular to the z-axis reflecting the elevation Z pointing upwards, and the x-axis
+    # is perpendicular to both y-axis and z-axis.
     df['INITIAL_WORLD_Z'] = -df.CAM_DIST * np.cos(df.BEARING)
     df['INITIAL_WORLD_Y'] = df.Z - cam_z
     df['INITIAL_WORLD_X'] = df.CAM_DIST * np.sin(df.BEARING)
@@ -66,10 +55,6 @@ def init_transform_from_lidar_to_world_coordinate_system(df, cam_x, cam_y, cam_z
 
 def transform_to_world_coordinate_system(df, cam_params):
     # transform X, Y, Z in LIDAR coordinate system to world coordinate system where the camera is at the origin,
-    # the z-axis is pointing from the camera along the cam_bearing direction, the y-axis is perpendicular to the
-    # z-axis reflecting the elevation Z pointing upwards, and the x-axis is perpendicular to both y-axis and z-axis.
-    # Note that LIDAR world coordinate system origin is located at lower-left corner while
-    # screen coordinate system origin is located at upper-left corner
     rotation_x = Rotation.from_euler('x', radians(cam_params[OBJ_ROT_X]))
     rotation_y = Rotation.from_euler('y', radians(cam_params[OBJ_ROT_Y]))
     rotation_z = Rotation.from_euler('z', radians(cam_params[OBJ_ROT_Z]))
@@ -108,10 +93,12 @@ def meet_camera_parameter_constraint(cam_params):
 def transform_3d_points(df, cam_params, img_width, img_hgt):
     if not meet_camera_parameter_constraint(cam_params):
         return df
+
     df = transform_to_world_coordinate_system(df, cam_params)
+
     aspect = img_width / img_hgt
-    # far = max(df['INITIAL_WORLD_X'].max(), df['INITIAL_WORLD_Y'].max(), df['INITIAL_WORLD_Z'].max()) * 10
     far = df['INITIAL_WORLD_Z'].abs().max() * 1.5
+
     top = cam_params[PERSPECTIVE_NEAR] * tan(radians(0.5 * cam_params[PERSPECTIVE_VFOV]))
     height = 2 * top
     width = aspect * height
@@ -119,31 +106,45 @@ def transform_3d_points(df, cam_params, img_width, img_hgt):
     right = left + width
     bottom = top - height
 
+    # precompute matrix elements
     x = 2 * cam_params[PERSPECTIVE_NEAR] / (right - left)
     y = 2 * cam_params[PERSPECTIVE_NEAR] / (top - bottom)
     a = (right + left) / (right - left)
     b = (top + bottom) / (top - bottom)
     c = - (far + cam_params[PERSPECTIVE_NEAR]) / (far - cam_params[PERSPECTIVE_NEAR])
     d = (- 2 * far * cam_params[PERSPECTIVE_NEAR]) / (far - cam_params[PERSPECTIVE_NEAR])
-    matrix_elements = [
-        x, 0, 0, 0,
-        0, y, 0, 0,
-        a, b, c, -1,
-        0, 0, d, 0
-    ]
-    # project to 2D camera coordinate system
-    df['PROJ_X'] = df.apply(
-        lambda row: apply_matrix4(row['WORLD_X'], row['WORLD_Y'], row['WORLD_Z'], matrix_elements, return_axis='x'),
-        axis=1)
-    df['PROJ_Y'] = df.apply(
-        lambda row: apply_matrix4(row['WORLD_X'], row['WORLD_Y'], row['WORLD_Z'], matrix_elements, return_axis='y'),
-        axis=1)
+
+    # construct projection matrix
+    matrix = np.array([
+        [x, 0, a, 0],
+        [0, y, b, 0],
+        [0, 0, c, d],
+        [0, 0, -1, 1]
+    ])
+
+    # Convert DataFrame to numpy array for vectorized operations
+    world_points = df[['WORLD_X', 'WORLD_Y', 'WORLD_Z']].values
+    ones = np.ones((len(world_points), 1))
+    points_4d = np.hstack((world_points, ones))
+
+    # apply projection matrix to project to 2D camera coordinate system
+    projected_points = points_4d @ matrix.T
+
+    # handle invalid points before normalization
+    with np.errstate(invalid='ignore', divide='ignore'):
+        projected_points /= projected_points[:, 3].reshape(-1, 1)
+
+    # replace NaNs with a large off-screen value
+    projected_points[np.isnan(projected_points)] = -99999
+
+    # Map to screen coordinates
     half_width = img_width / 2
     half_height = img_hgt / 2
-    df['PROJ_SCREEN_X'] = df['PROJ_X'].apply(
-        lambda x: int(x * half_width + half_width))
-    df['PROJ_SCREEN_Y'] = df['PROJ_Y'].apply(
-        lambda y: int(-(y * half_height) + half_height))
+
+    # Note that LIDAR world coordinate system origin is located at lower-left corner while
+    # screen coordinate system origin is located at upper-left corner
+    df['PROJ_SCREEN_X'] = (projected_points[:, 0] * half_width + half_width).astype(int)
+    df['PROJ_SCREEN_Y'] = (-projected_points[:, 1] * half_height + half_height).astype(int)
     return df
 
 
@@ -310,7 +311,7 @@ def derive_next_camera_params(v1, v2, cam_para1):
     return cam_para2
 
 
-def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_path, do_fov_optimize):
+def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_path):
     """
     :param row: the image metadata dataframe row to be processed
     :param seg_image_dir: path in which segmentation images are located
@@ -318,10 +319,10 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     :param ldf: lidar 3D point geodataframe
     :param out_proj_file_path: output path for aligned road info which will be appended with
     lidar_project_info_{image name} to have lidar projection info for each input image
-    :param do_fov_optimize: whether to do FOV in the optimizer
     :return: the computed base camera parameters and optimized camera parameters
     """
-    global INIT_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS, PREV_CAM_BEARING_VEC
+    global INIT_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS, PREV_CAM_BEARING_VEC, \
+        X_TRAN_MIN, X_TRAN_MAX, Y_TRAN_MIN, Y_TRAN_MAX, Z_TRAN_MIN, Z_TRAN_MAX
 
     if len(row["imageBaseName"]) == 11:
         image_name_with_path = os.path.join(seg_image_dir, f'{row["imageBaseName"]}1.png')
@@ -340,7 +341,11 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     if row['OBJ_BASE_TRANS_LIST']:
         INIT_CAM_OBJ_PARAS = row['OBJ_BASE_TRANS_LIST']
         PREV_CAM_OBJ_PARAS = None
-        PREV_CAM_BEARING_VEC = {}
+        PREV_CAM_BEARING_VEC = np.empty(3)
+        do_optimize = False # does not do optimization for the first image obtained from manual registration
+    else:
+        do_optimize = True
+
 
     out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{input_2d_mapped_image}.csv')
     print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
@@ -372,11 +377,17 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
 
     cam_lidar_z = row['CAM_Z']
 
+    # filter out LIDAR points approximately by distance for performance improvement
+    ldf = ldf[((ldf.X - proj_cam_x).abs() < LIDAR_DIST_THRESHOLD[1]) &
+              ((ldf.Y - proj_cam_y).abs() < LIDAR_DIST_THRESHOLD[1])]
+
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
                                                                 end_of_route=False,
-                                                                fov=90)
+                                                                fov=90,
+                                                                proj_cam_x=proj_cam_x,
+                                                                proj_cam_y=proj_cam_y)
     input_3d_points = vertices[0]
     print(f'len(input_3d_points): {len(input_3d_points)}, cols: {cols}')
     print(f'time taken for extracting lidar points for camera: {time.time() - t1}s')
@@ -398,9 +409,6 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     cam_v = np.array([proj_cam_x2 - proj_cam_x, proj_cam_y2 - proj_cam_y, proj_cam_z2 - cam_lidar_z])
     cam_v = cam_v / np.linalg.norm(cam_v)
 
-    filtered_road_bound_ldf = input_3d_gdf[input_3d_gdf.BOUND == 1]
-    print(f'filtered_road_bound_ldf shape: {filtered_road_bound_ldf.shape}')
-
     if PREV_CAM_OBJ_PARAS is not None:
         prev_v = PREV_CAM_BEARING_VEC
         v = cam_v
@@ -417,7 +425,17 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     # camera orientation/bearing info is updated from the optimized version of its previous image using
     # road tangent info. The optimization is based on updated camera base parameters
     input_3d_gdf = transform_3d_points(input_3d_gdf, init_cam_paras, img_width, img_height)
-    input_3d_gdf.to_csv(os.path.join(out_proj_file_path, f'base_lidar_project_info_{row["imageBaseName"]}.csv'),
+
+    seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
+    img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
+    input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img,
+                                                     seg_image_name, image_height=img_height)
+
+    if do_optimize:
+        output_lidar_proj_filename = f'base_lidar_project_info_{row["imageBaseName"]}.csv'
+    else:
+        output_lidar_proj_filename = f'lidar_project_info_{row["imageBaseName"]}.csv'
+    input_3d_gdf.to_csv(os.path.join(out_proj_file_path, output_lidar_proj_filename),
                         index=False)
 
     if m_points is None:
@@ -430,15 +448,6 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
             })
             input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
         return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
-
-    input_3d_road_bound_gdf = input_3d_gdf[input_3d_gdf.BOUND == 1].reset_index(drop=True).copy()
-    if 'SIDE' in cols:
-        input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
-
-    seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
-    img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
-    input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img,
-                                                              seg_image_name, image_height=img_height)
 
     # use combined lane and road boundary for better matching with LIDAR road edges
     # insert the top point in filtered_contour to m_points to account of the far end
@@ -473,28 +482,29 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
               f'and return without optimization')
         return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
 
-    if do_fov_optimize:
-        start_idx = 1
-        cam_para_bounds = [((PREV_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] - FOV_OFFSET),
-                            (PREV_CAM_OBJ_PARAS[PERSPECTIVE_VFOV] + FOV_OFFSET)),
-                           (-X_TRAN_MAX, X_TRAN_MAX),
-                           (-Y_TRAN_MAX, Y_TRAN_MAX),
-                           (-Z_TRAN_MAX, Z_TRAN_MAX),
-                           (-Z_ROT_MAX, Z_ROT_MAX),
-                           (-Y_ROT_MAX, Y_ROT_MAX),
-                           (-X_ROT_MAX, X_ROT_MAX)]
-        cam_output_columns = ['fov', 'translation_x', 'translation_y', 'translation_z',
-                              'rotation_z', 'rotation_y', 'rotation_x']
-    else:
-        start_idx = 2
-        cam_para_bounds = [(-X_TRAN_MAX, X_TRAN_MAX),
-                           (-Y_TRAN_MAX, Y_TRAN_MAX),
-                           (-Z_TRAN_MAX, Z_TRAN_MAX),
-                           (-Z_ROT_MAX, Z_ROT_MAX),
-                           (-Y_ROT_MAX, Y_ROT_MAX),
-                           (-X_ROT_MAX, X_ROT_MAX)]
-        cam_output_columns = ['translation_x', 'translation_y', 'translation_z',
-                              'rotation_z', 'rotation_y', 'rotation_x']
+    if not do_optimize:
+        return PREV_CAM_OBJ_PARAS, PREV_CAM_OBJ_PARAS
+
+    input_3d_gdf = find_occluded_points(input_3d_gdf, np.array([proj_cam_x, proj_cam_y, cam_lidar_z]),
+                                        img_width, img_height, ground_only=True, lowest_hit=False)
+    input_3d_road_bound_gdf = input_3d_gdf[(input_3d_gdf.OCCLUDED == False) &
+                                           (input_3d_gdf.BOUND == 1)].reset_index(drop=True).copy()
+    # input_3d_road_bound_gdf = input_3d_gdf[input_3d_gdf.BOUND == 1].reset_index(drop=True).copy()
+    if 'SIDE' in cols:
+        input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
+    print(f'after occlusion filtering, input_3d_road_bound_gdf.shape: {input_3d_road_bound_gdf.shape}')
+    input_3d_road_bound_gdf.to_csv(os.path.join(out_proj_file_path,
+                                                f'base_lidar_project_info_{row["imageBaseName"]}_non_occluded.csv'),
+                                   index=False)
+    start_idx = 2
+    cam_para_bounds = [(INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] - 1, INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] + 1),
+                       (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] - 1, INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] + 1),
+                       (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - 5, INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + 5),
+                       (INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] - 0.5, INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] + 0.5),
+                       (INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] - 0.5, INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] + 0.5),
+                       (INIT_CAM_OBJ_PARAS[OBJ_ROT_X] - 0.5, INIT_CAM_OBJ_PARAS[OBJ_ROT_X] + 0.5)]
+    cam_output_columns = ['translation_x', 'translation_y', 'translation_z',
+                          'rotation_z', 'rotation_y', 'rotation_x']
 
     align_errors = []
     t1 = time.time()
@@ -506,7 +516,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
                           # bounds in the order of OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET, \
                           # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
                           bounds=cam_para_bounds,
-                          options={'maxiter': NUM_ITERATIONS, 'disp': True})
+                          options={'maxiter': 1000, 'disp': True})
     except SkipOptimizationException as ex:
         print(ex)
         if ex.exception_reason == CAMERA_ALIGNMENT_RESET_REASONS[0]:
@@ -541,7 +551,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
                         default='data/d13_route_40001001012/'
-                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides_reduced.csv',
+                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
                         default='data/d13_route_40001001012/segmentation',
@@ -560,8 +570,6 @@ if __name__ == '__main__':
                         default='data/d13_route_40001001012/test',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
-    parser.add_argument('--optimize_fov', action="store_true",
-                        help='optimize FOV in the camera parameter optimizer if set to True')
 
     args = parser.parse_args()
     input_lidar = args.input_lidar_with_path
@@ -570,7 +578,6 @@ if __name__ == '__main__':
     obj_image_input = args.obj_image_input
     input_init_cam_param_file_with_path = args.input_init_cam_param_file_with_path
     lidar_proj_output_file_path = args.lidar_proj_output_file_path
-    optimize_fov = args.optimize_fov
 
     if input_lidar.endswith('.shp'):
         lidar_df = get_lidar_data_from_shp(input_lidar)
@@ -591,7 +598,7 @@ if __name__ == '__main__':
     # in the order of PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_LIDAR_Z_OFFSET,
     # OBJ_ROT_Z, OBJ_ROT_Y, OBJ_ROT_X
     init_cam_param_df['OBJ_BASE_TRANS_LIST'] = init_cam_param_df.apply(lambda row:
-                                                                       [CAM_NEAR, row['vFOV'], -row['posX'],
+                                                                       [0.1, row['vFOV'], -row['posX'],
                                                                         -row['posY'], -row['posZ'], -row['rotZ'],
                                                                         -row['rotY'], -row['rotX']], axis=1)
     init_cam_param_df.drop(columns=['vFOV', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ'], inplace=True)
@@ -609,7 +616,7 @@ if __name__ == '__main__':
         image_seg_dir,
         lane_seg_dir,
         lidar_df,
-        lidar_proj_output_file_path, optimize_fov), axis=1, result_type='expand')
+        lidar_proj_output_file_path), axis=1, result_type='expand')
 
     input_df.drop(columns=['CAM_Z', 'CAM_Z_next', 'LATITUDE_next', 'LONGITUDE_next'], inplace=True)
     input_df.to_csv(f'{os.path.splitext(obj_image_input)[0]}_with_cam_paras.csv', index=False)

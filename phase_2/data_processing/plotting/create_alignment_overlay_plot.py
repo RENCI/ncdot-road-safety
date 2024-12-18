@@ -7,25 +7,30 @@ import pandas as pd
 from data_processing.utils import load_pickle_data, LIDARClass
 
 
+def parse_colormap(value):
+    try:
+        return dict(item.split(':') for item in value.split(','))
+    except ValueError:
+        raise argparse.ArgumentTypeError("Colormap must be in the format 'key1:color1,key2:color2'")
+
+
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_2d', type=str,
-                    default='../data/d13_route_40001001012/test/input_2d_88100042618.csv',
+                    default='../data/d13_route_40001001012/test/input_2d_88100043522.csv',
                     help='2d vertices')
 parser.add_argument('--input_3d_proj', type=str,
-                    default='../data/d13_route_40001001012/test/lidar_project_info_88100042618.csv',
+                    default='../data/d13_route_40001001012/test/lidar_project_info_88100043522.csv',
                     help='3d projection vertices')
 parser.add_argument('--overlay_bg_image_path', type=str,
-                    default='../data/d13_route_40001001012/images/881000426181.jpg',
+                    default='../data/d13_route_40001001012/images/881000435221.jpg',
                     help='original background image for overlay with the scatter plots')
-parser.add_argument('--use_lidar_proj_cols', type=list,
+parser.add_argument('--use_lidar_proj_cols', nargs='+',
                     default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'C', 'BOUND', 'SIDE'],
                     # default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
                     help='list of columns to load when reading the input lidar projection data from input_3d_proj')
-parser.add_argument('--colormap', type=dict,
+parser.add_argument('--colormap', type=parse_colormap,
                     default={6: 'purple', 2: 'cyan', 15: 'orange', 1: 'green', 11: 'blue', 12: 'yellow', 3: 'brown',
                              4: 'brown', 5: 'brown', 14: 'pink'},
-                    # default={3: 'purple', 5: 'blue', 2: 'green', 4: 'orange', 14: 'pink', 1: 'yellow', 11: 'red'},
-                    # default='',
                     help='colormap to map LIDAR point classification to color')
 parser.add_argument('--show_lidar_road_only', action="store_true",
                     help='show LIDAR road only')
@@ -46,7 +51,6 @@ bg_img = mpimg.imread(overlay_bg_image_path)
 image_height, image_width, _ = bg_img.shape
 
 input_3d_proj_df = pd.read_csv(input_3d_proj, usecols=use_lidar_proj_cols, dtype=int)
-
 if show_lidar_road_only:
     if 'C' in input_3d_proj_df.columns:
         input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.C == LIDARClass.ROAD.value) |
@@ -71,6 +75,7 @@ input_3d_proj_df = input_3d_proj_df[(input_3d_proj_df.PROJ_SCREEN_X > xb_min) &
                                     (input_3d_proj_df.PROJ_SCREEN_X < xb_max) &
                                     (input_3d_proj_df.PROJ_SCREEN_Y > 0) &
                                     (input_3d_proj_df.PROJ_SCREEN_Y < image_height)]
+
 if not overlay_bg_image_path.endswith('1.jpg'):
     input_3d_proj_df['PROJ_SCREEN_X'] = input_3d_proj_df['PROJ_SCREEN_X'] - xb_min
 else:
@@ -79,7 +84,7 @@ else:
         plt.scatter(input_2d_points[:, 0], image_height - input_2d_points[:, 1], s=20)
     else:
         input_2d_df = pd.read_csv(input_2d)
-        colors = np.where(input_2d_df['SIDE'] > 0, 'blue', 'green')
+        # colors = np.where(input_2d_df['SIDE'] > 0, 'blue', 'green')
         # plt.scatter(input_2d_df['X'], image_height - input_2d_df['Y'], s=20, c=colors)
         plt.scatter(input_2d_df['X'], image_height - input_2d_df['Y'], s=20)
 
@@ -98,14 +103,14 @@ else:
 if colormap:
     # plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10,
     #             c=remain_ldf['C'].map(colormap), label=remain_ldf['C'])
-    colors_3d = np.where(remain_ldf['SIDE'] > 0, 'blue', 'green')
+    # colors_3d = np.where(remain_ldf['SIDE'] > 0, 'blue', 'green')
     # plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10, c=colors_3d)
     plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10, c='blue')
 else:
     plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10)
 
 if show_bg_img:
-    plt.imshow(bg_img, extent=[0, image_width-1, 0, image_height-1])
+    plt.imshow(bg_img, extent=[0, image_width - 1, 0, image_height - 1])
 
 plt.title('Road alignment in screen coordinate system')
 plt.ylabel('Y')
