@@ -299,7 +299,8 @@ def find_occluded_points(
         lidar_filter = np.logical_and(lidar_filter,
                                       np.array([c == LIDARClass.GROUND.value or c == LIDARClass.LOW_VEG.value
                                                 or c == LIDARClass.ROAD.value or c == LIDARClass.POLE.value
-                                                or c == LIDARClass.BUILDING.value
+                                                or c == LIDARClass.BUILDING.value or c == LIDARClass.MEDIUM_VEG.value
+                                                or c == LIDARClass.HIGH_VEG.value
                                                 for c in df["C"].astype(int)]))
 
     if lowest_hit:
