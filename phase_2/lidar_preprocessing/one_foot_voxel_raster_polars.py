@@ -33,7 +33,7 @@ def get_lidar_data(las_files):
         else:
             point_data = np.concatenate((point_data, points))
 
-    print(f"Lidar data points: {len(point_data)}.")
+    print(f"Lidar data points: {len(point_data)}")
     return create_df(point_data)
 
 def create_df(point_data):
@@ -50,7 +50,7 @@ def create_df(point_data):
     df = df.with_columns(
         pl.col("RAW_X").cast(pl.Int32).alias("VOX_X"),
         pl.col("RAW_Y").cast(pl.Int32).alias("VOX_Y"),
-        pl.col("RAW_Z").cast(pl.Int32).alias("VOX_Z"),
+        pl.col("RAW_Z").cast(pl.Int16).alias("VOX_Z"),
         (pl.col("RAW_C") == 11).alias("ROAD"),
         (pl.col("RAW_C") == 17).alias("BRIDGE")
     )
@@ -76,12 +76,53 @@ def rasterize(df):
     vox = vox.with_columns(
         pl.col("VOX_X").cast(pl.Int32).alias("VOX_X"),
         pl.col("VOX_Y").cast(pl.Int32).alias("VOX_Y"),
-        pl.col("VOX_Z").cast(pl.Int32).alias("VOX_Z"),
+        pl.col("VOX_Z").cast(pl.Int16).alias("VOX_Z"),
         pl.col("C").list.tail(1).explode().alias("C")
     )
 
     print(f"Rasterized data points: {len(vox)}.")
     return vox
+
+def get_lowest_highest_hits(df, hit_type):
+    # Hit types: "low" or "high"
+    print(f"Getting {hit_type}est hit voxels...")
+    col_name = {
+        "low": "LOWEST_HIT",
+        "high": "HIGHEST_HIT",
+    }
+
+    agg_func = {
+        "low": pl.col("VOX_Z").min().alias("VOX_Z"),
+        "high": pl.col("VOX_Z").max().alias("VOX_Z"),
+    }
+
+    q = (
+        df.lazy()
+        .group_by("VOX_X", "VOX_Y")
+        .agg(agg_func[hit_type])
+        .sort("VOX_X", "VOX_Y")
+    )
+
+    hits = q.collect()
+    hits = hits.with_columns(
+        pl.Series(np.ones(len(hits), dtype=bool)).alias(col_name[hit_type]),
+        pl.col("VOX_Z").cast(pl.Int16).alias("VOX_Z")
+    )
+
+    print(f"Found {len(hits)} {hit_type}est hit voxels.\nMerging...")
+
+    df = (
+        df.join(
+            hits,
+            on=["VOX_X", "VOX_Y", "VOX_Z"],
+            how="left",
+            coalesce=True
+        )
+        .fill_null(False)
+    )
+
+    print("Done.")
+    return df
 
 def fix_road_and_bridge(df, road_class, bridge_class):
     print("Fixing road and bridge...")
@@ -98,7 +139,14 @@ def fix_road_and_bridge(df, road_class, bridge_class):
 
 def find_edges(df, road_class, bridge_class):
     print("Finding edges...")
-    road = df.filter((pl.col("C") == road_class) | (pl.col("C") == bridge_class)).select(["VOX_Y", "VOX_X", "VOX_Z"]).to_numpy()
+    road = (
+        df.filter(
+            ( ((pl.col("C") == road_class) | (pl.col("C") == bridge_class)) & (pl.col("LOWEST_HIT")) )
+        )
+        .select(["VOX_Y", "VOX_X", "VOX_Z"])
+        .to_numpy()
+    )
+
     mins = np.min(road[:, :-1], axis=0)
     road[:, :-1] -= mins.astype(int)
     maxes = np.max(road[:, :-1], axis=0)
@@ -121,35 +169,38 @@ def create_edge_df(edge_image, height_image, mins):
             "VOX_X": np.where(edge_image)[1] + mins[1],
             "VOX_Y": np.where(edge_image)[0] + mins[0],
             "VOX_Z": [height_image[tuple(coord)] for coord in np.argwhere(edge_image * height_image)],
-            "EDGE": np.ones_like(np.where(edge_image)[0])
+            "EDGE": np.ones_like(np.where(edge_image)[0], dtype=bool)
         }
     )
     edge_df = edge_df.with_columns(
         pl.col("VOX_X").cast(pl.Int32).alias("VOX_X"),
         pl.col("VOX_Y").cast(pl.Int32).alias("VOX_Y"),
-        pl.col("VOX_Z").cast(pl.Int32).alias("VOX_Z"),
-        pl.col("EDGE").cast(pl.Boolean).alias("EDGE")
+        pl.col("VOX_Z").cast(pl.Int16).alias("VOX_Z")
     )
 
     return edge_df
 
 def join_dfs(df, edge_df, output_path):
     print("Joining dataframes...")
-    df = df.join(edge_df, on=["VOX_X", "VOX_Y", "VOX_Z"], how="left")
+    df = df.join(edge_df, on=["VOX_X", "VOX_Y", "VOX_Z"], how="left").fill_null(False)
 
-    df = df.with_columns(
-        pl.when(pl.col("EDGE").is_null())
-        .then(pl.lit(False))
-        .otherwise(pl.lit(True))
-        .alias("EDGE")
-    )
-    print(f"Edge data points: {df['EDGE'].sum()}.")
+    # df = df.with_columns(
+    #     pl.when(pl.col("EDGE").is_null())
+    #     .then(pl.lit(False))
+    #     .otherwise(pl.lit(True))
+    #     .alias("EDGE")
+    # )
 
+    print(f"Edge data points: {df['EDGE'].sum()}")
+    return df
+
+def write_to_file(df, output_path):
     print("Writing output files...")
-    df.select(pl.col(["X", "Y", "Z", "C", "EDGE"])).write_csv(output_path)
-    df.select(pl.col(["VOX_X", "VOX_Y", "VOX_Z", "C", "EDGE"])).write_csv(output_path.replace(".csv", "_normalized.csv"))
+    df.select(pl.col(["X", "Y", "Z", "C", "EDGE", "LOWEST_HIT", "HIGHEST_HIT"])).write_csv(output_path)
+    df.select(pl.col(["VOX_X", "VOX_Y", "VOX_Z", "C", "EDGE", "LOWEST_HIT", "HIGHEST_HIT"])).write_csv(output_path.replace(".csv", "_normalized.csv"))
 
     print("Done.")
+
 
 if __name__ == "__main__":
     ARGS = get_parser().parse_args()
@@ -166,5 +217,13 @@ if __name__ == "__main__":
     vox_df = get_lidar_data(las_files)
     vox_df = rasterize(vox_df)
     vox_df = fix_road_and_bridge(vox_df, road_class=road_class, bridge_class=bridge_class)
+    vox_df = get_lowest_highest_hits(vox_df, hit_type="low")
+    vox_df = get_lowest_highest_hits(vox_df, hit_type="high")
     edge_df = find_edges(vox_df, road_class=road_class, bridge_class=bridge_class)
-    join_dfs(vox_df, edge_df, output_path)
+    vox_df = join_dfs(vox_df, edge_df, output_path)
+    vox_df = vox_df.with_columns(
+        pl.col("EDGE").cast(pl.Int8).alias("EDGE"),
+        pl.col("LOWEST_HIT").cast(pl.Int8).alias("LOWEST_HIT"),
+        pl.col("HIGHEST_HIT").cast(pl.Int8).alias("HIGHEST_HIT")
+    )
+    write_to_file(vox_df, output_path)
