@@ -508,7 +508,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     start_idx = 2
     cam_para_bounds = [(INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] - 1, INIT_CAM_OBJ_PARAS[OBJ_LIDAR_X_OFFSET] + 1),
                        (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] - 1, INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Y_OFFSET] + 1),
-                       (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - 1, INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + 1),
+                       (INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] - 5, INIT_CAM_OBJ_PARAS[OBJ_LIDAR_Z_OFFSET] + 5),
                        (INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] - 0.5, INIT_CAM_OBJ_PARAS[OBJ_ROT_Z] + 0.5),
                        (INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] - 0.5, INIT_CAM_OBJ_PARAS[OBJ_ROT_Y] + 0.5),
                        (INIT_CAM_OBJ_PARAS[OBJ_ROT_X] - 0.5, INIT_CAM_OBJ_PARAS[OBJ_ROT_X] + 0.5)]
