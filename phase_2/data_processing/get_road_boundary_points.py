@@ -10,6 +10,7 @@ from skimage import morphology, measure
 from sklearn.cluster import DBSCAN
 from scipy.spatial import cKDTree
 from scipy.ndimage import binary_dilation
+from itertools import combinations
 
 from data_processing.utils import get_data_from_image, SegmentationClass, ROADSIDE, classify_points_base_on_centerline
 
@@ -72,15 +73,6 @@ def _cluster_points(points, eps=80, min_samples=1):
     return clusters
 
 
-def _is_cluster_centered(left_cluster, middle_cluster, right_cluster):
-    """Checks if the middle cluster is approximately centered between left and right clusters."""
-    left_centroid_x = np.mean(left_cluster[:, 0])
-    right_centroid_x = np.mean(right_cluster[:, 0])
-    middle_centroid_x = np.mean(middle_cluster[:, 0])
-    
-    return abs((middle_centroid_x - left_centroid_x) - (right_centroid_x - middle_centroid_x)) < 300
-
-
 def _cluster_row(contours, row_no):
     row_data = contours[contours[:, 1] == row_no]
     # sort x-coordinates of the first row
@@ -109,10 +101,19 @@ def _get_cluster_info(contour, contour_idx):
     row_filter_dist = -1
     if len(clustered_row) >= 3:
         # Check if the clusters satisfy the central positioning condition
-        left_cluster, middle_cluster, right_cluster = clustered_row[:3]
-        if _is_cluster_centered(left_cluster, middle_cluster, right_cluster):
-            row_center = np.mean(middle_cluster, axis=0)  # Use the centroid of the middle cluster
-            row_filter_dist = (np.max(right_cluster[:, 0]) - np.min(left_cluster[:, 0])) / 4
+        best_score = float('inf')
+        for left_cluster, middle_cluster, right_cluster in combinations(clustered_row, 3):
+            left_centroid_x = np.mean(left_cluster[:, 0])
+            right_centroid_x = np.mean(right_cluster[:, 0])
+            middle_centroid = np.mean(middle_cluster, axis=0)
+            dist_to_left = middle_centroid[0] - left_centroid_x
+            dist_to_right = right_centroid_x - middle_centroid[0]
+            score = abs(dist_to_left - dist_to_right)
+            if score < 300 and score < best_score:
+                # the middle cluster is approximately centered between left and right clusters.
+                best_score = score
+                row_center = middle_centroid
+                row_filter_dist = (np.max(right_cluster[:, 0]) - np.min(left_cluster[:, 0])) / 4
     return row_center, row_filter_dist
 
 
@@ -132,7 +133,6 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
 
     lane_img[lane_img != 0] = 0
     lane_img[mask == 1] = 255
-
     lane_img, lane_contour = _filter_out_small_noisy_clusters(lane_img)
 
     # Sort lane_points based on y-coordinates
@@ -186,7 +186,11 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
             middle_axes.append(axis)
             middle_points.append(row_center_start)
             last_valid_end = row_center_end
-
+    if last_valid_end is not None and not np.any(np.all(middle_points == last_valid_end, axis=1)):
+        start_point = middle_points[-1]
+        axis = get_axis_from_points(last_valid_end, start_point)
+        middle_axes.append(axis)
+        middle_points.append(last_valid_end)
     if len(middle_axes) <= 0:
         return image_width, image_height, lane_img, [lane_contour], None
 
