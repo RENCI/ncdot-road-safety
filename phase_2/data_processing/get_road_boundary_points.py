@@ -342,6 +342,7 @@ def combine_lane_and_road_boundary(lane_points, lane_img, road_img, image_file_n
     # plt.show()
     # create mask from sorted clustered points
     lane_mask = np.zeros_like(lane_img)
+
     cv2.fillPoly(lane_mask, [clust_points], 255)
     filtered_road_boundaries = cv2.bitwise_and(road_img, road_img, mask=cv2.bitwise_not(lane_mask))
 
@@ -385,8 +386,14 @@ if __name__ == '__main__':
         _, _, input_road_img, input_list = get_image_road_points(road_image_with_path)
         input_road_points = input_list[0]
 
-        filtered_contour = combine_lane_and_road_boundary(input_lane_points, input_lane_img, input_road_img,
-                                                          road_image_with_path, save_processed_image=True)
+        if len(input_lane_points) > 0 and len(input_road_points) > 0:
+            filtered_contour = combine_lane_and_road_boundary(input_lane_points, input_lane_img, input_road_img,
+                                                              road_image_with_path, save_processed_image=True)
+        elif len(input_road_points) > 0:
+            filtered_contour = input_road_points
+        else: # len(input_lane_points) > 0
+            filtered_contour = input_lane_points
+
         # classify each point as left or right side
         if m_points is not None:
             # insert the top point in filtered_contour to m_points to account of the far end

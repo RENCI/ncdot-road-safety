@@ -425,11 +425,13 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     # camera orientation/bearing info is updated from the optimized version of its previous image using
     # road tangent info. The optimization is based on updated camera base parameters
     input_3d_gdf = transform_3d_points(input_3d_gdf, init_cam_paras, img_width, img_height)
-
     seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
     img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
-    input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img,
-                                                     seg_image_name, image_height=img_height)
+    if len(input_2d_points) > 0 and len(input_list[0]) > 0:
+        input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img,
+                                                         seg_image_name, image_height=img_height)
+    elif len(input_list[0]) > 0:
+        input_2d_points = input_list[0]
 
     if do_optimize:
         output_lidar_proj_filename = f'base_lidar_project_info_{row["imageBaseName"]}.csv'
