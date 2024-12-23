@@ -150,10 +150,11 @@ def ray_triangle_intersection(
     h = np.cross(ray_direction, edge2)
 
     det = np.sum(edge1 * h, axis=1)
-    # Prevent divide by 0
-    det[np.abs(det) < epsilon] = 1.0
 
-    inv_det = 1.0 / det
+    near_parallel_mask = np.abs(det) < epsilon  # Identify near-parallel rays
+    inv_det = np.zeros_like(det)  # Initialize inv_det to handle near-parallel cases without division by 0
+    inv_det[~near_parallel_mask] = 1.0 / det[~near_parallel_mask]  # Only compute inverse for non-near-parallel rays
+
     s = ray_origin - triangle_vertices[:, 0]
     u = inv_det * np.sum(s * h, axis=1)
     q = np.cross(s, edge1)
@@ -161,7 +162,7 @@ def ray_triangle_intersection(
     t = inv_det * np.sum(edge2 * q, axis=1)
 
     intersected = np.logical_and.reduce(
-        [np.abs(det) >= epsilon, u >= 0.0, v >= 0.0, u + v <= 1.0, t > epsilon, t <= ray_mag]
+        [~near_parallel_mask, u >= 0.0, v >= 0.0, u + v <= 1.0, t > epsilon, t <= ray_mag]
     )
 
     return np.any(intersected)
