@@ -226,20 +226,23 @@ def get_zoe_depth_of_pixel(y, x, depth_data):
 def get_aerial_lidar_road_geo_df(input_file):
     t1 = time.time()
     gdf = gpd.read_file(input_file, engine='pyogrio')
+
     gdf.X = gdf.X.astype(float)
     gdf.Y = gdf.Y.astype(float)
     gdf.Z = gdf.Z.astype(float)
     if 'C' in gdf.columns:
         gdf.C = gdf.C.astype(int)
+    if 'EDGE' in gdf.columns:
+        if gdf.dtypes['EDGE'] == 'string':
+            gdf.EDGE = gdf.EDGE.str.lower().map({'true': 1, 'false': 0})
+        gdf = gdf.rename(columns={'EDGE': 'BOUND'})
     if 'BOUND' in gdf.columns:
         gdf.BOUND = gdf.BOUND.astype(int)
-    if 'EDGE' in gdf.columns:
-        gdf.EDGE = gdf.EDGE.str.lower().map({'true': 1, 'false': 0})
-        gdf = gdf.rename(columns={'EDGE': 'BOUND'})
     if 'Boundary' in gdf.columns:
         gdf.Boundary = gdf.Boundary.apply(lambda x: 1 if x == 'True' else 0)
     if 'SIDE' in gdf.columns:
         gdf['SIDE'] = gdf['SIDE'].astype(int)
+
     # Create a new geometry column with Point objects
     geom_series = gpd.GeoSeries([Point(x, y, z) for x, y, z in zip(gdf['X'], gdf['Y'], gdf['Z'])], crs=6543)
     convert_geom_series = geom_series.to_crs(4326)
@@ -337,6 +340,18 @@ def classify_points_base_on_centerline(points, cl_df):
     cross_product = np.cross(segment_vec, point_vec)
     # Classify based on the cross product (left or right)
     classification = np.where(cross_product > 0, ROADSIDE.LEFT.value, ROADSIDE.RIGHT.value)
+    # correct potentially misclassified points
+    left_side_indices = np.where(classification == ROADSIDE.LEFT.value)[0]
+    right_side_indices = np.where(classification == ROADSIDE.RIGHT.value)[0]
+    left_side_points = points[left_side_indices]
+    right_side_points = points[right_side_indices]
+    # Compute distances between "left side" points and the right-side road edge points
+    distances = cdist(left_side_points, right_side_points)
+    min_distances = np.min(distances, axis=1)
+    # Identify misclassified points (those too close to the right side)
+    misclassified_indices = left_side_indices[min_distances < 10]
+    classification[misclassified_indices] = ROADSIDE.RIGHT.value
+
     return classification
 
 

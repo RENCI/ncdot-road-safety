@@ -1,6 +1,6 @@
 import argparse
 import pandas as pd
-from utils import get_aerial_lidar_road_geo_df, compute_match, get_mapping_dataframe
+from utils import get_aerial_lidar_road_geo_df, compute_match, get_mapping_dataframe, LIDARClass
 from align_segmented_road_with_lidar import get_mapping_data
 
 PREV_CAM_Z = None
@@ -67,6 +67,7 @@ if __name__ == '__main__':
     output_file = args.output_file
 
     lidar_df = get_aerial_lidar_road_geo_df(input_lidar)
+    lidar_df = lidar_df[lidar_df.C == LIDARClass.ROAD.value]
     mapping_df = get_mapping_dataframe(input_mapping)
     image_df = pd.read_csv(input_images, usecols=['imageBaseName'], dtype=str)
     image_df.drop_duplicates(subset=['imageBaseName'], inplace=True)
