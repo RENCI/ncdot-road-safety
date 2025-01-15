@@ -194,12 +194,23 @@ def _filter_dataframe_within_screen_bounds(df, screen_width, screen_height):
 
 
 def compute_distance(proj_x_3d, proj_y_3d, x_2d, y_2d):
-    # compute maximal distance between proj_x_3d and x_2d and proj_y_3d and y_2d
+    """
+    Compute distance between 3D projected coordinates and 2D coordinates.
+
+    Args:
+        proj_x_3d: Array of projected X coordinates (3D).
+        proj_y_3d: Array of projected Y coordinates (3D).
+        x_2d: Array of X coordinates (2D).
+        y_2d: Array of Y coordinates (2D).
+
+    Returns:
+        x_diff: Absolute differences in X (shape: n_3d x n_2d).
+        y_diff: Absolute differences in Y (shape: n_3d x n_2d).
+    """
     x_diff = np.abs(proj_x_3d[:, np.newaxis] - x_2d[np.newaxis, :])  # Shape: (n_3d, n_2d)
     y_diff = np.abs(proj_y_3d[:, np.newaxis] - y_2d[np.newaxis, :])  # Shape: (n_3d, n_2d)
-    x_max_grid = np.max(x_diff, axis=1)
-    y_max_grid = np.max(y_diff, axis=1)
-    return x_diff, y_diff, x_max_grid, y_max_grid
+
+    return x_diff, y_diff
 
 
 def get_left_right_side_df_and_values(df):
@@ -218,7 +229,9 @@ def compute_grid_minimum_distances(x_3d, y_3d, x_2d, y_2d, x_grid_th, y_grid_th)
         return 1e6  # No points to compare, return large penalty
 
     # Compute the absolute differences in x and y directions
-    diff_x, diff_y, max_grid_x, max_grid_y = compute_distance(x_3d, y_3d, x_2d, y_2d)
+    diff_x, diff_y = compute_distance(x_3d, y_3d, x_2d, y_2d)
+    max_grid_x = np.max(diff_x, axis=1)
+    max_grid_y = np.max(diff_y, axis=1)
 
     # Apply the grid threshold filter: Only keep points within grid_th in both x and y directions
     within_grid_mask = (diff_x < x_grid_th) & (diff_y < y_grid_th)
@@ -376,13 +389,9 @@ def compute_offsets(row_no=0, init_error=0):
     Returns:
         dict: Offsets for translation and rotation in all axes.
     """
-    if row_no <= 11:
+    if row_no <= 11 or init_error < 2200:
         trans_base = 1.1
         rot_base = 0.11
-        use_base = True
-    elif init_error < 5000:
-        trans_base = 1.1 + init_error / 2000
-        rot_base = 0.11 + init_error / 2000
         use_base = True
     else:
        use_base = False
@@ -577,44 +586,21 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     df_3d_l, df_3d_r = get_left_right_side_df_and_values(input_3d_road_bound_gdf)
 
     # compute grid-based distances for both left and right sides
-    diff_x_l, diff_y_l, max_grid_x_l, max_grid_y_l = compute_distance(df_3d_l['PROJ_SCREEN_X'].values,
-                                                                      df_3d_l['PROJ_SCREEN_Y'].values,
-                                                                      df_2d_l['X'].values,
-                                                                      df_2d_l['Y'].values)
-    diff_x_r, diff_y_r, max_grid_x_r, max_grid_y_r = compute_distance(df_3d_r['PROJ_SCREEN_X'].values,
-                                                                      df_3d_r['PROJ_SCREEN_Y'].values,
-                                                                      df_2d_r['X'].values,
-                                                                      df_2d_r['Y'].values)
-    x_threshold = 800
-    y_threshold = 800
-    filtered_max_grid_x_l = max_grid_x_l[max_grid_x_l <= x_threshold]
-    filtered_max_grid_x_r = max_grid_x_r[max_grid_x_r <= x_threshold]
+    diff_x_l, diff_y_l = compute_distance(df_3d_l['PROJ_SCREEN_X'].values,
+                                          df_3d_l['PROJ_SCREEN_Y'].values,
+                                          df_2d_l['X'].values,
+                                          df_2d_l['Y'].values)
+    min_grid_x_l = np.min(diff_x_l, axis=1)
+    min_grid_y_l = np.min(diff_y_l, axis=1)
+    diff_x_r, diff_y_r = compute_distance(df_3d_r['PROJ_SCREEN_X'].values,
+                                          df_3d_r['PROJ_SCREEN_Y'].values,
+                                          df_2d_r['X'].values,
+                                          df_2d_r['Y'].values)
+    min_grid_x_r = np.min(diff_x_r, axis=1)
+    min_grid_y_r = np.min(diff_y_r, axis=1)
 
-    # Apply the threshold to filter out outliers in the Y direction
-    filtered_max_grid_y_l = max_grid_y_l[max_grid_y_l <= y_threshold]
-    filtered_max_grid_y_r = max_grid_y_r[max_grid_y_r <= y_threshold]
-    if filtered_max_grid_x_l.size > 0:  # Ensure there are values left after filtering
-        max_x_l = np.max(filtered_max_grid_x_l)
-    else:
-        max_x_l = -np.inf  # Set to negative infinity if no valid values remain
-
-    if filtered_max_grid_x_r.size > 0:
-        max_x_r = np.max(filtered_max_grid_x_r)
-    else:
-        max_x_r = -np.inf
-
-    if filtered_max_grid_y_l.size > 0:
-        max_y_l = np.max(filtered_max_grid_y_l)
-    else:
-        max_y_l = -np.inf
-
-    if filtered_max_grid_y_r.size > 0:
-        max_y_r = np.max(filtered_max_grid_y_r)
-    else:
-        max_y_r = -np.inf
-
-    max_x_diff = max(max_x_l, max_x_r)
-    max_y_diff = max(max_y_l, max_y_r)
+    max_x_diff = max(np.max(min_grid_x_l), np.max(min_grid_x_r))
+    max_y_diff = max(np.max(min_grid_y_l), np.max(min_grid_y_r))
     print(f'max_x_diff: {max_x_diff}, max_y_diff: {max_y_diff}')
 
     if align_error < 1400 and max_x_diff < 50 and max_y_diff < 50:
@@ -627,11 +613,11 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     offset = compute_offsets(row_no=row.name, init_error=align_error)
 
     if max_y_diff > grid_threshold_y:
-        grid_threshold_y = max_y_diff
+        grid_threshold_y = max_y_diff + 100
         print(f'grid_threshold_y is changed to {grid_threshold_y}  since max_y_diff is {max_y_diff}')
 
     if max_x_diff > grid_threshold_x:
-        grid_threshold_x = max_x_diff
+        grid_threshold_x = max_x_diff + 100
         print(f'grid_threshold_x is changed to {grid_threshold_x}  since max_x_diff is {max_x_diff}')
 
     start_idx = 2
