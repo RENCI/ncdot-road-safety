@@ -4,7 +4,7 @@ import numpy as np
 from geopy.distance import geodesic
 
 
-def interpolate_along_path(df, lat_col='LATITUDE', lon_col='LONGITUDE'):
+def interpolate_along_path(df, lat_col='LATITUDE', lon_col='LONGITUDE', z_col='CAM_Z'):
     """
     Interpolates points at even intervals along the piecewise path defined by the original locations.
 
@@ -19,6 +19,7 @@ def interpolate_along_path(df, lat_col='LATITUDE', lon_col='LONGITUDE'):
     # Extract latitudes and longitudes as NumPy arrays
     lats = df[lat_col].to_numpy()
     lons = df[lon_col].to_numpy()
+    zs = df[z_col].to_numpy()
 
     # Calculate distances between consecutive points
     num_points = len(lats)
@@ -46,26 +47,31 @@ def interpolate_along_path(df, lat_col='LATITUDE', lon_col='LONGITUDE'):
     segment_end_distances = cumulative_distances[segment_indices + 1]
     segment_start_lats = lats[segment_indices]
     segment_start_lons = lons[segment_indices]
+    segment_start_zs = zs[segment_indices]
     segment_end_lats = lats[segment_indices + 1]
     segment_end_lons = lons[segment_indices + 1]
+    segment_end_zs = zs[segment_indices + 1]
 
     # Calculate interpolation proportion
     proportions = (interpolated_distances - segment_start_distances) / (
         segment_end_distances - segment_start_distances
     )
 
-    # Interpolate latitude and longitude
+    # Interpolate latitude and longitude and elevation (z)
     interpolated_lats = segment_start_lats + proportions * (segment_end_lats - segment_start_lats)
     interpolated_lons = segment_start_lons + proportions * (segment_end_lons - segment_start_lons)
+    interpolated_zs = segment_start_zs + proportions * (segment_end_zs - segment_start_zs)
 
     # Return results as a DataFrame
-    return pd.DataFrame({lat_col: interpolated_lats, lon_col: interpolated_lons})
+    return pd.DataFrame({lat_col: np.round(interpolated_lats, 7),
+                         lon_col: np.round(interpolated_lons, 7),
+                         z_col: np.round(interpolated_zs, 2)})
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
-                        default='data/d13_route_40001001012/route_40001001012_input.csv',
+                        default='data/d13_route_40001001012/route_40001001012_with_cam_loc.csv',
                         help='input file name with path')
     parser.add_argument('--output_file', type=str,
                         default='data/d13_route_40001001012/route_40001001012_input_corrected.csv',
@@ -76,6 +82,6 @@ if __name__ == '__main__':
     output_file = args.output_file
 
     input_df = pd.read_csv(input_file)
-    input_df[['LATITUDE', 'LONGITUDE']] = interpolate_along_path(input_df)
+    input_df[['LATITUDE', 'LONGITUDE', 'CAM_Z']] = interpolate_along_path(input_df)
     input_df.to_csv(output_file, index=False)
     exit(0)
