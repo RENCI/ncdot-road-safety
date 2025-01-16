@@ -24,10 +24,6 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_
 
 LIDAR_DIST_THRESHOLD = (40, 800)  # in feet
 init_cam_paras = []
-# trans_bound_per_100_pixel is computed in feet based on 100*2*d*tan(VFOV/2)/w where d is camera-to-scene distance
-# estimated to be 60 feet, and w is screen height. This estimates the bound for translating camera along x and y
-# based on the minimal distance between projected LIDAR road edges and image road edge segmentation.
-trans_bound_per_100_pixel = 1.58
 
 
 def rotate_point(point, quaternion):
@@ -390,16 +386,9 @@ def compute_offsets(row_no, init_error, x_diff, y_diff):
     """
     x_trans_base = y_trans_base = z_trans_base = 1.1
     rot_base = 0.11
-    if row_no <= 11 or (init_error < 2000 and x_diff < 50 and y_diff < 50):
-        use_base = True
-    elif init_error < 3000:
-        if x_diff > 100 and y_diff > 100:
-            x_trans_base = 1.1 + x_diff * trans_bound_per_100_pixel / 100.0
-            y_trans_base = z_trans_base = 1.1 + y_diff * trans_bound_per_100_pixel / 100.0
-        else:
-            x_trans_base = 1.1 + init_error / 2000
-            y_trans_base = z_trans_base = 1.1 + 3 * init_error / 2000
-        rot_base = 0.2
+    if row_no <= 11 or (x_diff < 100 and y_diff < 100):
+        if init_error > 2000:
+            rot_base = 0.2 if init_error < 3000 else 0.5
         use_base = True
     else:
         use_base = False
@@ -421,12 +410,18 @@ def compute_offsets(row_no, init_error, x_diff, y_diff):
         }
     else:
         offsets = {
-            "x_trans_offset": (-10, 10),
-            "y_trans_offset": (-20, 20),
-            "z_trans_offset": (-20, 20),
-            "x_rot_offset": (-3, 3),
-            "y_rot_offset": (-3, 3),
-            "z_rot_offset": (-3, 3)
+            "x_trans_offset": (-10, 10) if x_diff > 100 else (init_cam_paras[OBJ_LIDAR_X_OFFSET] - x_trans_base,
+                                                              init_cam_paras[OBJ_LIDAR_X_OFFSET] + x_trans_base),
+            "y_trans_offset": (-11, 11) if y_diff > 100 else (init_cam_paras[OBJ_LIDAR_Y_OFFSET] - y_trans_base,
+                                                              init_cam_paras[OBJ_LIDAR_Y_OFFSET] + y_trans_base),
+            "z_trans_offset": (-18, 18) if y_diff > 100 else (init_cam_paras[OBJ_LIDAR_Z_OFFSET] - z_trans_base,
+                                                              init_cam_paras[OBJ_LIDAR_Z_OFFSET] + z_trans_base),
+            "x_rot_offset": (-2, 2) if y_diff > 100 else (init_cam_paras[OBJ_ROT_X] - rot_base,
+                                                          init_cam_paras[OBJ_ROT_X] + rot_base),
+            "y_rot_offset": (-3, 3) if y_diff > 100 else (init_cam_paras[OBJ_ROT_X] - rot_base,
+                                                          init_cam_paras[OBJ_ROT_X] + rot_base),
+            "z_rot_offset": (-2, 2) if y_diff > 100 else (init_cam_paras[OBJ_ROT_X] - rot_base,
+                                                          init_cam_paras[OBJ_ROT_X] + rot_base)
         }
 
     return offsets
@@ -590,27 +585,27 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     align_error = objective_function_2d(init_cam_paras[2:], input_3d_road_bound_gdf,
                                         input_2d_df, img_width, img_height,50, 50)
 
-    df_2d_l, df_2d_r = get_left_right_side_df_and_values(input_2d_df)
-    df_3d_l, df_3d_r = get_left_right_side_df_and_values(input_3d_road_bound_gdf)
+    filtered_ldf = _filter_dataframe_within_screen_bounds(input_3d_road_bound_gdf, img_width, img_height)
+    max_y_diff = input_2d_points[:, 1].min() - filtered_ldf['PROJ_SCREEN_Y'].min()
 
-    # compute grid-based distances for both left and right sides
-    diff_x_l, diff_y_l = compute_distance(df_3d_l['PROJ_SCREEN_X'].values,
-                                          df_3d_l['PROJ_SCREEN_Y'].values,
-                                          df_2d_l['X'].values,
-                                          df_2d_l['Y'].values)
-    min_grid_x_l = np.min(diff_x_l, axis=1)
-    min_grid_y_l = np.min(diff_y_l, axis=1)
-    diff_x_r, diff_y_r = compute_distance(df_3d_r['PROJ_SCREEN_X'].values,
-                                          df_3d_r['PROJ_SCREEN_Y'].values,
-                                          df_2d_r['X'].values,
-                                          df_2d_r['Y'].values)
-    min_grid_x_r = np.min(diff_x_r, axis=1)
-    min_grid_y_r = np.min(diff_y_r, axis=1)
-
-    max_x_diff = max(np.min(min_grid_x_l), np.min(min_grid_x_r))
-    max_y_diff = max(np.min(min_grid_y_l), np.min(min_grid_y_r))
+    # find the max_x_diff on the lowest overlapping row or y
+    common_y_values = np.intersect1d(input_2d_points[:, 1], filtered_ldf['PROJ_SCREEN_Y'])
+    if len(common_y_values) > 0:
+        lowest_common_y = common_y_values.max()
+        # Get rows corresponding to the current Y value in each array
+        input_x_values = input_2d_points[input_2d_points[:, 1] == lowest_common_y][:, 0]
+        filtered_x_values = filtered_ldf[filtered_ldf['PROJ_SCREEN_Y'] == lowest_common_y]['PROJ_SCREEN_X'].to_numpy()
+        input_min_x = input_x_values.min()
+        input_max_x = input_x_values.max()
+        filtered_min_x = filtered_x_values.min()
+        filtered_max_x = filtered_x_values.max()
+        min_x_diff = abs(input_min_x - filtered_min_x)
+        max_x_diff_for_y = abs(input_max_x - filtered_max_x)
+        max_x_diff = max(min_x_diff, max_x_diff_for_y)
+        print(f"Lowest common Y value: {lowest_common_y}")
+    else:
+        max_x_diff = filtered_ldf['PROJ_SCREEN_X'].min() - input_2d_points[:, 0].min()
     print(f'max_x_diff: {max_x_diff}, max_y_diff: {max_y_diff}')
-
     if align_error < 1400 and max_x_diff < 50 and max_y_diff < 50:
         print(f'current alignment error: {align_error}, base is sufficient')
         # no need to do optimization, using base alignment is good enough
@@ -619,13 +614,13 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
 
     print(f'current alignment error: {align_error}')
     offset = compute_offsets(row.name, align_error, max_x_diff, max_y_diff)
-
+    print(f'offset: {offset}')
     if max_y_diff > grid_threshold_y:
         grid_threshold_y = max_y_diff + 100
         print(f'grid_threshold_y is changed to {grid_threshold_y}  since max_y_diff is {max_y_diff}')
 
     if max_x_diff > grid_threshold_x:
-        grid_threshold_x = max_x_diff + 100
+        grid_threshold_x = max_x_diff + 200
         print(f'grid_threshold_x is changed to {grid_threshold_x}  since max_x_diff is {max_x_diff}')
 
     start_idx = 2
@@ -676,29 +671,29 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/'
-                        # default='data/d13_route_40001001012/'
+                        #default='data/d13_route_40001001012/'
                                 'route_40001001012_voxel_raster_norm_highest_20240113_sides.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--image_seg_dir', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/segmentations/d13/881',
-                        # default='data/d13_route_40001001012/segmentation',
+                        #default='data/d13_route_40001001012/segmentation',
                         help='directory to retrieve segmentation images')
     parser.add_argument('--lane_seg_dir', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/lanes/d13/881',
-                        # default='data/d13_route_40001001012/segmentation',
+                        #default='data/d13_route_40001001012/segmentation',
                         help='directory to retrieve segmented road lane images')
     parser.add_argument('--obj_image_input', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_input_corrected_updated.csv',
-                        # default='data/d13_route_40001001012/route_input.csv',
+                        #default='data/d13_route_40001001012/route_input.csv',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
     parser.add_argument('--input_init_cam_param_file_with_path', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_initial_camera_params.csv',
-                        # default='data/d13_route_40001001012/initial_camera_params.csv',
+                        #default='data/d13_route_40001001012/initial_camera_params.csv',
                         help='input csv file that includes mapped image lat/lon info')
     parser.add_argument('--lidar_proj_output_file_path', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_geotagging_output',
-                        # default='data/d13_route_40001001012/test',
+                        #default='data/d13_route_40001001012/test',
                         help='output file base with path for aligned road info which will be appended with image name '
                              'to have lidar projection info for each input image')
 
