@@ -24,6 +24,11 @@ PERSPECTIVE_NEAR, PERSPECTIVE_VFOV, OBJ_LIDAR_X_OFFSET, OBJ_LIDAR_Y_OFFSET, OBJ_
 
 LIDAR_DIST_THRESHOLD = (40, 800)  # in feet
 init_cam_paras = []
+# trans_bound_per_100_pixel is computed in feet based on 100*2*d*tan(VFOV/2)/w where d is camera-to-scene distance
+# estimated to be 60 feet, and w is screen height. This estimates the bound for translating camera along x and y
+# based on the minimal distance between projected LIDAR road edges and image road edge segmentation.
+trans_bound_per_100_pixel = 1.58
+
 
 def rotate_point(point, quaternion):
     rotated_point = quaternion.apply(point)
@@ -196,13 +201,6 @@ def _filter_dataframe_within_screen_bounds(df, screen_width, screen_height):
 def compute_distance(proj_x_3d, proj_y_3d, x_2d, y_2d):
     """
     Compute distance between 3D projected coordinates and 2D coordinates.
-
-    Args:
-        proj_x_3d: Array of projected X coordinates (3D).
-        proj_y_3d: Array of projected Y coordinates (3D).
-        x_2d: Array of X coordinates (2D).
-        y_2d: Array of Y coordinates (2D).
-
     Returns:
         x_diff: Absolute differences in X (shape: n_3d x n_2d).
         y_diff: Absolute differences in Y (shape: n_3d x n_2d).
@@ -379,47 +377,45 @@ def derive_next_camera_params(v1, v2, cam_para1):
     return cam_para2
 
 
-def compute_offsets(row_no=0, init_error=0):
+def compute_offsets(row_no, init_error, x_diff, y_diff):
     """
     Compute translation and rotation offsets based on accumulative dissimilarity.
-
-    Parameters:
+    Arguments:
         row_no: the frame number to compute offsets for.
         init_error: initial alignment error
+        x_diff: minimal difference along X between projected LIDAR data and image segmentation
+        y_diff: minimal difference along Y between projected LIDAR data and image segmentation
     Returns:
-        dict: Offsets for translation and rotation in all axes.
+        dict: Offsets for LIDAR data translation and rotation.
     """
-    if row_no <= 11 or init_error < 2200:
-        trans_base = 1.1
-        rot_base = 0.11
-        use_base = True
-    else:
-       use_base = False
 
-    if use_base:
-        offsets = {
-            "x_trans_offset": (init_cam_paras[OBJ_LIDAR_X_OFFSET] - trans_base,
-                               init_cam_paras[OBJ_LIDAR_X_OFFSET] + trans_base),
-            "y_trans_offset": (init_cam_paras[OBJ_LIDAR_Y_OFFSET] - trans_base,
-                               init_cam_paras[OBJ_LIDAR_Y_OFFSET] + trans_base),
-            "z_trans_offset": (init_cam_paras[OBJ_LIDAR_Z_OFFSET] - trans_base,
-                               init_cam_paras[OBJ_LIDAR_Z_OFFSET] + trans_base),
-            "x_rot_offset": (init_cam_paras[OBJ_ROT_X] - rot_base,
-                             init_cam_paras[OBJ_ROT_X] + rot_base),
-            "y_rot_offset": (init_cam_paras[OBJ_ROT_Y] - rot_base,
-                             init_cam_paras[OBJ_ROT_Y] + rot_base),
-            "z_rot_offset": (init_cam_paras[OBJ_ROT_Z] - rot_base,
-                             init_cam_paras[OBJ_ROT_Z] + rot_base)
-        }
-    else:
-        offsets = {
-            "x_trans_offset": (-10, 10),
-            "y_trans_offset": (-20, 20),
-            "z_trans_offset": (-20, 20),
-            "x_rot_offset": (-5, 5),
-            "y_rot_offset": (-5, 5),
-            "z_rot_offset": (-5, 5)
-        }
+    trans_base_x = trans_base_y = trans_base_z = 1.1
+    rot_base = 0.11
+
+    if row_no > 11 and init_error > 2000 and x_diff > 80 and y_diff > 80:
+        trans_base_x = 1.1 + x_diff * trans_bound_per_100_pixel / 100.0
+        trans_base_y = trans_base_z = 1.1 + y_diff * trans_bound_per_100_pixel / 100.0
+        if init_error < 3000:
+            rot_base = 0.2
+        elif init_error < 4000:
+            rot_base = 0.3
+        else:
+            rot_base = 0.5
+
+    offsets = {
+        "x_trans_offset": (init_cam_paras[OBJ_LIDAR_X_OFFSET] - trans_base_x,
+                           init_cam_paras[OBJ_LIDAR_X_OFFSET] + trans_base_x),
+        "y_trans_offset": (init_cam_paras[OBJ_LIDAR_Y_OFFSET] - trans_base_y,
+                           init_cam_paras[OBJ_LIDAR_Y_OFFSET] + trans_base_y),
+        "z_trans_offset": (init_cam_paras[OBJ_LIDAR_Z_OFFSET] - trans_base_z,
+                           init_cam_paras[OBJ_LIDAR_Z_OFFSET] + trans_base_z),
+        "x_rot_offset": (init_cam_paras[OBJ_ROT_X] - rot_base,
+                         init_cam_paras[OBJ_ROT_X] + rot_base),
+        "y_rot_offset": (init_cam_paras[OBJ_ROT_Y] - rot_base,
+                         init_cam_paras[OBJ_ROT_Y] + rot_base),
+        "z_rot_offset": (init_cam_paras[OBJ_ROT_Z] - rot_base,
+                         init_cam_paras[OBJ_ROT_Z] + rot_base)
+    }
 
     return offsets
 
@@ -599,8 +595,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     min_grid_x_r = np.min(diff_x_r, axis=1)
     min_grid_y_r = np.min(diff_y_r, axis=1)
 
-    max_x_diff = max(np.max(min_grid_x_l), np.max(min_grid_x_r))
-    max_y_diff = max(np.max(min_grid_y_l), np.max(min_grid_y_r))
+    max_x_diff = max(np.min(min_grid_x_l), np.min(min_grid_x_r))
+    max_y_diff = max(np.min(min_grid_y_l), np.min(min_grid_y_r))
     print(f'max_x_diff: {max_x_diff}, max_y_diff: {max_y_diff}')
 
     if align_error < 1400 and max_x_diff < 50 and max_y_diff < 50:
@@ -610,7 +606,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
         return init_cam_paras, align_error
 
     print(f'current alignment error: {align_error}')
-    offset = compute_offsets(row_no=row.name, init_error=align_error)
+    offset = compute_offsets(row.name, align_error, max_x_diff, max_y_diff)
 
     if max_y_diff > grid_threshold_y:
         grid_threshold_y = max_y_diff + 100
