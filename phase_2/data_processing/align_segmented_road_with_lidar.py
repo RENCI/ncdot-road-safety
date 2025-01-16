@@ -388,34 +388,46 @@ def compute_offsets(row_no, init_error, x_diff, y_diff):
     Returns:
         dict: Offsets for LIDAR data translation and rotation.
     """
-
-    trans_base_x = trans_base_y = trans_base_z = 1.1
+    x_trans_base = y_trans_base = z_trans_base = 1.1
     rot_base = 0.11
-
-    if row_no > 11 and init_error > 2000 and x_diff > 80 and y_diff > 80:
-        trans_base_x = 1.1 + x_diff * trans_bound_per_100_pixel / 100.0
-        trans_base_y = trans_base_z = 1.1 + y_diff * trans_bound_per_100_pixel / 100.0
-        if init_error < 3000:
-            rot_base = 0.2
-        elif init_error < 4000:
-            rot_base = 0.3
+    if row_no <= 11 or (init_error < 2000 and x_diff < 50 and y_diff < 50):
+        use_base = True
+    elif init_error < 3000:
+        if x_diff > 100 and y_diff > 100:
+            x_trans_base = 1.1 + x_diff * trans_bound_per_100_pixel / 100.0
+            y_trans_base = z_trans_base = 1.1 + y_diff * trans_bound_per_100_pixel / 100.0
         else:
-            rot_base = 0.5
+            x_trans_base = 1.1 + init_error / 2000
+            y_trans_base = z_trans_base = 1.1 + 3 * init_error / 2000
+        rot_base = 0.2
+        use_base = True
+    else:
+        use_base = False
 
-    offsets = {
-        "x_trans_offset": (init_cam_paras[OBJ_LIDAR_X_OFFSET] - trans_base_x,
-                           init_cam_paras[OBJ_LIDAR_X_OFFSET] + trans_base_x),
-        "y_trans_offset": (init_cam_paras[OBJ_LIDAR_Y_OFFSET] - trans_base_y,
-                           init_cam_paras[OBJ_LIDAR_Y_OFFSET] + trans_base_y),
-        "z_trans_offset": (init_cam_paras[OBJ_LIDAR_Z_OFFSET] - trans_base_z,
-                           init_cam_paras[OBJ_LIDAR_Z_OFFSET] + trans_base_z),
-        "x_rot_offset": (init_cam_paras[OBJ_ROT_X] - rot_base,
-                         init_cam_paras[OBJ_ROT_X] + rot_base),
-        "y_rot_offset": (init_cam_paras[OBJ_ROT_Y] - rot_base,
-                         init_cam_paras[OBJ_ROT_Y] + rot_base),
-        "z_rot_offset": (init_cam_paras[OBJ_ROT_Z] - rot_base,
-                         init_cam_paras[OBJ_ROT_Z] + rot_base)
-    }
+    if use_base:
+        offsets = {
+            "x_trans_offset": (init_cam_paras[OBJ_LIDAR_X_OFFSET] - x_trans_base,
+                               init_cam_paras[OBJ_LIDAR_X_OFFSET] + x_trans_base),
+            "y_trans_offset": (init_cam_paras[OBJ_LIDAR_Y_OFFSET] - y_trans_base,
+                               init_cam_paras[OBJ_LIDAR_Y_OFFSET] + y_trans_base),
+            "z_trans_offset": (init_cam_paras[OBJ_LIDAR_Z_OFFSET] - z_trans_base,
+                               init_cam_paras[OBJ_LIDAR_Z_OFFSET] + z_trans_base),
+            "x_rot_offset": (init_cam_paras[OBJ_ROT_X] - rot_base,
+                             init_cam_paras[OBJ_ROT_X] + rot_base),
+            "y_rot_offset": (init_cam_paras[OBJ_ROT_Y] - rot_base,
+                             init_cam_paras[OBJ_ROT_Y] + rot_base),
+            "z_rot_offset": (init_cam_paras[OBJ_ROT_Z] - rot_base,
+                             init_cam_paras[OBJ_ROT_Z] + rot_base)
+        }
+    else:
+        offsets = {
+            "x_trans_offset": (-10, 10),
+            "y_trans_offset": (-20, 20),
+            "z_trans_offset": (-20, 20),
+            "x_rot_offset": (-3, 3),
+            "y_rot_offset": (-3, 3),
+            "z_rot_offset": (-3, 3)
+        }
 
     return offsets
 
