@@ -9,7 +9,7 @@ from math import radians, tan
 from raycasting import find_occluded_points
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    classify_points_base_on_centerline, ROADSIDE, create_df_from_lidar_points
+    classify_points_base_on_centerline, ROADSIDE, create_df_from_lidar_points, LIDARClass
 
 from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary
@@ -386,9 +386,11 @@ def compute_offsets(row_no, init_error, x_diff, y_diff):
     """
     x_trans_base = y_trans_base = z_trans_base = 1.1
     rot_base = 0.11
+
+    if row_no > 11 and init_error > 2000:
+        rot_base = 0.2 if init_error < 3000 else 0.5
+
     if row_no <= 11 or (x_diff < 100 and y_diff < 100):
-        if init_error > 2000:
-            rot_base = 0.2 if init_error < 3000 else 0.5
         use_base = True
     else:
         use_base = False
@@ -418,10 +420,10 @@ def compute_offsets(row_no, init_error, x_diff, y_diff):
                                                               init_cam_paras[OBJ_LIDAR_Z_OFFSET] + z_trans_base),
             "x_rot_offset": (-2, 2) if y_diff > 100 else (init_cam_paras[OBJ_ROT_X] - rot_base,
                                                           init_cam_paras[OBJ_ROT_X] + rot_base),
-            "y_rot_offset": (-3, 3) if y_diff > 100 else (init_cam_paras[OBJ_ROT_X] - rot_base,
-                                                          init_cam_paras[OBJ_ROT_X] + rot_base),
-            "z_rot_offset": (-2, 2) if y_diff > 100 else (init_cam_paras[OBJ_ROT_X] - rot_base,
-                                                          init_cam_paras[OBJ_ROT_X] + rot_base)
+            "y_rot_offset": (-3, 3) if y_diff > 100 else (init_cam_paras[OBJ_ROT_Y] - rot_base,
+                                                          init_cam_paras[OBJ_ROT_Y] + rot_base),
+            "z_rot_offset": (-2, 2) if y_diff > 100 else (init_cam_paras[OBJ_ROT_Z] - rot_base,
+                                                          init_cam_paras[OBJ_ROT_Z] + rot_base)
         }
 
     return offsets
@@ -590,21 +592,39 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
 
     # find the max_x_diff on the lowest overlapping row or y
     common_y_values = np.intersect1d(input_2d_points[:, 1], filtered_ldf['PROJ_SCREEN_Y'])
-    if len(common_y_values) > 0:
-        lowest_common_y = common_y_values.max()
+    common_y_values = np.sort(common_y_values)[::-1]  # Sort in descending order
+    max_x_diff = filtered_ldf['PROJ_SCREEN_X'].min() - input_2d_points[:, 0].min()
+    for y in common_y_values:
         # Get rows corresponding to the current Y value in each array
-        input_x_values = input_2d_points[input_2d_points[:, 1] == lowest_common_y][:, 0]
-        filtered_x_values = filtered_ldf[filtered_ldf['PROJ_SCREEN_Y'] == lowest_common_y]['PROJ_SCREEN_X'].to_numpy()
-        input_min_x = input_x_values.min()
-        input_max_x = input_x_values.max()
-        filtered_min_x = filtered_x_values.min()
-        filtered_max_x = filtered_x_values.max()
-        min_x_diff = abs(input_min_x - filtered_min_x)
-        max_x_diff_for_y = abs(input_max_x - filtered_max_x)
-        max_x_diff = max(min_x_diff, max_x_diff_for_y)
-        print(f"Lowest common Y value: {lowest_common_y}")
-    else:
-        max_x_diff = filtered_ldf['PROJ_SCREEN_X'].min() - input_2d_points[:, 0].min()
+        input_x_values = input_2d_points[input_2d_points[:, 1] == y][:, 0]
+        filtered_x_values = filtered_ldf[filtered_ldf['PROJ_SCREEN_Y'] == y]['PROJ_SCREEN_X'].to_numpy()
+        # Check if both arrays have at least 2 points for this Y value
+        if len(input_x_values) >= 2 and len(filtered_x_values) >= 2:
+            # Check if the points in each array are at least 500 pixels apart
+            input_x_range = input_x_values.max() - input_x_values.min()
+            filtered_x_range = filtered_x_values.max() - filtered_x_values.min()
+            if input_x_range >= 500 and filtered_x_range >= 500:
+                # Find the smallest and largest X values for this Y value in both arrays
+                input_min_x = input_x_values.min()
+                input_max_x = input_x_values.max()
+                filtered_min_x = filtered_x_values.min()
+                filtered_max_x = filtered_x_values.max()
+
+                # Compute the differences
+                min_x_diff = abs(input_min_x - filtered_min_x)
+                max_x_diff_for_y = abs(input_max_x - filtered_max_x)
+
+                # Take the larger of the two differences
+                max_diff_for_y = max(min_x_diff, max_x_diff_for_y)
+
+                # Update the overall maximum X difference and record the chosen Y
+                max_x_diff = max_diff_for_y
+                print(
+                    f"Lowest common Y value: {y}, input_min_x: {input_min_x}, input_max_x: {input_max_x}, "
+                    f"filtered_min_x: {filtered_min_x}, filtered_max_x: {filtered_max_x}")
+                # Break the loop as we found the largest Y that satisfies the conditions
+                break
+
     print(f'max_x_diff: {max_x_diff}, max_y_diff: {max_y_diff}')
     if align_error < 1400 and max_x_diff < 50 and max_y_diff < 50:
         print(f'current alignment error: {align_error}, base is sufficient')
@@ -616,7 +636,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     offset = compute_offsets(row.name, align_error, max_x_diff, max_y_diff)
     print(f'offset: {offset}')
     if max_y_diff > grid_threshold_y:
-        grid_threshold_y = max_y_diff + 100
+        grid_threshold_y = max_y_diff + 200
         print(f'grid_threshold_y is changed to {grid_threshold_y}  since max_y_diff is {max_y_diff}')
 
     if max_x_diff > grid_threshold_x:
