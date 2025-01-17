@@ -73,7 +73,7 @@ if __name__ == '__main__':
                 cam_output_columns = ['translation_x', 'translation_y', 'translation_z',
                                       'rotation_z', 'rotation_y', 'rotation_x']
                 # output optimized camera parameter for the image
-                cam_para_df = pd.DataFrame(data=[init_cam_list], columns=cam_output_columns)
+                cam_para_df = pd.DataFrame(data=[init_cam_list[2:]], columns=cam_output_columns)
                 cam_para_df.to_csv(os.path.join(output_lidar_proj_file_path,
                                                 f'lidar_project_info_{image}_cam_paras.csv'),
                                    index=False)
