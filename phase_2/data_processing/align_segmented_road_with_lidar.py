@@ -710,12 +710,11 @@ if __name__ == '__main__':
     parser.add_argument('--input_init_cam_param_file_with_path', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_initial_camera_params.csv',
                         #default='data/d13_route_40001001012/initial_camera_params.csv',
-                        help='input csv file that includes mapped image lat/lon info')
+                        help='input csv file that includes initial camera parameters for manually registered images')
     parser.add_argument('--lidar_proj_output_file_path', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_geotagging_output',
                         #default='data/d13_route_40001001012/test',
-                        help='output file base with path for aligned road info which will be appended with image name '
-                             'to have lidar projection info for each input image')
+                        help='output file path path where projected LIDAR data will be saved')
 
     args = parser.parse_args()
     input_lidar = args.input_lidar_with_path
