@@ -588,7 +588,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
                                         input_2d_df, img_width, img_height,50, 50)
 
     filtered_ldf = _filter_dataframe_within_screen_bounds(input_3d_road_bound_gdf, img_width, img_height)
-    max_y_diff = input_2d_points[:, 1].min() - filtered_ldf['PROJ_SCREEN_Y'].min()
+    max_y_diff = abs(input_2d_points[:, 1].min() - filtered_ldf['PROJ_SCREEN_Y'].min())
 
     # find the max_x_diff on the lowest overlapping row or y
     common_y_values = np.intersect1d(input_2d_points[:, 1], filtered_ldf['PROJ_SCREEN_Y'])
