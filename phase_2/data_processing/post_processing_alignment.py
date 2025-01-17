@@ -65,7 +65,7 @@ if __name__ == '__main__':
             dists_r = compute_grid_minimum_distances(x_3d_r, y_3d_r, df_2d_r['X'].values, df_2d_r['Y'].values,
                                                      50, 50)
             alignment_error = dists_l + dists_r
-            if alignment_error < base_align_error:
+            if alignment_error < base_align_error - 1000:
                 # use base alignment instead of optimized alignment
                 input_3d_gdf = transform_3d_points(df_3d_whole, init_cam_list, img_width, img_height)
                 input_3d_gdf.to_csv(os.path.join(output_lidar_proj_file_path, f'lidar_project_info_{image}.csv'),
@@ -77,6 +77,7 @@ if __name__ == '__main__':
                 cam_para_df.to_csv(os.path.join(output_lidar_proj_file_path,
                                                 f'lidar_project_info_{image}_cam_paras.csv'),
                                    index=False)
+                df_2d.to_csv(os.path.join(output_lidar_proj_file_path, f'input_2d_{image}.csv'), index=False)
                 images_with_changed_alignment.append(image)
 
     if len(images_with_changed_alignment) > 0:
