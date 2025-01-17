@@ -17,8 +17,8 @@ if __name__ == '__main__':
     parser.add_argument('--lidar_proj_file_path', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_geotagging_output',
                         help='path where projected LIDAR data is stored')
-    parser.add_argment('--img_width', type=int, default=2356)
-    parser.add_argment('--img_height', type=int, default=1200)
+    parser.add_argument('--img_width', type=int, default=2356)
+    parser.add_argument('--img_height', type=int, default=1200)
     parser.add_argument('--output_lidar_proj_file_path', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_geotagging_output_updated',
                         help='path where updated projected LIDAR data will be saved')
