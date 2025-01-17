@@ -412,17 +412,17 @@ def compute_offsets(row_no, init_error, x_diff, y_diff):
         }
     else:
         offsets = {
-            "x_trans_offset": (-10, 10) if x_diff > 100 else (init_cam_paras[OBJ_LIDAR_X_OFFSET] - x_trans_base,
+            "x_trans_offset": (-10, 10) if x_diff > 90 else (init_cam_paras[OBJ_LIDAR_X_OFFSET] - x_trans_base,
                                                               init_cam_paras[OBJ_LIDAR_X_OFFSET] + x_trans_base),
-            "y_trans_offset": (-11, 11) if y_diff > 100 else (init_cam_paras[OBJ_LIDAR_Y_OFFSET] - y_trans_base,
+            "y_trans_offset": (-11, 11) if y_diff > 90 else (init_cam_paras[OBJ_LIDAR_Y_OFFSET] - y_trans_base,
                                                               init_cam_paras[OBJ_LIDAR_Y_OFFSET] + y_trans_base),
-            "z_trans_offset": (-18, 18) if y_diff > 100 else (init_cam_paras[OBJ_LIDAR_Z_OFFSET] - z_trans_base,
+            "z_trans_offset": (-18, 18) if y_diff > 90 else (init_cam_paras[OBJ_LIDAR_Z_OFFSET] - z_trans_base,
                                                               init_cam_paras[OBJ_LIDAR_Z_OFFSET] + z_trans_base),
-            "x_rot_offset": (-2, 2) if y_diff > 100 else (init_cam_paras[OBJ_ROT_X] - rot_base,
+            "x_rot_offset": (-2, 2) if y_diff > 90 else (init_cam_paras[OBJ_ROT_X] - rot_base,
                                                           init_cam_paras[OBJ_ROT_X] + rot_base),
-            "y_rot_offset": (-3, 3) if y_diff > 100 else (init_cam_paras[OBJ_ROT_Y] - rot_base,
+            "y_rot_offset": (-3, 3) if y_diff > 90 else (init_cam_paras[OBJ_ROT_Y] - rot_base,
                                                           init_cam_paras[OBJ_ROT_Y] + rot_base),
-            "z_rot_offset": (-2, 2) if y_diff > 100 else (init_cam_paras[OBJ_ROT_Z] - rot_base,
+            "z_rot_offset": (-2, 2) if y_diff > 90 else (init_cam_paras[OBJ_ROT_Z] - rot_base,
                                                           init_cam_paras[OBJ_ROT_Z] + rot_base)
         }
 
@@ -626,7 +626,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
                 break
 
     print(f'max_x_diff: {max_x_diff}, max_y_diff: {max_y_diff}')
-    if align_error < 1400 and max_x_diff < 50 and max_y_diff < 50:
+    if align_error < 1400 and max_x_diff < 150 and max_y_diff < 150:
         print(f'current alignment error: {align_error}, base is sufficient')
         # no need to do optimization, using base alignment is good enough
         input_3d_gdf.to_csv(out_proj_file, index=False)
