@@ -48,7 +48,8 @@ if __name__ == '__main__':
         if os.path.isfile(filename_3d):
             df_2d = pd.read_csv(os.path.join(lidar_proj_file_path, f'input_2d_{image}.csv'))
             df_3d_whole = pd.read_csv(filename_3d,
-                                      usecols=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'BOUND', 'SIDE', 'C', 'OCCLUDED'])
+                                      usecols=['INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
+                                               'PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'BOUND', 'SIDE', 'C', 'OCCLUDED'])
             df_3d = df_3d_whole[(df_3d_whole.BOUND == 1) & (df_3d_whole.OCCLUDED == False)].reset_index(drop=True).copy()
             # split df_2d and df_3d based on SIDE
             df_2d_l, df_2d_r = get_left_right_side_df_and_values(df_2d)
