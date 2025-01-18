@@ -37,7 +37,7 @@ def output_latlon_from_geometry(idf, geom_col, output_file_name):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_bound', type=str,
-                        default='data/d13_route_40001001012/route_40001001012_voxel_raster_1ft_with_edges_normalized_sr.csv',
+                        default='data/d13_route_40001001012/route_40001001012_voxel_raster_norm_highest_20240113.csv',
                         help='input lidar file with road edge/bound points x, y, z in EPSG:6543 coordinate projection')
     parser.add_argument('--input_sensor_mapping_file', type=str,
                         default='data/d13_route_40001001011/other/mapped_2lane_sr_images_d13.csv',
@@ -49,7 +49,7 @@ if __name__ == '__main__':
                         help='filter lidar data to only keep desired classes; if it is empty, keep all classes')
     parser.add_argument('--output_latlon_lidar_basename', type=str,
                         default='',
-                        # default='data/d13_route_40001001012/route_40001001012_voxel_raster_1ft_with_edges_bounds',
+                        # default='data/d13_route_40001001012/route_40001001012_voxel_raster_norm_highest_20240113',
                         help='output lidar file with road points lat, lon, z in EPSG:4326 coordinate projection')
 
     args = parser.parse_args()
@@ -81,11 +81,13 @@ if __name__ == '__main__':
         classified_sides = classify_points_base_on_centerline(re_points, cam_geom_df)
         gdf_with_bound.loc[mask, 'SIDE'] = classified_sides
         gdf_with_bound.loc[~mask, 'SIDE'] = -1
-        gdf_with_bound.drop(columns=['geometry_x', 'geometry_y'], inplace=True)
         gdf_with_bound['SIDE'] = gdf_with_bound.SIDE.astype(int)
-        gdf_with_bound.to_csv(f'{os.path.splitext(input_lidar_with_bound)[0]}_sides.csv', index=False)
 
-    if output_latlon_lidar_basename:
-        output_latlon_from_geometry(gdf_with_bound[gdf_with_bound.BOUND == 1].copy(), 'geometry_y',
-                                    f'{output_latlon_lidar_basename}_bounds_latlon.csv')
+        if output_latlon_lidar_basename:
+            output_latlon_from_geometry(gdf_with_bound[gdf_with_bound.BOUND == 1].copy(), 'geometry_y',
+                                        f'{output_latlon_lidar_basename}_bounds_latlon.csv')
+
+        gdf_with_bound.drop(columns=['geometry_x', 'geometry_y'], inplace=True)
+        gdf_with_bound.to_csv(f'{os.path.splitext(input_lidar_with_bound)[0]}_sides_new.csv', index=False)
+
     exit()
