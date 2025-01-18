@@ -28,7 +28,7 @@ if __name__ == '__main__':
                         help='input geotagged pole file name with path')
     parser.add_argument('--input_lidar_with_path', type=str,
                         default='../data_processing/data/d13_route_40001001012/'
-                                'route_40001001012_voxel_raster_1ft_with_edges_normalized_sr_sides.csv',
+                                'route_40001001012_voxel_raster_norm_highest_20240113_sides.csv',
                         help='input file that contains road x, y, z vertices from lidar')
     parser.add_argument('--threshold_to_road', type=int, default=5,
                         help='distance threshold in feet of geotagged pole to road edge to filter out geotagged pole '
