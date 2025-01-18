@@ -1,8 +1,9 @@
 import argparse
 import pandas as pd
 import os
-from align_segmented_road_with_lidar import (get_left_right_side_df_and_values, compute_grid_minimum_distances,
-                                             transform_3d_points)
+from data_processing.align_segmented_road_with_lidar import (get_left_right_side_df_and_values,
+                                                             compute_grid_minimum_distances,
+                                                             transform_3d_points)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
