@@ -47,9 +47,7 @@ if __name__ == '__main__':
         filename_3d = os.path.join(lidar_proj_file_path, f'lidar_project_info_{image}.csv')
         if os.path.isfile(filename_3d):
             df_2d = pd.read_csv(os.path.join(lidar_proj_file_path, f'input_2d_{image}.csv'))
-            df_3d_whole = pd.read_csv(filename_3d,
-                                      usecols=['INITIAL_WORLD_X', 'INITIAL_WORLD_Y', 'INITIAL_WORLD_Z',
-                                               'PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'BOUND', 'SIDE', 'C', 'OCCLUDED'])
+            df_3d_whole = pd.read_csv(filename_3d)
             df_3d = df_3d_whole[(df_3d_whole.BOUND == 1) & (df_3d_whole.OCCLUDED == False)].reset_index(drop=True).copy()
             # split df_2d and df_3d based on SIDE
             df_2d_l, df_2d_r = get_left_right_side_df_and_values(df_2d)
@@ -65,7 +63,7 @@ if __name__ == '__main__':
             dists_r = compute_grid_minimum_distances(x_3d_r, y_3d_r, df_2d_r['X'].values, df_2d_r['Y'].values,
                                                      50, 50)
             alignment_error = dists_l + dists_r
-            if alignment_error > base_align_error + 500:
+            if alignment_error < 4000 and alignment_error > base_align_error + 500:
                 # use base alignment instead of optimized alignment
                 input_3d_gdf = transform_3d_points(df_3d_whole, init_cam_list, img_width, img_height)
                 input_3d_gdf.to_csv(os.path.join(output_lidar_proj_file_path, f'lidar_project_info_{image}.csv'),
