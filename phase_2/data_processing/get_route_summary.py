@@ -1,14 +1,12 @@
 import argparse
-import sys
-import os
 import pandas as pd
-from utils import get_image_resolution
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_file', type=str,
-                        default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_sr_images_d13_updated.csv',
+                        default='/projects/ncdot/secondary_road/output/d13/mapped_2lane_images_d13.csv',
+                        # default='data/d13/mapped_2lane_sr_images_d13.csv',
                         help='input file name with path')
 
     args = parser.parse_args()
@@ -27,4 +25,4 @@ if __name__ == '__main__':
     print(f'there are {len(gap_within_route)} instances where gaps within the same route occur. The largest gap '
           f'distance is {gap_within_route.MILE_diff.abs().max()}')
     adjacent_routes = route_df[route_df.MILE_diff.abs() < 0.002]
-    sys.exit(0)
+    exit(0)

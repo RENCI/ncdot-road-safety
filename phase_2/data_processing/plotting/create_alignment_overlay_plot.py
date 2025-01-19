@@ -16,20 +16,21 @@ def parse_colormap(value):
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 parser.add_argument('--input_2d', type=str,
-                    default='../data/d13_route_40001001012/test/input_2d_88100043522.csv',
+                    default='../data/d13_route_40001001012/test/input_2d_88100055710.csv',
                     help='2d vertices')
 parser.add_argument('--input_3d_proj', type=str,
-                    default='../data/d13_route_40001001012/test/lidar_project_info_88100043522.csv',
+                    default='../data/d13_route_40001001012/test/lidar_project_info_88100055710.csv',
                     help='3d projection vertices')
 parser.add_argument('--overlay_bg_image_path', type=str,
-                    default='../data/d13_route_40001001012/images/881000435221.jpg',
+                    default='../data/d13_route_40001001012/images/881000557101.jpg',
                     help='original background image for overlay with the scatter plots')
 parser.add_argument('--use_lidar_proj_cols', nargs='+',
                     default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y', 'C', 'BOUND', 'SIDE'],
                     # default=['PROJ_SCREEN_X', 'PROJ_SCREEN_Y'],
                     help='list of columns to load when reading the input lidar projection data from input_3d_proj')
 parser.add_argument('--colormap', type=parse_colormap,
-                    default={6: 'purple', 2: 'cyan', 15: 'orange', 1: 'green', 11: 'blue', 12: 'yellow', 3: 'brown',
+                    default={-1: 'red', 0: 'blue', 6: 'purple', 2: 'cyan', 15: 'orange', 1: 'orange', 11: 'blue',
+                             12: 'yellow', 3: 'brown',
                              4: 'brown', 5: 'brown', 14: 'pink'},
                     help='colormap to map LIDAR point classification to color')
 parser.add_argument('--show_lidar_road_only', action="store_true",
@@ -90,7 +91,8 @@ else:
 
 if not show_lidar_road_only and 'BOUND' in use_lidar_proj_cols:
     bound_ldf = input_3d_proj_df[input_3d_proj_df['BOUND'] > 0]
-    plt.scatter(bound_ldf['PROJ_SCREEN_X'], image_height - bound_ldf['PROJ_SCREEN_Y'], s=10, c='c')
+    plt.scatter(bound_ldf['PROJ_SCREEN_X'], image_height - bound_ldf['PROJ_SCREEN_Y'], s=10,
+                c=bound_ldf['SIDE'].map(colormap))
 
 if 'BOUND' in use_lidar_proj_cols:
     if show_lidar_road_only:
@@ -105,12 +107,13 @@ if colormap:
     #             c=remain_ldf['C'].map(colormap), label=remain_ldf['C'])
     # colors_3d = np.where(remain_ldf['SIDE'] > 0, 'blue', 'green')
     # plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10, c=colors_3d)
-    plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10, c='blue')
+    plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10,
+                c=remain_ldf['SIDE'].map(colormap))
 else:
-    plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10)
+    plt.scatter(remain_ldf['PROJ_SCREEN_X'], image_height - remain_ldf['PROJ_SCREEN_Y'], s=10, c='blue')
 
 if show_bg_img:
-    plt.imshow(bg_img, extent=[0, image_width - 1, 0, image_height - 1])
+    plt.imshow(bg_img, extent=(0, image_width - 1, 0, image_height - 1))
 
 plt.title('Road alignment in screen coordinate system')
 plt.ylabel('Y')
