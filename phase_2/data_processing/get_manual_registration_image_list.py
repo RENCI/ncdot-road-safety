@@ -25,14 +25,14 @@ if __name__ == '__main__':
     print(f'map_df shape before dropping None: {map_df.shape}')
     map_df.dropna(inplace=True)
     print(f'map_df shape after dropping None: {map_df.shape}')
-    unique_images_df = map_df.drop_duplicates(subset='RESOLUTION', keep='first')
-    unique_images_df.rename(columns={'ROUTEID': 'routeID', 'MAPPED_IMAGE': 'imageBaseName'}, inplace=True)
-    unique_images_df['vFOV'] = None
-    unique_images_df['posX'] = None
-    unique_images_df['posY'] = None
-    unique_images_df['posZ'] = None
-    unique_images_df['rotX'] = None
-    unique_images_df['rotY'] = None
-    unique_images_df['rotZ'] = None
-    unique_images_df.to_csv(output_file, index=False)
+    map_df.drop_duplicates(subset='RESOLUTION', keep='first', inplace=True)
+    map_df.rename(columns={'ROUTEID': 'routeID', 'MAPPED_IMAGE': 'imageBaseName'}, inplace=True)
+    map_df['vFOV'] = None
+    map_df['posX'] = None
+    map_df['posY'] = None
+    map_df['posZ'] = None
+    map_df['rotX'] = None
+    map_df['rotY'] = None
+    map_df['rotZ'] = None
+    map_df.to_csv(output_file, index=False)
     exit(0)
