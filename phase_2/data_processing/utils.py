@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import os
 from PIL import Image
 from math import radians, cos, sin, asin, atan2, degrees
 import pickle
@@ -114,9 +115,12 @@ def get_data_from_image(input_image_name):
 
 
 def get_image_resolution(input_image_name):
-    with Image.open(input_image_name) as input_image:
-        return input_image.width, input_image.height
-
+    if os.path.isfile(input_image_name):
+        with Image.open(input_image_name) as input_image:
+            return input_image.width, input_image.height
+    else:
+        print(f'{input_image_name} does not exist')
+        return None
 
 def save_data_to_image(data, output_image_name):
     Image.fromarray(np.uint8(data), 'L').save(output_image_name)

@@ -22,6 +22,9 @@ if __name__ == '__main__':
     map_df['FRONT_IMAGE_NAME_WITH_PATH'] = map_df['PATH'] + '/' + map_df['MAPPED_IMAGE'] + '1.jpg'
     map_df['RESOLUTION'] = map_df['FRONT_IMAGE_NAME_WITH_PATH'].apply(get_image_resolution)
     # Drop duplicates based on the resolution
+    print(f'map_df shape before dropping None: {map_df.shape}')
+    map_df.dropna(inplace=True)
+    print(f'map_df shape after dropping None: {map_df.shape}')
     unique_images_df = map_df.drop_duplicates(subset='RESOLUTION', keep='first')
     unique_images_df.rename(columns={'ROUTEID': 'routeID', 'MAPPED_IMAGE': 'imageBaseName'}, inplace=True)
     unique_images_df['vFOV'] = None
