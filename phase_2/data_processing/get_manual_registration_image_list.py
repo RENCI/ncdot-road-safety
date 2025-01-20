@@ -17,6 +17,7 @@ if __name__ == '__main__':
     output_file = args.output_file
 
     map_df = pd.read_csv(input_sensor_mapping_file_with_path, usecols=['ROUTEID', 'MAPPED_IMAGE', 'PATH'], dtype=str)
+    map_df['MAPPED_IMAGE'] = map_df['MAPPED_IMAGE'].str[:11]
     map_df.sort_values(by=['ROUTEID', 'MAPPED_IMAGE'], inplace=True, ignore_index=True)
     map_df['FRONT_IMAGE_NAME_WITH_PATH'] = map_df['PATH'] + '/' + map_df['MAPPED_IMAGE'] + '1.jpg'
     map_df['RESOLUTION'] = map_df['FRONT_IMAGE_NAME_WITH_PATH'].apply(get_image_resolution)
