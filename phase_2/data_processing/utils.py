@@ -1,7 +1,7 @@
 import numpy as np
 import time
 import os
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from math import radians, cos, sin, asin, atan2, degrees
 import pickle
 import pandas as pd
@@ -116,8 +116,11 @@ def get_data_from_image(input_image_name):
 
 def get_image_resolution(input_image_name):
     if os.path.isfile(input_image_name):
-        with Image.open(input_image_name) as input_image:
-            return input_image.width, input_image.height
+        try:
+            with Image.open(input_image_name) as input_image:
+                return input_image.width, input_image.height
+        except UnidentifiedImageError as ex:
+            print(f'UnidentifiedImageError exception {ex} for {input_image_name}')
     else:
         print(f'{input_image_name} does not exist')
         return None
