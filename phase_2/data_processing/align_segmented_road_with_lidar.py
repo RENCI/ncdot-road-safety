@@ -3,15 +3,16 @@ import os
 import time
 import pandas as pd
 import numpy as np
+import multiprocessing as mp
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 from math import radians, tan
 from raycasting import find_occluded_points
 from utils import get_camera_latlon_and_bearing_for_image_from_mapping, bearing_between_two_latlon_points, \
     get_aerial_lidar_road_geo_df, create_gdf_from_df, add_lidar_x_y_from_lat_lon, \
-    classify_points_base_on_centerline, ROADSIDE, create_df_from_lidar_points, LIDARClass
+    classify_points_base_on_centerline, ROADSIDE, create_df_from_lidar_points
 
-from extract_lidar_3d_points import get_lidar_data_from_shp, extract_lidar_3d_points_for_camera
+from extract_lidar_3d_points import extract_lidar_3d_points_for_camera
 from get_road_boundary_points import get_image_lane_points, get_image_road_points, combine_lane_and_road_boundary
 
 # indices as constants in the input object camera parameter list where OBJ_LIDAR_X/Y/Z_OFFSET indicate object
@@ -429,34 +430,34 @@ def compute_offsets(row_no, init_error, x_diff, y_diff):
     return offsets
 
 
-def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_path):
+def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_file_path):
     """
-    :param row: the image metadata dataframe row to be processed
+    :param row_index: the index of the row in the original dataframe
+    :param row: the image metadata dataframe row as a namedtuple to be processed
     :param seg_image_dir: path in which segmentation images are located
     :param seg_lane_dir: path in which road lanes segmentation images are located
-    :param ldf: lidar 3D point geodataframe
     :param out_proj_file_path: output path for aligned road info which will be appended with
     lidar_project_info_{image name} to have lidar projection info for each input image
     :return: the computed base camera parameters and optimized camera parameters
     """
-    global init_cam_paras
+    global init_cam_paras, lidar_df
 
-    if len(row["imageBaseName"]) == 11:
-        image_name_with_path = os.path.join(seg_image_dir, f'{row["imageBaseName"]}1.png')
+    if len(row['imageBaseName']) == 11:
+        image_name_with_path = os.path.join(seg_image_dir, f'{row['imageBaseName']}1.png')
         # get input image base name
-        input_2d_mapped_image = row["imageBaseName"]
+        input_2d_mapped_image = row['imageBaseName']
     else:
-        image_name_with_path = os.path.join(seg_image_dir, f'{row["imageBaseName"]}.png')
+        image_name_with_path = os.path.join(seg_image_dir, f'{row['imageBaseName']}.png')
         # get input image base name
-        input_2d_mapped_image = row["imageBaseName"][:-1]
+        input_2d_mapped_image = row['imageBaseName'][:-1]
 
-    if init_cam_paras is None and not row['OBJ_BASE_TRANS_LIST']:
+    if not row['OBJ_BASE_TRANS_LIST']:
         print(f'Initial camera parameters for image {input_2d_mapped_image} must be specified to perform camera '
               f'parameter optimization on the route. Exiting')
         exit(1)
 
-    if row['OBJ_BASE_TRANS_LIST']:
-        init_cam_paras = row['OBJ_BASE_TRANS_LIST']
+    init_cam_paras = row['OBJ_BASE_TRANS_LIST']
+    if row['camImageBaseName'] == row['imageBaseName']:
         do_optimize = False # does not do optimization for the first image obtained from manual registration
     else:
         do_optimize = True
@@ -493,8 +494,8 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
     cam_lidar_z = row['CAM_Z']
 
     # filter out LIDAR points approximately by distance for performance improvement
-    ldf = ldf[((ldf.X - proj_cam_x).abs() < LIDAR_DIST_THRESHOLD[1]) &
-              ((ldf.Y - proj_cam_y).abs() < LIDAR_DIST_THRESHOLD[1])]
+    ldf = lidar_df[((lidar_df.X - proj_cam_x).abs() < LIDAR_DIST_THRESHOLD[1]) &
+              ((lidar_df.Y - proj_cam_y).abs() < LIDAR_DIST_THRESHOLD[1])]
 
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
@@ -633,7 +634,7 @@ def align_image_to_lidar(row, seg_image_dir, seg_lane_dir, ldf, out_proj_file_pa
         return init_cam_paras, align_error
 
     print(f'current alignment error: {align_error}')
-    offset = compute_offsets(row.name, align_error, max_x_diff, max_y_diff)
+    offset = compute_offsets(row_index, align_error, max_x_diff, max_y_diff)
     print(f'offset: {offset}')
     if max_y_diff > grid_threshold_y:
         grid_threshold_y = max_y_diff + 200
@@ -724,16 +725,13 @@ if __name__ == '__main__':
     input_init_cam_param_file_with_path = args.input_init_cam_param_file_with_path
     lidar_proj_output_file_path = args.lidar_proj_output_file_path
 
-    if input_lidar.endswith('.shp'):
-        lidar_df = get_lidar_data_from_shp(input_lidar)
-    else:
-        lidar_df = get_aerial_lidar_road_geo_df(input_lidar)
+    lidar_df = get_aerial_lidar_road_geo_df(input_lidar)
 
     input_df = get_input_file_with_images(obj_image_input)
     init_cam_param_df = pd.read_csv(input_init_cam_param_file_with_path,
-                                    usecols=['imageBaseName', 'vFOV', 'posX', 'posY', 'posZ',
+                                    usecols=['routeID', 'imageBaseName', 'vFOV', 'posX', 'posY', 'posZ',
                                              'rotX', 'rotY', 'rotZ'],
-                                    dtype={'imageBaseName': str, 'vFOV': float, 'posX': float,
+                                    dtype={'routeID': int, 'imageBaseName': str, 'vFOV': float, 'posX': float,
                                            'posY': float, 'posZ': float, 'rotX': float, 'rotY': float,
                                            'rotZ': float})
     if len(init_cam_param_df['imageBaseName'].iloc[0]) == 12:
@@ -748,7 +746,9 @@ if __name__ == '__main__':
                                                                         -row['rotY'], -row['rotX']], axis=1)
     init_cam_param_df.drop(columns=['vFOV', 'posX', 'posY', 'posZ', 'rotX', 'rotY', 'rotZ'], inplace=True)
     print(init_cam_param_df)
-    input_df = input_df.merge(init_cam_param_df, left_on='imageBaseName', right_on='imageBaseName', how='left')
+    input_df = input_df.merge(init_cam_param_df, left_on='ROUTEID', right_on='routeID', how='left')
+    input_df.rename(columns={'imageBaseName_x': 'imageBaseName'}, inplace=True)
+    input_df.rename(columns={'imageBaseName_y': 'camImageBaseName'}, inplace=True)
     input_df['OBJ_BASE_TRANS_LIST'] = input_df['OBJ_BASE_TRANS_LIST'].apply(lambda x: x if isinstance(x, list) else [])
     start_time = time.time()
 
@@ -756,13 +756,22 @@ if __name__ == '__main__':
     input_df['CAM_Z_next'] = input_df['CAM_Z'].shift(-1)
     input_df['LATITUDE_next'] = input_df['LATITUDE'].shift(-1)
     input_df['LONGITUDE_next'] = input_df['LONGITUDE'].shift(-1)
-    input_df[['OPTIMIZED_CAMERA_OBJ_PARA', 'BASE_ALIGN_ERROR']] = input_df.apply(
-        lambda row: align_image_to_lidar(
-        row,
-        image_seg_dir,
-        lane_seg_dir,
-        lidar_df,
-        lidar_proj_output_file_path), axis=1, result_type='expand')
+
+    num_workers = mp.cpu_count()
+    print(f'num_workers: {num_workers}')
+    # Convert DataFrame rows to a list of tuples for multiprocessing
+    rows = zip(input_df.index,
+               input_df.to_dict(orient="records"),
+               [image_seg_dir] * len(input_df),
+               [lane_seg_dir] * len(input_df),
+               [lidar_proj_output_file_path] * len(input_df))
+
+    with mp.Pool(num_workers) as pool:
+        results = pool.starmap(align_image_to_lidar, rows)
+
+    optimized_params, base_align_errors = zip(*results)
+    input_df['OPTIMIZED_CAMERA_OBJ_PARA'] = optimized_params
+    input_df['BASE_ALIGN_ERROR'] = base_align_errors
 
     input_df.drop(columns=['CAM_Z', 'CAM_Z_next', 'LATITUDE_next', 'LONGITUDE_next'], inplace=True)
     input_df.to_csv(f'{os.path.splitext(obj_image_input)[0]}_with_cam_paras.csv', index=False)

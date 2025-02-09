@@ -1,5 +1,4 @@
 import itertools
-import multiprocessing as mp
 import numpy as np
 import pandas as pd
 from scipy.spatial import Delaunay
@@ -324,9 +323,8 @@ def find_occluded_points(
     # Block creation
     block_rects = create_blocks(image_width, image_height, block_count)
 
-    # Process blocks in parallel
-    with mp.Pool(mp.cpu_count()) as pool:
-        results = pool.map(process_block, block_rects)
+    # Process blocks
+    results = [process_block(block) for block in block_rects]
 
     # Merge and sort the results. Array of tuples (Numpy index, Bool: True if obstructed)
     flat_results = []
