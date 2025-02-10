@@ -495,12 +495,11 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
 
     # filter out LIDAR points approximately by distance for performance improvement
     ldf = lidar_df[((lidar_df.X - proj_cam_x).abs() < LIDAR_DIST_THRESHOLD[1]) &
-              ((lidar_df.Y - proj_cam_y).abs() < LIDAR_DIST_THRESHOLD[1])]
+              ((lidar_df.Y - proj_cam_y).abs() < LIDAR_DIST_THRESHOLD[1])].copy(deep=True)
 
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
-                                                                end_of_route=False,
                                                                 fov=90,
                                                                 proj_cam_x=proj_cam_x,
                                                                 proj_cam_y=proj_cam_y)

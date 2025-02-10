@@ -43,7 +43,6 @@ def create_data(row, seg_lane_dir, input_lidar_file, out_file_base, input_loc=No
     input_3d_gdf, cam_br, _ = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon],
                                                                  [cam_lat2, cam_lon2],
                                                                  dist_th=LIDAR_DIST_THRESHOLD,
-                                                                 end_of_route=False,
                                                                  include_all_cols=True, fov=90,
                                                                  proj_cam_x=proj_cam_x,
                                                                  proj_cam_y=proj_cam_y
