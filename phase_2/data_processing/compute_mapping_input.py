@@ -3,11 +3,13 @@ import sys
 import argparse
 import pandas as pd
 import numpy as np
-import skimage.measure
+import multiprocessing as mp
+from skimage.measure import label, regionprops, intersection_coeff
 from skimage.morphology import binary_dilation, disk
 from PIL import Image
 from sklearn.linear_model import LinearRegression
 import cv2
+import itertools
 from math import cos
 from utils import SegmentationClass, get_data_from_image, \
     compute_match, bearing_between_two_latlon_points, LIDARClass, get_set_minute_sub_path
@@ -43,15 +45,12 @@ def extract_lon_lat(geom):
     return lon, lat
 
 
-def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
+def process_image(row, seg_path, input_depth_path, lidar_file_pattern):
     mapped_image = row['imageBaseName']
     cam_lon = float(row['LONGITUDE'])
     cam_lat = float(row['LATITUDE'])
-    seg_path = row['ONEFORMER']
-    if front_only:
-        image_suffix_list = ('1.png', )
-    else:
-        image_suffix_list = ('5.png', '1.png', '2.png')
+    image_suffix_list = ('5.png', '1.png', '2.png')
+    output_list = []
 
     # check if lidar project info is available for this image
     if lidar_file_pattern:
@@ -90,6 +89,7 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
         unique_labels = np.unique(input_data)
         if SegmentationClass.POLE.value not in unique_labels:
             continue
+
         if SegmentationClass.SIGN.value in unique_labels:
             sign_seg_data = (input_data == SegmentationClass.SIGN.value).astype(int)
             dilated_sign_seg_data = binary_dilation(sign_seg_data, structuring_element)
@@ -98,16 +98,18 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
 
         pole_seg_data = (input_data == SegmentationClass.POLE.value).astype(int)
         # perform connected component analysis
-        labeled_data, count = skimage.measure.label(pole_seg_data, connectivity=2, return_num=True)
+        labeled_data, count = label(pole_seg_data, connectivity=2, return_num=True)
         labeled_data = labeled_data.astype('uint8')
         if count <= 0:
             continue
-        object_features = skimage.measure.regionprops(labeled_data)
+
+        object_features = regionprops(labeled_data)
         input_image_base_name = os.path.basename(os.path.splitext(input_image_name)[0])
         set_str, minute_str = get_set_minute_sub_path(input_image_base_name)
         if minute_str is None:
             # not a valid image
             continue
+
         depth_image_path = os.path.join(input_depth_path, set_str, minute_str,
                                         f'{input_image_base_name}_depth.png')
         with Image.open(depth_image_path) as depth_img:
@@ -155,16 +157,17 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
             front_depth_data = depth_data
 
         # divide the depth values by 255 to normalize into (0, 1) range
-        front_lidar_fit_df['DEPTH'] = front_lidar_fit_df.apply(lambda row: front_depth_data[row['PROJ_SCREEN_Y'],
-                                                                                            row['PROJ_SCREEN_X']] / 255,
-                                                               axis=1)
+        front_lidar_fit_df['DEPTH'] = front_lidar_fit_df.apply(lambda front_row:
+                                                               front_depth_data[front_row['PROJ_SCREEN_Y'],
+                                                               front_row['PROJ_SCREEN_X']] / 255, axis=1)
         near = min(front_lidar_fit_df['CAM_DIST_M'])
         far = max(front_lidar_fit_df['CAM_DIST_M'])
         c1_in = 2 * far * near / (near - far)
         c2_in = (far + near) / (far - near)
         print(f'c1: {c1_in}, c2: {c2_in}, near: {near}, far: {far}')
 
-        front_lidar_fit_df['MAPPED_DIST'] = front_lidar_fit_df.apply(lambda row: map_z(c1_in, c2_in, row['CAM_DIST_M']),
+        front_lidar_fit_df['MAPPED_DIST'] = front_lidar_fit_df.apply(lambda front_row: map_z(c1_in, c2_in,
+                                                                                             front_row['CAM_DIST_M']),
                                                                      axis=1)
 
         x_in = front_lidar_fit_df['DEPTH'].values.reshape(-1, 1)  # Reshape X to a 2D array
@@ -188,10 +191,7 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
             y0, x0 = object_features[i].centroid
             y0 = int(y0)
             x0 = int(x0)
-            yl = object_features[i].bbox[2]-1
-            if input_image_base_name == '881000956035' and x0 == 1756 and yl == 651:
-                yl = 1058
-                print(f'yl is changed to {yl}')
+            yl = object_features[i].bbox[2] - 1
             obj_depth = reverse_map_z(c1_in, c2_in, depth_data[yl, x0] * slope / 255)
             print(f'x0: {x0}, y0: {y0}, xdiff: {xdiff}, ydiff: {ydiff}, depth: {obj_depth}', flush=True)
             if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
@@ -219,7 +219,7 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
                     # The object gets filtered out, so discard it
                     continue
                 # need to recompute properties of the object
-                updated_object_features = skimage.measure.regionprops(obj_only)
+                updated_object_features = regionprops(obj_only)
                 y0, x0 = updated_object_features[0].centroid
                 y0 = int(y0)
                 x0 = int(x0)
@@ -239,19 +239,18 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
 
             # check if the pole intersects with any sign, if so, filter the pole out
             if dilated_sign_seg_data is not None:
-                dilated_pole_seg_data = (labeled_data == i+1).astype(int)
-                if skimage.measure.intersection_coeff(dilated_sign_seg_data, dilated_pole_seg_data) \
+                dilated_pole_seg_data = (labeled_data == i + 1).astype(int)
+                if intersection_coeff(dilated_sign_seg_data, dilated_pole_seg_data) \
                         and ydiff < image_height / 3:
                     # only filter out FP sign when ydiff is small enough since there are cases with TP poles
                     # with posted sign on it
                     print(f'filtered out: pole bbox {object_features[i].bbox} intersects with a sign')
                     continue
 
-            sub_lidar_df['DEPTH'] = sub_lidar_df.apply(lambda row:
-                                                       reverse_map_z(c1_in, c2_in,
-                                                                     depth_data[row['PROJ_SCREEN_Y'],
-                                                                                row['PROJ_SCREEN_X']] * slope / 255),
-                                                       axis=1)
+            sub_lidar_df['DEPTH'] = sub_lidar_df.apply(
+                lambda sub_row: reverse_map_z(
+                    c1_in, c2_in, depth_data[sub_row['PROJ_SCREEN_Y'], sub_row['PROJ_SCREEN_X']] * slope / 255),
+                axis=1)
             # find the nearest LIDAR projected point from the pole ground location (x0, yl)
             nearest_indices, nearest_dist = compute_match(x0, yl,
                                                           sub_lidar_df['PROJ_SCREEN_X'], sub_lidar_df['PROJ_SCREEN_Y'])
@@ -262,65 +261,8 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
                 diff_depths = [abs(sub_lidar_df.iloc[ni].DEPTH - obj_depth) for ni in nearest_indices]
                 nearest_idx = nearest_indices[diff_depths.index(min(diff_depths))]
                 print(f'object x, y: {x0}, {yl}, len(nearest_indices): {len(nearest_indices)}, '
-                  f'nearest_idx: {nearest_idx}, nearest_dist: {nearest_dist}, '
-                  f'ldf: {sub_lidar_df.iloc[nearest_idx]}')
-
-            # # Calculate signed distances of LIDAR projected points along X and Y directions
-            # # from the pole ground location
-            # sub_lidar_df['DIST_X'] = sub_lidar_df['PROJ_SCREEN_X'] - x0
-            # sub_lidar_df['DIST_Y'] = sub_lidar_df['PROJ_SCREEN_Y'] - yl
-            # sub_lidar_df['DIST_Z'] = sub_lidar_df['DEPTH'] - obj_depth
-            # sub_lidar_df['DIST'] = sub_lidar_df['DIST_X'].abs() / image_width + \
-            #                        sub_lidar_df['DIST_Y'].abs() / image_height + \
-            #                        sub_lidar_df['DIST_Z'].abs() / obj_depth
-            #
-            # ldf_sorted = sub_lidar_df.sort_values(by='DIST')
-            # try:
-            #     # Find the closest point on the left and right along X direction
-            #     closest_left_x = ldf_sorted[ldf_sorted['DIST_X'] <= 0].iloc[0]
-            #     closest_right_x = ldf_sorted[ldf_sorted['DIST_X'] > 0].iloc[0]
-            #     # Find the closest point above and below along Y direction
-            #     closest_up_y = ldf_sorted[ldf_sorted['DIST_Y'] <= 0].iloc[0]
-            #     closest_down_y = ldf_sorted[ldf_sorted['DIST_Y'] > 0].iloc[0]
-            #
-            #     # Indices of the closest points
-            #     closest_indices = {
-            #         'left_x': closest_left_x.name,
-            #         'right_x': closest_right_x.name,
-            #         'down_y': closest_down_y.name,
-            #         'up_y': closest_up_y.name
-            #     }
-            #     # Average location of the closest points
-            #     avg_x = (closest_left_x['PROJ_SCREEN_X'] + closest_right_x['PROJ_SCREEN_X']) / 2
-            #     avg_y = (closest_down_y['PROJ_SCREEN_Y'] + closest_up_y['PROJ_SCREEN_Y']) / 2
-            #     # use the weighted sum of four LIDAR points computed above
-            #     dist_x_left = abs(closest_left_x['DIST_X'])
-            #     dist_x_right = abs(closest_right_x['DIST_X'])
-            #     avg_lx = (closest_left_x['X'] * dist_x_right + closest_right_x['X'] * dist_x_left) / \
-            #              (dist_x_left + dist_x_right)
-            #     dist_y_up = abs(closest_up_y['DIST_Y'])
-            #     dist_y_down = abs(closest_down_y['DIST_Y'])
-            #     avg_ly = (closest_up_y['Y'] * dist_y_down + closest_down_y['Y'] * dist_y_up) / \
-            #              (dist_y_up + dist_y_down)
-            #     print(f'left_lat_lon: {closest_left_x["lat"]}: {closest_left_x["lon"]}, '
-            #           f'right_lat_lon: {closest_right_x["lat"]}: {closest_right_x["lon"]}, '
-            #           f'up_lat_lon: {closest_up_y["lat"]}: {closest_up_y["lon"]}, '
-            #           f'down_lat_lon: {closest_down_y["lat"]}: {closest_down_y["lon"]}, '
-            #           f'closest_indices: {closest_indices}')
-            # except IndexError:
-            #     # there might not be left or right or up or down LIDAR points to the object
-            #     # use closest point instead
-            #     closest_point = ldf_sorted.iloc[0]
-            #     avg_x = closest_point['PROJ_SCREEN_X']
-            #     avg_y = closest_point['PROJ_SCREEN_Y']
-            #     avg_lx = closest_point['X']
-            #     avg_ly = closest_point['Y']
-            #     print(f'closest_point index: {closest_point.name}, '
-            #           f'closest_point_lon: {closest_point["lon"]}, '
-            #           f'closest_point_lat: {closest_point["lat"]}')
-            #
-            # nearest_dist = (avg_x - x0) ** 2 + (avg_y - yl) ** 2
-            # nearest_idx = -1
+                      f'nearest_idx: {nearest_idx}, nearest_dist: {nearest_dist}, '
+                      f'ldf: {sub_lidar_df.iloc[nearest_idx]}')
 
             # see if there are LIDAR points projected within the object bounding box
             filtered_lidar_df = sub_lidar_df[
@@ -365,23 +307,15 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
                 print(f'nearest_idx: {nearest_idx}, lat: {sub_lidar_df.iloc[nearest_idx].lat}, '
                       f'lon: {sub_lidar_df.iloc[nearest_idx].lon}')
             else:
-                # avg_lat, avg_lon = convert_xy_to_lat_lon(avg_lx, avg_ly)
-                # ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
-                #                                                 avg_lat,
-                #                                                 avg_lon,
-                #                                                 is_degree=True)
-                # print(f'ref_bearing: {ref_bearing}, avg_lat: {avg_lat}, avg_lon: {avg_lon}, '
-                #       f'depth: {obj_depth},'
-                #       f'image: {mapped_image}{suffix}, x0: {x0}, y0: {yl}')
                 print('nearest_idx is -1, exiting')
                 exit(1)
 
             br_angle = (ref_bearing + 360) % 360
-            img_input_list.append([input_image_base_name, cam_lat, cam_lon, int(x0), int(y0),
-                                   br_angle, obj_depth])
+            output_list.append([input_image_base_name, cam_lat, cam_lon, int(x0), int(y0), br_angle, obj_depth])
             # if input_image_base_name == '926005420241':
             #    labeled_data[labeled_data == 1 ] = 255
             #    save_data_to_image(labeled_data, f'{input_image_base_name}_processed.png')
+
             print(f'{input_image_base_name}, ori: {object_features[i].orientation}, '
                   f'minx: {object_features[i].bbox[1]}, maxx: {object_features[i].bbox[3]}, '
                   f'miny: {object_features[i].bbox[0]}, maxy: {yl}, '
@@ -391,6 +325,8 @@ def compute_mapping_input(row, input_depth_path, lidar_file_pattern):
             obj_cnt += 1
         if obj_cnt > 0:
             print(f'pole count: {obj_cnt}, mapped_image: {mapped_image}')
+
+    return output_list
 
 
 if __name__ == '__main__':
@@ -411,8 +347,6 @@ if __name__ == '__main__':
     parser.add_argument('--output_file', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_mapping_input.csv',
                         help='output file that contains image base names and corresponding segmented object depths')
-    parser.add_argument('--front_only', action="store_true",
-                        help='whether to compute mapping inputs for front view images only')
 
 
     args = parser.parse_args()
@@ -421,13 +355,18 @@ if __name__ == '__main__':
     input_depth_image_path = args.input_depth_image_path
     lidar_project_info_file_pattern = args.lidar_project_info_file_pattern
     output_file = args.output_file
-    front_only = args.front_only
 
     df = pd.read_csv(input_base_image_file, index_col=None,
                      usecols=['ROUTEID', 'imageBaseName', 'LATITUDE', 'LONGITUDE'], dtype=str)
-    df['ONEFORMER'] = segmentation_path + '/' + df['imageBaseName'].str[:3]
-    img_input_list = []
-    df.apply(lambda row: compute_mapping_input(row, input_depth_image_path, lidar_project_info_file_pattern), axis=1)
+    # Get all available CPU cores
+    num_workers = mp.cpu_count()
+    rows = list[zip(df.to_dict(orient='records'),
+                    [segmentation_path] * len(df),
+                    [input_depth_image_path] * len(df),
+                    [lidar_project_info_file_pattern] * len(df))]
+    with mp.Pool(processes=num_workers) as pool:
+        results = pool.starmap(process_image, rows)
+    img_input_list = list(itertools.chain.from_iterable(results))
     out_df = pd.DataFrame(img_input_list, columns=["imageBaseName", "lat", "lon", "x", "y", "bearing", "depth"])
     out_df.to_csv(output_file, index=False)
     sys.exit(0)

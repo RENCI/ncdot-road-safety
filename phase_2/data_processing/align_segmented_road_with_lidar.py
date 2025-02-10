@@ -433,7 +433,7 @@ def compute_offsets(row_no, init_error, x_diff, y_diff):
 def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_file_path):
     """
     :param row_index: the index of the row in the original dataframe
-    :param row: the image metadata dataframe row as a namedtuple to be processed
+    :param row: the image metadata dataframe row as a dict to be processed
     :param seg_image_dir: path in which segmentation images are located
     :param seg_lane_dir: path in which road lanes segmentation images are located
     :param out_proj_file_path: output path for aligned road info which will be appended with
