@@ -443,11 +443,11 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
     global init_cam_paras, lidar_df
 
     if len(row['imageBaseName']) == 11:
-        image_name_with_path = os.path.join(seg_image_dir, f'{row['imageBaseName']}1.png')
+        image_name_with_path = os.path.join(seg_image_dir, f'{row["imageBaseName"]}1.png')
         # get input image base name
         input_2d_mapped_image = row['imageBaseName']
     else:
-        image_name_with_path = os.path.join(seg_image_dir, f'{row['imageBaseName']}.png')
+        image_name_with_path = os.path.join(seg_image_dir, f'{row["imageBaseName"]}.png')
         # get input image base name
         input_2d_mapped_image = row['imageBaseName'][:-1]
 
