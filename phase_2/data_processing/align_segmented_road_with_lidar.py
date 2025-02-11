@@ -690,7 +690,7 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_lidar_with_path', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/'
+                        default='/projects/ncdot/NC_2018_Secondary_2/d13_route_40001001012/'
                         #default='data/d13_route_40001001012/'
                                 'route_40001001012_voxel_raster_norm_highest_20240113_sides.csv',
                         help='input file that contains road x, y, z vertices from lidar')
@@ -703,16 +703,16 @@ if __name__ == '__main__':
                         #default='data/d13_route_40001001012/segmentation',
                         help='directory to retrieve segmented road lane images')
     parser.add_argument('--obj_image_input', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_input_corrected_updated.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/d13_route_40001001012/route_40001001012_input_corrected_updated.csv',
                         #default='data/d13_route_40001001012/route_input.csv',
                         help='input csv file that contains image base names with objects detected along with other '
                              'inputs for mapping')
     parser.add_argument('--input_init_cam_param_file_with_path', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_initial_camera_params.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/d13_route_40001001012/route_40001001012_initial_camera_params.csv',
                         #default='data/d13_route_40001001012/initial_camera_params.csv',
                         help='input csv file that includes initial camera parameters for manually registered images')
     parser.add_argument('--lidar_proj_output_file_path', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_geotagging_output',
+                        default='/projects/ncdot/NC_2018_Secondary_2/d13_route_40001001012/route_40001001012_geotagging_output',
                         #default='data/d13_route_40001001012/test',
                         help='output file path path where projected LIDAR data will be saved')
 
