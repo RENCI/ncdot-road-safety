@@ -35,7 +35,9 @@ def rotate_point(point, quaternion):
 def init_transform_from_lidar_to_world_coordinate_system(df, cam1_x, cam1_y, cam1_z, cam2_x, cam2_y, cam2_z):
     # Compute the camera bearing direction vector from C1 to C2
     cam_bearing_vector = np.array([cam2_x - cam1_x, cam2_y - cam1_y, cam2_z - cam1_z])
-    cam_bearing_vector = cam_bearing_vector / np.linalg.norm(cam_bearing_vector)
+    norm = np.linalg.norm(cam_bearing_vector)
+    if norm > 0:
+        cam_bearing_vector = cam_bearing_vector / np.linalg.norm(cam_bearing_vector)
 
     # The negative Z-axis is aligned with the camera bearing direction
     neg_z_axis = -cam_bearing_vector  # Negative Z-axis
@@ -758,6 +760,15 @@ if __name__ == '__main__':
 
     num_workers = mp.cpu_count()
     print(f'num_workers: {num_workers}')
+
+    # reduce numpy/OpenBLAS threads to 1 per process to prevent numpy/scipy from spawning extra
+    # threads inside each worker
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+    os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
     # Convert DataFrame rows to a list of tuples for multiprocessing
     rows = zip(input_df.index,
                input_df.to_dict(orient="records"),
@@ -765,7 +776,7 @@ if __name__ == '__main__':
                [lane_seg_dir] * len(input_df),
                [lidar_proj_output_file_path] * len(input_df))
 
-    with mp.Pool(num_workers) as pool:
+    with mp.Pool(num_workers, maxtasksperchild=10) as pool:
         results = pool.starmap(align_image_to_lidar, rows)
 
     optimized_params, base_align_errors = zip(*results)
