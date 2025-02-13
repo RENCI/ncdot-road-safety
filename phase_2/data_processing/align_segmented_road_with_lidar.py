@@ -557,7 +557,7 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
             'Y': input_2d_points[:, 1],
             'SIDE': input_2d_sides
         })
-        input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
+        # input_2d_df.to_csv(os.path.join(out_proj_file_path, f'input_2d_{input_2d_mapped_image}.csv'), index=False)
     else:
         print(f'input_2d_points.shape[1] must be 2, but it is {input_2d_points.shape[1]}, skip this image '
               f'and return without optimization')
@@ -571,9 +571,9 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
     if 'SIDE' in cols:
         input_3d_road_bound_gdf['SIDE'] = input_3d_road_bound_gdf['SIDE'].astype(int)
     print(f'after occlusion filtering, input_3d_road_bound_gdf.shape: {input_3d_road_bound_gdf.shape}')
-    input_3d_road_bound_gdf.to_csv(os.path.join(out_proj_file_path,
-                                                f'base_lidar_project_info_{row["imageBaseName"]}_non_occluded.csv'),
-                                   index=False)
+    # input_3d_road_bound_gdf.to_csv(os.path.join(out_proj_file_path,
+    #                                             f'base_lidar_project_info_{row["imageBaseName"]}_non_occluded.csv'),
+    #                                index=False)
     if not do_optimize:
         input_3d_gdf.to_csv(out_proj_file, index=False)
         return init_cam_paras, -1
@@ -785,7 +785,7 @@ if __name__ == '__main__':
                [lane_seg_dir] * len(input_df),
                [lidar_proj_output_file_path] * len(input_df))
 
-    with mp.Pool(num_workers, maxtasksperchild=10) as pool:
+    with mp.Pool(num_workers - 1, maxtasksperchild=10) as pool:
         results = pool.starmap(align_image_to_lidar, rows)
 
     optimized_params, base_align_errors = zip(*results)

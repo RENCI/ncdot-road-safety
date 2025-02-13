@@ -359,12 +359,15 @@ if __name__ == '__main__':
     df = pd.read_csv(input_base_image_file, index_col=None,
                      usecols=['ROUTEID', 'imageBaseName', 'LATITUDE', 'LONGITUDE'], dtype=str)
     # Get all available CPU cores
+    # forkserver method prevents child processes from inheriting the entire memory state of the parent
+    mp.set_start_method("forkserver", force=True)
     num_workers = mp.cpu_count()
+    print(f'num_workers: {num_workers}')
     rows = list[zip(df.to_dict(orient='records'),
                     [segmentation_path] * len(df),
                     [input_depth_image_path] * len(df),
                     [lidar_project_info_file_pattern] * len(df))]
-    with mp.Pool(processes=num_workers) as pool:
+    with mp.Pool(num_workers - 1, maxtasksperchild=10) as pool:
         results = pool.starmap(process_image, rows)
     img_input_list = list(itertools.chain.from_iterable(results))
     out_df = pd.DataFrame(img_input_list, columns=["imageBaseName", "lat", "lon", "x", "y", "bearing", "depth"])
