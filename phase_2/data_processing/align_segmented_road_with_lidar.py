@@ -1,5 +1,6 @@
 import argparse
 import os
+import gc
 import time
 import pandas as pd
 import numpy as np
@@ -442,7 +443,7 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
     lidar_project_info_{image name} to have lidar projection info for each input image
     :return: the computed base camera parameters and optimized camera parameters
     """
-    global init_cam_paras, lidar_df
+    global init_cam_paras
 
     if len(row['imageBaseName']) == 11:
         image_name_with_path = os.path.join(seg_image_dir, f'{row["imageBaseName"]}1.png')
@@ -486,19 +487,11 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
     # compute bearing
     cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2, is_degree=False)
 
-    # LIDAR road vertices in input_3d is in NAD83(2011) / North Carolina (ftUS) CRS with EPSG:6543, and
-    # the cam_lat/cam_lon is in WGS84 CRS with EPSG:4326, need to transform cam_lat/cam_lon to the same CRS as
-    # input_3d
-    cam_geom_df = add_lidar_x_y_from_lat_lon(pd.DataFrame(data={'LONGITUDE': [cam_lon], 'LATITUDE': [cam_lat]}))
-    proj_cam_x = cam_geom_df.iloc[0].x
-    proj_cam_y = cam_geom_df.iloc[0].y
+    proj_cam_x = row.geometry.x
+    proj_cam_y = row.geometry.y
 
     cam_lidar_z = row['CAM_Z']
-
-    # filter out LIDAR points approximately by distance for performance improvement
-    ldf = lidar_df[((lidar_df.X - proj_cam_x).abs() < LIDAR_DIST_THRESHOLD[1]) &
-              ((lidar_df.Y - proj_cam_y).abs() < LIDAR_DIST_THRESHOLD[1])].copy(deep=True)
-
+    ldf = row.filtered_lidar
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
@@ -768,6 +761,19 @@ if __name__ == '__main__':
     os.environ["MKL_NUM_THREADS"] = "1"
     os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
     os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
+    # Precompute relevant lidar subsets for each row
+    input_df['geometry'] = add_lidar_x_y_from_lat_lon(input_df)
+    input_df["filtered_lidar"] = input_df.apply(
+        lambda row: lidar_df[
+            ((lidar_df.X - row.geometry.x).abs() < LIDAR_DIST_THRESHOLD[1]) &
+            ((lidar_df.Y - row.geometry.y).abs() < LIDAR_DIST_THRESHOLD[1])
+            ].copy(deep=True),
+        axis=1
+    )
+    # force garbage collection to conserve memory
+    del lidar_df
+    gc.collect()
 
     # Convert DataFrame rows to a list of tuples for multiprocessing
     rows = zip(input_df.index,
