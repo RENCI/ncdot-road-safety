@@ -751,6 +751,9 @@ if __name__ == '__main__':
     input_df['LATITUDE_next'] = input_df['LATITUDE'].shift(-1)
     input_df['LONGITUDE_next'] = input_df['LONGITUDE'].shift(-1)
 
+    # forkserver method prevents child processes from inheriting the entire memory state of the parent
+    mp.set_start_method("forkserver", force=True)
+
     num_workers = mp.cpu_count()
     print(f'num_workers: {num_workers}')
 
