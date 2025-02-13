@@ -332,7 +332,8 @@ def process_image(row, seg_path, input_depth_path, lidar_file_pattern):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.')
     parser.add_argument('--input_base_image_file', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_input.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/d13_route_40001001012/'
+                                'route_40001001012_input_corrected_updated.csv',
                         help='input csv file that includes input base images for computing mapping input')
     parser.add_argument('--segmentation_path', type=str,
                         default='/projects/ncdot/NC_2018_Secondary_2/segmentations/d13',
@@ -341,13 +342,13 @@ if __name__ == '__main__':
                         default='/projects/ncdot/NC_2018_Secondary_2/depth_prediction/d13',
                         help='input path that includes depth prediction output images')
     parser.add_argument('--lidar_project_info_file_pattern', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_geotagging_output/'
-                                'lidar_project_info_{}.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/d13_route_40001001012/'
+                                'route_40001001012_geotagging_output/lidar_project_info_{}.csv',
                         help='input LIDAR projection info file pattern')
     parser.add_argument('--output_file', type=str,
-                        default='/projects/ncdot/NC_2018_Secondary_2/route_40001001012_mapping_input.csv',
+                        default='/projects/ncdot/NC_2018_Secondary_2/d13_route_40001001012/'
+                                'route_40001001012_mapping_input.csv',
                         help='output file that contains image base names and corresponding segmented object depths')
-
 
     args = parser.parse_args()
     input_base_image_file = args.input_base_image_file
@@ -363,10 +364,10 @@ if __name__ == '__main__':
     mp.set_start_method("forkserver", force=True)
     num_workers = mp.cpu_count()
     print(f'num_workers: {num_workers}')
-    rows = list[zip(df.to_dict(orient='records'),
-                    [segmentation_path] * len(df),
-                    [input_depth_image_path] * len(df),
-                    [lidar_project_info_file_pattern] * len(df))]
+    rows = zip(df.to_dict(orient='records'),
+               [segmentation_path] * len(df),
+               [input_depth_image_path] * len(df),
+               [lidar_project_info_file_pattern] * len(df))
     with mp.Pool(num_workers - 1, maxtasksperchild=10) as pool:
         results = pool.starmap(process_image, rows)
     img_input_list = list(itertools.chain.from_iterable(results))
