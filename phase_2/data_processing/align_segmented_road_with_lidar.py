@@ -487,11 +487,11 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
     # compute bearing
     cam_br = bearing_between_two_latlon_points(cam_lat, cam_lon, cam_lat2, cam_lon2, is_degree=False)
 
-    proj_cam_x = row.geometry.x
-    proj_cam_y = row.geometry.y
+    proj_cam_x = row['geometry'].x
+    proj_cam_y = row['geometry'].y
 
     cam_lidar_z = row['CAM_Z']
-    ldf = row.filtered_lidar
+    ldf = row['filtered_lidar']
     t1 = time.time()
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
