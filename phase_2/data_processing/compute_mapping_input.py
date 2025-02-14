@@ -45,7 +45,7 @@ def extract_lon_lat(geom):
     return lon, lat
 
 
-def process_image(row, seg_path, input_depth_path, lidar_file_pattern):
+def process_image(row, input_depth_path, lidar_file_pattern):
     mapped_image = row['imageBaseName']
     cam_lon = float(row['LONGITUDE'])
     cam_lat = float(row['LATITUDE'])
@@ -71,7 +71,7 @@ def process_image(row, seg_path, input_depth_path, lidar_file_pattern):
     structuring_element = disk(1)
     for suffix in image_suffix_list:
         # get camera location for the mapped image
-        input_image_name = os.path.join(seg_path, f'{mapped_image}{suffix}')
+        input_image_name = os.path.join(row['SEG_PATH'], f'{mapped_image}{suffix}')
         try:
             image_width, image_height, input_data = get_data_from_image(input_image_name)
         except FileNotFoundError as e:
@@ -359,13 +359,13 @@ if __name__ == '__main__':
 
     df = pd.read_csv(input_base_image_file, index_col=None,
                      usecols=['ROUTEID', 'imageBaseName', 'LATITUDE', 'LONGITUDE'], dtype=str)
+    df['SEG_PATH'] = segmentation_path + '/' + df['imageBaseName'].str[:3]
     # Get all available CPU cores
     # forkserver method prevents child processes from inheriting the entire memory state of the parent
     mp.set_start_method("forkserver", force=True)
     num_workers = mp.cpu_count()
     print(f'num_workers: {num_workers}')
     rows = zip(df.to_dict(orient='records'),
-               [segmentation_path] * len(df),
                [input_depth_image_path] * len(df),
                [lidar_project_info_file_pattern] * len(df))
     with mp.Pool(num_workers - 1, maxtasksperchild=10) as pool:
