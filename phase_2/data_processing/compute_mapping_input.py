@@ -324,7 +324,6 @@ def process_image(row, input_depth_path, lidar_file_pattern):
             #       f'br_angle: {br_angle}, depth: {obj_depth}')
             obj_cnt += 1
 
-    print(f'pole count: {obj_cnt}, mapped_image: {mapped_image}, output_list: {output_list}')
     return output_list
 
 
