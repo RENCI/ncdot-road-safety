@@ -379,7 +379,9 @@ if __name__ == '__main__':
     with mp.Pool(num_workers - 1, maxtasksperchild=10) as pool:
         results = pool.starmap(process_image, rows)
 
-    img_input_list = list(itertools.chain.from_iterable(results))
+    print(f'results: {results}')
+    valid_results = [r if r is not None else [] for r in results]
+    img_input_list = list(itertools.chain.from_iterable(valid_results))
     out_df = pd.DataFrame(img_input_list, columns=["imageBaseName", "lat", "lon", "x", "y", "bearing", "depth"])
     out_df.to_csv(output_file, index=False)
     sys.exit(0)
