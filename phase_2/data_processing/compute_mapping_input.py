@@ -164,7 +164,7 @@ def process_image(row, input_depth_path, lidar_file_pattern):
         far = max(front_lidar_fit_df['CAM_DIST_M'])
         c1_in = 2 * far * near / (near - far)
         c2_in = (far + near) / (far - near)
-        print(f'c1: {c1_in}, c2: {c2_in}, near: {near}, far: {far}')
+        # print(f'c1: {c1_in}, c2: {c2_in}, near: {near}, far: {far}')
 
         front_lidar_fit_df['MAPPED_DIST'] = front_lidar_fit_df.apply(lambda front_row: map_z(c1_in, c2_in,
                                                                                              front_row['CAM_DIST_M']),
@@ -175,8 +175,8 @@ def process_image(row, input_depth_path, lidar_file_pattern):
         model = LinearRegression(fit_intercept=False)
         model.fit(x_in, y_in)
         slope = model.coef_[0]
-        print(f"image: {input_image_base_name}, min_mapped_dist: {min(front_lidar_fit_df['MAPPED_DIST'])}, "
-              f"max_mapped_dist: {max(front_lidar_fit_df['MAPPED_DIST'])}, fit slope: {slope}")
+        # print(f"image: {input_image_base_name}, min_mapped_dist: {min(front_lidar_fit_df['MAPPED_DIST'])}, "
+        #      f"max_mapped_dist: {max(front_lidar_fit_df['MAPPED_DIST'])}, fit slope: {slope}")
 
         sub_lidar_df = sub_lidar_df.reset_index()
 
@@ -193,11 +193,11 @@ def process_image(row, input_depth_path, lidar_file_pattern):
             x0 = int(x0)
             yl = object_features[i].bbox[2] - 1
             obj_depth = reverse_map_z(c1_in, c2_in, depth_data[yl, x0] * slope / 255)
-            print(f'x0: {x0}, y0: {y0}, xdiff: {xdiff}, ydiff: {ydiff}, depth: {obj_depth}', flush=True)
+            # print(f'x0: {x0}, y0: {y0}, xdiff: {xdiff}, ydiff: {ydiff}, depth: {obj_depth}', flush=True)
             if ydiff / xdiff < POLE_ASPECT_RATIO_THRESHOLD:
                 major_axis_len = object_features[i].major_axis_length
                 minor_axis_len = object_features[i].minor_axis_length
-                print(f'major: {major_axis_len}, minor: {minor_axis_len}', flush=True)
+                # print(f'major: {major_axis_len}, minor: {minor_axis_len}', flush=True)
                 if major_axis_len / minor_axis_len < POLE_ASPECT_RATIO_THRESHOLD:
                     # filter out detected short sticks
                     continue
@@ -214,7 +214,7 @@ def process_image(row, input_depth_path, lidar_file_pattern):
                 img_dilation = cv2.dilate(img_erosion, kernel, iterations=1)
                 # use the resulting image with erosion followed by dilation as a mask to
                 obj_only = cv2.bitwise_and(labeled_data, img_dilation)
-                print(f'len(np.unique(obj_only)):{len(np.unique(obj_only))}', flush=True)
+
                 if len(np.unique(obj_only)) <= 1:
                     # The object gets filtered out, so discard it
                     continue
@@ -234,7 +234,7 @@ def process_image(row, input_depth_path, lidar_file_pattern):
                         filtered_out = True
                     break
             if filtered_out:
-                print(f'filtered out: {x0}, {y0}, {xdiff}, {ydiff}, {obj_depth}')
+                # print(f'filtered out: {x0}, {y0}, {xdiff}, {ydiff}, {obj_depth}')
                 continue
 
             # check if the pole intersects with any sign, if so, filter the pole out
@@ -244,7 +244,7 @@ def process_image(row, input_depth_path, lidar_file_pattern):
                         and ydiff < image_height / 3:
                     # only filter out FP sign when ydiff is small enough since there are cases with TP poles
                     # with posted sign on it
-                    print(f'filtered out: pole bbox {object_features[i].bbox} intersects with a sign')
+                    # print(f'filtered out: pole bbox {object_features[i].bbox} intersects with a sign')
                     continue
 
             sub_lidar_df['DEPTH'] = sub_lidar_df.apply(
@@ -260,9 +260,9 @@ def process_image(row, input_depth_path, lidar_file_pattern):
                 # use the candidate among nearest_indices with minimum depth to obj_depth as nearest_idx
                 diff_depths = [abs(sub_lidar_df.iloc[ni].DEPTH - obj_depth) for ni in nearest_indices]
                 nearest_idx = nearest_indices[diff_depths.index(min(diff_depths))]
-                print(f'object x, y: {x0}, {yl}, len(nearest_indices): {len(nearest_indices)}, '
-                      f'nearest_idx: {nearest_idx}, nearest_dist: {nearest_dist}, '
-                      f'ldf: {sub_lidar_df.iloc[nearest_idx]}')
+                # print(f'object x, y: {x0}, {yl}, len(nearest_indices): {len(nearest_indices)}, '
+                #       f'nearest_idx: {nearest_idx}, nearest_dist: {nearest_dist}, '
+                #       f'ldf: {sub_lidar_df.iloc[nearest_idx]}')
 
             # see if there are LIDAR points projected within the object bounding box
             filtered_lidar_df = sub_lidar_df[
@@ -283,14 +283,14 @@ def process_image(row, input_depth_path, lidar_file_pattern):
                 _, nearest_fdist = compute_match(sub_lidar_df.iloc[nearest_fidx].PROJ_SCREEN_X,
                                                  sub_lidar_df.iloc[nearest_fidx].PROJ_SCREEN_Y,
                                                  obj_feat_df['X'], obj_feat_df['Y'])
-                print(f'nearest_fidx: {nearest_fidx}, nearest_fdist: {nearest_fdist}')
+                # print(f'nearest_fidx: {nearest_fidx}, nearest_fdist: {nearest_fdist}')
                 if nearest_fdist < nearest_dist:
                     # use closest LIDAR data lying inside pole bounding box instead of closest LIDAR point
                     # to the lowest pole pixel
                     nearest_idx = nearest_fidx
-                    print(f'nearest filtered ldf: {sub_lidar_df.iloc[nearest_idx]}')
+                    # print(f'nearest filtered ldf: {sub_lidar_df.iloc[nearest_idx]}')
 
-            print(lidar_file_name, nearest_idx)
+            # print(lidar_file_name, nearest_idx)
             if nearest_idx >= 0:
                 ref_bearing = bearing_between_two_latlon_points(cam_lat, cam_lon,
                                                                 sub_lidar_df.iloc[nearest_idx].lat,
@@ -304,11 +304,11 @@ def process_image(row, input_depth_path, lidar_file_pattern):
                 # use ref_bearing only without accounting for any offset since the nearest LIDAR
                 # point should be the point that is hit by the ray cast from camera to object if the
                 # LIDAR raster grid has enough resolution
-                print(f'nearest_idx: {nearest_idx}, lat: {sub_lidar_df.iloc[nearest_idx].lat}, '
-                      f'lon: {sub_lidar_df.iloc[nearest_idx].lon}')
+                # print(f'nearest_idx: {nearest_idx}, lat: {sub_lidar_df.iloc[nearest_idx].lat}, '
+                #       f'lon: {sub_lidar_df.iloc[nearest_idx].lon}')
             else:
-                print('nearest_idx is -1, exiting')
-                exit(1)
+                print('nearest_idx is -1, returning')
+                return []
 
             br_angle = (ref_bearing + 360) % 360
             output_list.append([input_image_base_name, cam_lat, cam_lon, int(x0), int(y0), br_angle, obj_depth])
@@ -316,16 +316,15 @@ def process_image(row, input_depth_path, lidar_file_pattern):
             #    labeled_data[labeled_data == 1 ] = 255
             #    save_data_to_image(labeled_data, f'{input_image_base_name}_processed.png')
 
-            print(f'{input_image_base_name}, ori: {object_features[i].orientation}, '
-                  f'minx: {object_features[i].bbox[1]}, maxx: {object_features[i].bbox[3]}, '
-                  f'miny: {object_features[i].bbox[0]}, maxy: {yl}, '
-                  f'xdiff: {object_features[i].bbox[3] - object_features[i].bbox[1]}, '
-                  f'ydiff: {object_features[i].bbox[2] - object_features[i].bbox[0]}, '
-                  f'br_angle: {br_angle}, depth: {obj_depth}')
+            # print(f'{input_image_base_name}, ori: {object_features[i].orientation}, '
+            #       f'minx: {object_features[i].bbox[1]}, maxx: {object_features[i].bbox[3]}, '
+            #       f'miny: {object_features[i].bbox[0]}, maxy: {yl}, '
+            #       f'xdiff: {object_features[i].bbox[3] - object_features[i].bbox[1]}, '
+            #       f'ydiff: {object_features[i].bbox[2] - object_features[i].bbox[0]}, '
+            #       f'br_angle: {br_angle}, depth: {obj_depth}')
             obj_cnt += 1
-        if obj_cnt > 0:
-            print(f'pole count: {obj_cnt}, mapped_image: {mapped_image}')
 
+    print(f'pole count: {obj_cnt}, mapped_image: {mapped_image}, output_list: {output_list}')
     return output_list
 
 
@@ -380,6 +379,7 @@ if __name__ == '__main__':
                [lidar_project_info_file_pattern] * len(df))
     with mp.Pool(num_workers - 1, maxtasksperchild=10) as pool:
         results = pool.starmap(process_image, rows)
+
     img_input_list = list(itertools.chain.from_iterable(results))
     out_df = pd.DataFrame(img_input_list, columns=["imageBaseName", "lat", "lon", "x", "y", "bearing", "depth"])
     out_df.to_csv(output_file, index=False)
