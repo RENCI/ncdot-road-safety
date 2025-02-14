@@ -1,5 +1,6 @@
 import argparse
 import os
+import cv2
 import gc
 import time
 import pandas as pd
@@ -764,6 +765,7 @@ if __name__ == '__main__':
     os.environ["MKL_NUM_THREADS"] = "1"
     os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
     os.environ["NUMEXPR_NUM_THREADS"] = "1"
+    cv2.setNumThreads(0) # disable OpenCV parallel threads since MP is used
 
     # Precompute relevant lidar subsets for each row
     input_df['geometry'] = add_lidar_x_y_from_lat_lon(input_df)

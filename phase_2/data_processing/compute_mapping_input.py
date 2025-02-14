@@ -363,6 +363,16 @@ if __name__ == '__main__':
     # Get all available CPU cores
     # forkserver method prevents child processes from inheriting the entire memory state of the parent
     mp.set_start_method("forkserver", force=True)
+
+    # reduce numpy/OpenBLAS threads to 1 per process to prevent numpy/scipy from spawning extra
+    # threads inside each worker
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+    os.environ["NUMEXPR_NUM_THREADS"] = "1"
+    cv2.setNumThreads(0)  # disable OpenCV parallel threads since MP is used
+
     num_workers = mp.cpu_count()
     print(f'num_workers: {num_workers}')
     rows = zip(df.to_dict(orient='records'),
