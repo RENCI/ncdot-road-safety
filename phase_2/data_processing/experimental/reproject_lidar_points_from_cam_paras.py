@@ -19,7 +19,6 @@ def reproject_points_from_cam_paras(df_row, mapping_df, ldf, img_wd, img_hgt, ou
     cam_lidar_z = df_row['CAM_Z']
     vertices, cam_br, cols = extract_lidar_3d_points_for_camera(ldf, [cam_lat, cam_lon], [cam_lat2, cam_lon2],
                                                                 dist_th=LIDAR_DIST_THRESHOLD,
-                                                                end_of_route=eor,
                                                                 fov=90)
     input_3d_df = create_df_from_lidar_points(vertices[0], cols)
     input_3d_gdf = create_gdf_from_df(input_3d_df)
