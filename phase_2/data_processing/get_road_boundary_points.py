@@ -139,7 +139,7 @@ def get_image_lane_points(image_file_name, save_processed_image=False):
     sorted_lane_contour = lane_contour[lane_contour[:, 1].argsort()]
     # Find rows (represented by y) with more than 2 points
     unique_rows, counts = np.unique(sorted_lane_contour[:, 1], return_counts=True)
-    rows_with_potential_lanes = unique_rows[counts >= 3]  # Use rows with 2 or more points
+    rows_with_potential_lanes = unique_rows[counts >= 3]  # Use rows with 3 or more points
     first_row_idx = last_row_idx = -1
     # determine the first and last row containing the middle lane
     filter_threshold = 30
