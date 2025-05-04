@@ -123,8 +123,9 @@ def get_axis_from_points(start_point, end_point):
     return axis / np.linalg.norm(axis)  # Normalize the axis
 
 
-def get_image_lane_points(image_file_name, save_processed_image=False):
-    image_width, image_height, lane_img = get_data_from_image(image_file_name)
+def get_image_lane_points(image_file_name, save_processed_image=False, resized_width=0, resized_height=0):
+    image_width, image_height, lane_img = get_data_from_image(image_file_name, resized_width=resized_width,
+                                                              resized_height=resized_height)
     # remove unwanted pixels
     kernel = np.ones((1, 3), np.uint8)
     eroded = cv2.erode(lane_img, kernel, iterations=1)
@@ -379,12 +380,16 @@ if __name__ == '__main__':
     images = [image[:-4] for image in os.listdir(input_data_path) if image.endswith('1.png')]
     print(f'images: {images}')
     for img in images:
-        lane_image_with_path = os.path.join(input_data_path, f'{img}_lanes.png')
-        _, img_hgt, input_lane_img, input_list, m_points = get_image_lane_points(lane_image_with_path, save_processed_image=True)
-        input_lane_points = input_list[0]
         road_image_with_path = os.path.join(input_data_path, f'{img}.png')
-        _, _, input_road_img, input_list = get_image_road_points(road_image_with_path)
+        img_width, img_hgt, input_road_img, input_list = get_image_road_points(road_image_with_path)
         input_road_points = input_list[0]
+        lane_image_with_path = os.path.join(input_data_path, f'{img}_lanes.png')
+        _, _, input_lane_img, input_list, m_points = get_image_lane_points(lane_image_with_path,
+                                                                           resized_width=img_width,
+                                                                           resized_height=img_hgt,
+                                                                           save_processed_image=True)
+        input_lane_points = input_list[0]
+
 
         if len(input_lane_points) > 0 and len(input_road_points) > 0:
             filtered_contour = combine_lane_and_road_boundary(input_lane_points, input_lane_img, input_road_img,

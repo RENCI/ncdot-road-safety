@@ -469,9 +469,15 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
     grid_threshold_x = grid_threshold_y = 300
     out_proj_file = os.path.join(out_proj_file_path, f'lidar_project_info_{input_2d_mapped_image}.csv')
     # print(f'image_name_with_path: {image_name_with_path}, input_2d_mapped_image: {input_2d_mapped_image}')
+
+    seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
+    img_width, img_height, input_road_img, input_road_boundary_list = get_image_road_points(seg_image_name)
+
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
     # print(f'lane_image_name: {lane_image_name}')
-    img_width, img_height, lane_image, input_list, m_points = get_image_lane_points(lane_image_name)
+    _, _, lane_image, input_list, m_points = get_image_lane_points(lane_image_name,
+                                                                   resized_width=img_width,
+                                                                   resized_height=img_height)
     input_2d_points = input_list[0]
 
     # compute base camera parameters
@@ -522,13 +528,11 @@ def align_image_to_lidar(row_index, row, seg_image_dir, seg_lane_dir, out_proj_f
     # camera orientation/bearing info is updated from the optimized version of its previous image using
     # road tangent info. The optimization is based on updated camera base parameters
     input_3d_gdf = transform_3d_points(input_3d_gdf, init_cam_paras, img_width, img_height)
-    seg_image_name = os.path.join(seg_image_dir, f'{input_2d_mapped_image}1.png')
-    img_width, img_height, input_road_img, input_list = get_image_road_points(seg_image_name)
-    if len(input_2d_points) > 0 and len(input_list[0]) > 0:
+    if len(input_2d_points) > 0 and len(input_road_boundary_list[0]) > 0:
         input_2d_points = combine_lane_and_road_boundary(input_2d_points, lane_image, input_road_img,
                                                          seg_image_name, image_height=img_height)
-    elif len(input_list[0]) > 0:
-        input_2d_points = input_list[0]
+    elif len(input_road_boundary_list[0]) > 0:
+        input_2d_points = input_road_boundary_list[0]
 
     if m_points is None:
         # no middle lane axis and centroid can be computed from segmented road lanes, which indicates a

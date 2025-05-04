@@ -10,11 +10,13 @@ from align_segmented_road_with_lidar import init_transform_from_lidar_to_world_c
 from common.utils import haversine
 
 
-def create_data(row, seg_lane_dir, input_lidar_file, out_file_base, input_loc=None, input_road_intersect=None):
+def create_data(row, img_width, img_height, seg_lane_dir, input_lidar_file, out_file_base,
+                input_loc=None, input_road_intersect=None):
     # get input image base name
     input_2d_mapped_image = row["imageBaseName"]
     lane_image_name = os.path.join(seg_lane_dir, f'{input_2d_mapped_image}1_lanes.png')
-    img_width, img_height, _, input_list, _ = get_image_lane_points(lane_image_name)
+    img_width, img_height, _, input_list, _ = get_image_lane_points(lane_image_name, resized_width=img_width,
+                                                                    resized_height=img_height)
 
     input_2d_points = input_list[0]
     out_file = f'{out_file_base}_{input_2d_mapped_image}.csv'
@@ -98,6 +100,8 @@ if __name__ == '__main__':
     parser.add_argument('--obj_image_input', type=str,
                         default='data/d13_route_40001001012/manual_registration/input.csv',
                         help='input csv file that contains image base names for creating manual registration data')
+    parser.add_argument('--image_width', type=int, default=2356)
+    parser.add_argument('--image_height', type=int, default=1200)
     parser.add_argument('--input_landmark_loc', type=str,
                         # default=(35.7134730, -82.73446760),
                         default='',
@@ -119,6 +123,8 @@ if __name__ == '__main__':
     input_landmark_loc = args.input_landmark_loc
     output_lidar_file_base = args.output_lidar_file_base
     input_road_lidar_with_intersection = args.input_road_lidar_with_intersection
+    image_width = args.image_width
+    image_height = args.image_height
 
     # load input file to get the image names for alignment
     input_df = get_input_file_with_images(obj_image_input)
@@ -128,7 +134,7 @@ if __name__ == '__main__':
     input_df['LONGITUDE_next'] = input_df['LONGITUDE'].shift(-1)
 
     # Apply create_data() to all rows except the last row
-    input_df.iloc[:-1, :].apply(lambda row: create_data(row, lane_seg_dir, input_lidar,
+    input_df.iloc[:-1, :].apply(lambda row: create_data(row, image_width, image_height, lane_seg_dir, input_lidar,
                                                         output_lidar_file_base,
                                                         input_loc=input_landmark_loc,
                                                         input_road_intersect=input_road_lidar_with_intersection),

@@ -106,11 +106,17 @@ def split_into_lines(y_data, x_data):
     return np.split(y_data, split_indices+1), np.split(x_data, split_indices+1)
 
 
-def get_data_from_image(input_image_name):
+def get_data_from_image(input_image_name, resized_width=0, resized_height=0):
     with Image.open(input_image_name) as input_image:
         image_width = input_image.width
         image_height = input_image.height
-        input_data = np.array(input_image)
+        if resized_width <= 0 or resized_height <= 0:
+            input_data = np.array(input_image)
+        else:
+            resized_image = input_image.resize((resized_width, resized_height), resample=Image.NEAREST)
+            input_data = np.array(resized_image)
+            image_width = resized_width
+            image_height = resized_height
         return image_width, image_height, input_data
 
 
