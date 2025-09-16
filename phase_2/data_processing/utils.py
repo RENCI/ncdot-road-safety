@@ -113,6 +113,8 @@ def get_data_from_image(input_image_name, resized_width=0, resized_height=0):
         if resized_width <= 0 or resized_height <= 0:
             input_data = np.array(input_image)
         else:
+            # ensure consistent mode before resizing, otherwise, resized_image would be a bool array
+            input_image = input_image.convert("L")
             resized_image = input_image.resize((resized_width, resized_height), resample=Image.NEAREST)
             input_data = np.array(resized_image)
             image_width = resized_width
